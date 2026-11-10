@@ -52,7 +52,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
     setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim()) {
       setError('กรุณากรอกอีเมล');
@@ -66,13 +66,16 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
     setIsLoading(true);
     setError('');
 
-    setTimeout(() => {
-      const success = login(email, password);
+    try {
+      const res = await login(email.trim(), password);
       setIsLoading(false);
-      if (!success) {
-        setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      if (!res || !res.success) {
+        setError(res?.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีในฐานข้อมูล');
       }
-    }, 600);
+    } catch (err) {
+      setIsLoading(false);
+      setError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล');
+    }
   };
 
   return (

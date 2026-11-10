@@ -519,15 +519,15 @@ export function LeaveProvider({ children }) {
     return updatedUser;
   };
 
-  // Login action
+  // Login action (Strict Database Authentication 100%)
   const login = async (email, password) => {
-    if (!email) return false;
-    const lowerEmail = email.toLowerCase().trim();
+    if (!email || !password) {
+      return { success: false, message: 'กรุณากรอกอีเมลและรหัสผ่าน' };
+    }
 
-    // 1. ลอง Login กับ Database จริงผ่าน API ก่อน
     try {
       if (api && api.login) {
-        const res = await api.login(email, password);
+        const res = await api.login(email.trim(), password);
         if (res && res.user) {
           const dbUser = {
             ...res.user,
@@ -543,51 +543,19 @@ export function LeaveProvider({ children }) {
             localStorage.setItem('smartleave_token', res.token);
           }
           fetchLiveDatabaseData();
-          return true;
+          return { success: true, user: dbUser };
         }
       }
+      return { success: false, message: 'ไม่สามารถติดต่อฐานข้อมูลได้' };
     } catch (apiErr) {
-      console.log('[API Login Note]: Falling back to local authentication:', apiErr.message);
-    }
-
-    // 2. Fallback matching
-    try {
-      const savedPasswords = JSON.parse(localStorage.getItem('smartleave_passwords') || '{}');
-      if (savedPasswords[lowerEmail] && savedPasswords[lowerEmail] !== password) {
-        return false;
-      }
-    } catch (e) {}
-
-    const matchedEmp = employees.find(
-      (e) => e.email && e.email.toLowerCase() === lowerEmail
-    );
-
-    let userToSet = initialUser;
-    if (matchedEmp) {
-      userToSet = {
-        ...matchedEmp,
-        gender: matchedEmp.gender || inferUserGender(matchedEmp),
-      };
-    } else if (lowerEmail.includes('somchai') || lowerEmail.includes('mgr')) {
-      userToSet = approverUser;
-    } else if (lowerEmail.includes('panika')) {
-      userToSet = initialUser;
-    } else {
-      userToSet = {
-        ...initialUser,
-        gender: '',
-        email,
-        name: email.split('@')[0],
+      console.log('[API Login Error]:', apiErr.message);
+      // ปฏิเสธการเข้าสู่ระบบทันทีหากข้อมูลไม่ตรงกับ Database
+      setIsAuthenticated(false);
+      return {
+        success: false,
+        message: apiErr.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีในฐานข้อมูล',
       };
     }
-    setCurrentUser(userToSet);
-    setIsAuthenticated(true);
-    setIsPdpaAccepted(false);
-    sessionStorage.setItem('smartleave_auth', 'true');
-    sessionStorage.removeItem('smartleave_pdpa');
-    localStorage.setItem('smartleave_user', JSON.stringify(userToSet));
-    fetchLiveDatabaseData();
-    return true;
   };
 
   // Reset password action

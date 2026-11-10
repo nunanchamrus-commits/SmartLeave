@@ -88,26 +88,30 @@ export default function RegisterView({ onSwitchToLogin }) {
     setIsLoading(true);
     setError('');
 
-    setTimeout(() => {
-      // Register through LeaveContext
-      register({
-        fullName: formData.fullName.trim(),
-        gender: formData.gender,
-        title: formData.title.trim(),
-        department: formData.department.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-      });
+    setTimeout(async () => {
+      try {
+        // Register through LeaveContext into D1 Database
+        await register({
+          fullName: formData.fullName.trim(),
+          gender: formData.gender,
+          title: formData.title.trim(),
+          department: formData.department.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+        });
 
-      // Fire celebratory confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-
-      setIsLoading(false);
-    }, 700);
+        // Fire celebratory confetti
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } catch (err) {
+        setError(err.message || 'เกิดข้อผิดพลาดในการลงทะเบียน');
+      } finally {
+        setIsLoading(false);
+      }
+    }, 500);
   };
 
   return (
