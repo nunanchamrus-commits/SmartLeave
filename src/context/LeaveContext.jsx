@@ -8,16 +8,17 @@ import {
   notificationsData,
   employeesList,
 } from '../data/mockData';
+import api from '../services/api';
 
 const LeaveContext = createContext();
 
 function inferUserGender(user) {
-  if (!user) return '';
-  if (user.gender === 'หญิง' || user.gender === 'ชาย') return user.gender;
+  if (!user) return 'หญิง';
+  if (user.gender === 'หญิง' || user.gender === 'ชาย' || user.gender === 'อื่นๆ') return user.gender;
   const name = (user.name || '').trim();
   if (/^(นางสาว|น\.ส\.|นาง)/.test(name) || user.id === 'usr-101') return 'หญิง';
-  if (/^นาย/.test(name) || user.id === 'usr-202') return 'ชาย';
-  return '';
+  if (/^นาย/.test(name) || user.id === 'usr-102' || user.id === 'usr-202') return 'ชาย';
+  return 'หญิง';
 }
 
 export function LeaveProvider({ children }) {
@@ -41,6 +42,11 @@ export function LeaveProvider({ children }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        // ล้างแคชข้อมูลพนักงานไอทีเก่าออกอัตโนมัติ
+        if (parsed.department?.includes('UI/UX') || parsed.department?.includes('วิศวกรรม')) {
+          localStorage.setItem('smartleave_user', JSON.stringify(initialUser));
+          return initialUser;
+        }
         return {
           ...parsed,
           gender: parsed.gender || inferUserGender(parsed),
@@ -59,6 +65,11 @@ export function LeaveProvider({ children }) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          // ล้างแคชคำขอลาฝ่ายไอทีเดิมออก
+          if (parsed.some((r) => r.department?.includes('UI/UX') || r.department?.includes('วิศวกรรม'))) {
+            localStorage.setItem('smartleave_requests', JSON.stringify(initialLeaveRequests));
+            return initialLeaveRequests;
+          }
           return parsed.map((r) => ({
             ...r,
             startDate: r.startDate ? r.startDate.replace('2025-', '2026-') : r.startDate,
@@ -124,6 +135,11 @@ export function LeaveProvider({ children }) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
+          // หากแคชเดิมมีจำนวนคนไม่ใช่ 5 คน หรือเป็นแผนกไอที ให้ล้างแคชและใช้รายชื่อเจ้าหน้าที่สหกรณ์ 5 คนใหม่ทันที
+          if (parsed.length !== 5 || parsed.some((e) => e.department?.includes('UI/UX') || e.department?.includes('วิศวกรรม'))) {
+            localStorage.setItem('smartleave_employees', JSON.stringify(employeesList));
+            return employeesList;
+          }
           return parsed.map((emp) => ({
             ...emp,
             gender: emp.gender || inferUserGender(emp),
@@ -186,7 +202,7 @@ export function LeaveProvider({ children }) {
   // Recalculate quotas based on approved/pending requests for current user
   const recalculateQuotas = (requests) => {
     const userApprovedRequests = requests.filter(
-      (r) => r.employeeId === 'usr-101' && r.status === 'อนุมัติ'
+      (r) => (r.employeeId === currentUser?.id || r.employeeId === currentUser?.employeeId || r.employeeName === currentUser?.name) && r.status === 'อนุมัติ'
     );
     const vacationUsed = userApprovedRequests
       .filter((r) => r.typeKey === 'vacation')
@@ -347,6 +363,71 @@ export function LeaveProvider({ children }) {
     );
   };
 
+  // Update User Profile (Settings)
+  const updateUserProfile = (updatedData) => {
+    // 1. รวมข้อมูลที่แก้ไข
+    const updatedUser = {
+      ...currentUser,
+      ...updatedData,
+      gender: updatedData.gender || currentUser.gender || inferUserGender(updatedData),
+    };
+
+    // 2. อัปเดต currentUser ใน State และ LocalStorage
+    setCurrentUser(updatedUser);
+    localStorage.setItem('smartleave_user', JSON.stringify(updatedUser));
+
+    // 3. อัปเดตพนักงานที่ตรงกันใน employees list
+    const updatedEmployees = employees.map((emp) => {
+      if (
+        emp.id === updatedUser.id ||
+        (updatedUser.employeeId && emp.employeeId === updatedUser.employeeId) ||
+        (updatedUser.email && emp.email?.toLowerCase() === updatedUser.email?.toLowerCase())
+      ) {
+        return {
+          ...emp,
+          name: updatedUser.name || emp.name,
+          gender: updatedUser.gender || emp.gender,
+          title: updatedUser.title || emp.title,
+          department: updatedUser.department || emp.department,
+          email: updatedUser.email || emp.email,
+          phone: updatedUser.phone || emp.phone,
+          avatar: updatedUser.avatar || emp.avatar,
+        };
+      }
+      return emp;
+    });
+    setEmployees(updatedEmployees);
+    localStorage.setItem('smartleave_employees', JSON.stringify(updatedEmployees));
+
+    // 4. อัปเดตคำขอลาเดิมให้แสดงชื่อและฝ่ายใหม่
+    const updatedRequests = leaveRequests.map((r) => {
+      if (
+        r.employeeId === updatedUser.id ||
+        r.employeeId === updatedUser.employeeId ||
+        (currentUser.name && r.employeeName === currentUser.name)
+      ) {
+        return {
+          ...r,
+          employeeName: updatedUser.name || r.employeeName,
+          department: updatedUser.department || r.department,
+        };
+      }
+      return r;
+    });
+    setLeaveRequests(updatedRequests);
+    localStorage.setItem('smartleave_requests', JSON.stringify(updatedRequests));
+
+    // 5. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1) ถ้ามี
+    try {
+      if (api && api.updateProfile) {
+        api.updateProfile(updatedUser).catch(() => {});
+      }
+    } catch (e) {}
+
+    showToast('บันทึกข้อมูลส่วนบุคคลเรียบร้อยแล้ว', 'success');
+    return updatedUser;
+  };
+
   // Login action
   const login = (email, password) => {
     if (!email) return false;
@@ -364,15 +445,15 @@ export function LeaveProvider({ children }) {
     );
 
     let userToSet = initialUser;
-    if (lowerEmail.includes('somchai') || lowerEmail.includes('mgr')) {
-      userToSet = approverUser;
-    } else if (lowerEmail.includes('panika')) {
-      userToSet = initialUser;
-    } else if (matchedEmp) {
+    if (matchedEmp) {
       userToSet = {
         ...matchedEmp,
         gender: matchedEmp.gender || inferUserGender(matchedEmp),
       };
+    } else if (lowerEmail.includes('somchai') || lowerEmail.includes('mgr')) {
+      userToSet = approverUser;
+    } else if (lowerEmail.includes('panika')) {
+      userToSet = initialUser;
     } else {
       userToSet = {
         ...initialUser,
@@ -466,9 +547,11 @@ export function LeaveProvider({ children }) {
     setLeaveRequests(initialLeaveRequests);
     setQuotas(initialQuotas);
     setNotifications(notificationsData);
+    setEmployees(employeesList);
     setActiveTab('dashboard');
     setIsAuthenticated(false);
     setIsPdpaAccepted(false);
+    showToast('รีเซ็ตข้อมูลระบบเป็นเจ้าหน้าที่สหกรณ์ 5 คนเรียบร้อยแล้ว', 'info');
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -485,6 +568,7 @@ export function LeaveProvider({ children }) {
         logout,
         currentUser,
         setCurrentUser,
+        updateUserProfile,
         switchRole,
         activeTab,
         setActiveTab,

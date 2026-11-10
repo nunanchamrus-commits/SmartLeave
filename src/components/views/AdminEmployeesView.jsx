@@ -58,12 +58,11 @@ export default function AdminEmployeesView() {
   };
 
   const departments = [
-    { id: 'all', label: 'ทุกฝ่าย / แผนก' },
-    { id: 'UI/UX', label: 'ฝ่ายออกแบบผลิตภัณฑ์ (UI/UX)' },
-    { id: 'Frontend', label: 'ฝ่ายวิศวกรรมซอฟต์แวร์' },
-    { id: 'Marketing', label: 'ฝ่ายการตลาด' },
-    { id: 'Quality Assurance', label: 'ฝ่ายประกันคุณภาพ (QA)' },
-    { id: 'DevOps', label: 'ฝ่ายไอทีและระบบคลาวด์' },
+    { id: 'all', label: 'ทุกฝ่าย / กลุ่มงาน' },
+    { id: 'บริหารทั่วไป', label: 'ฝ่ายบริหารทั่วไป' },
+    { id: 'กลุ่มส่งเสริมและพัฒนาสหกรณ์ 1', label: 'กลุ่มส่งเสริมและพัฒนาสหกรณ์ 1' },
+    { id: 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', label: 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์' },
+    { id: 'กลุ่มตรวจการสหกรณ์', label: 'กลุ่มตรวจการสหกรณ์' },
   ];
 
   return (
@@ -151,7 +150,16 @@ export default function AdminEmployeesView() {
                       className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200"
                     />
                     <div>
-                      <p className="font-bold text-slate-900">{emp.name}</p>
+                      <div className="flex items-center space-x-1.5">
+                        <p className="font-bold text-slate-900">{emp.name}</p>
+                        {emp.gender && (
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                            emp.gender === 'หญิง' ? 'bg-pink-50 text-pink-700 border border-pink-200/60' : 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                          }`}>
+                            {emp.gender}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500">{emp.title}</p>
                     </div>
                   </td>

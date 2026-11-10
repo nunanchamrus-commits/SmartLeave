@@ -88,12 +88,34 @@ export async function onRequest(context) {
         FROM users u
         LEFT JOIN departments d ON u.department_id = d.department_id
         LEFT JOIN roles r ON u.role_id = r.role_id
-        WHERE u.email = ? AND u.is_active = 1
-      `).bind(email).first();
+        WHERE (LOWER(u.email) = LOWER(?) OR LOWER(u.employee_code) = LOWER(?)) AND u.is_active = 1
+      `).bind(email, email).first();
+
+      // จัดการ Alias อีเมลทดสอบ (เชื่อมต่อกับข้อมูลในตาราง users)
+      if (!user) {
+        const lower = email.toLowerCase();
+        if (lower.includes('panika') || lower === 'user@smartleave.com') {
+          user = await env.DB.prepare(`
+            SELECT u.*, d.name_th as department_name, r.code as role_code
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN roles r ON u.role_id = r.role_id
+            WHERE u.user_id = 1
+          `).first();
+        } else if (lower.includes('somchai') || lower === 'manager@smartleave.com') {
+          user = await env.DB.prepare(`
+            SELECT u.*, d.name_th as department_name, r.code as role_code
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN roles r ON u.role_id = r.role_id
+            WHERE u.user_id = 2 OR u.role_id = 3
+          `).first();
+        }
+      }
 
       // หากไม่พบบัญชี ให้สร้างบัญชีพนักงานชั่วคราวให้ทดสอบได้ทันที
       if (!user) {
-        const isApprover = email.includes('manager') || email.includes('approver') || email.includes('admin');
+        const isApprover = email.includes('manager') || email.includes('approver') || email.includes('admin') || email.includes('somchai');
         const roleId = isApprover ? 3 : 4;
         const namePart = email.split('@')[0];
         const empCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -101,22 +123,27 @@ export async function onRequest(context) {
         const insert = await env.DB.prepare(`
           INSERT INTO users (employee_code, email, password_hash, first_name, last_name, role_id, department_id, position)
           VALUES (?, ?, 'default_hash', ?, 'พนักงาน', ?, 1, ?)
-        `).bind(empCode, email, namePart, roleId, isApprover ? 'ผู้จัดการ' : 'พนักงาน').run();
+        `).bind(empCode, email, namePart, roleId, isApprover ? 'ผู้จัดการ' : 'เจ้าหน้าที่สหกรณ์').run();
 
         const newId = insert.meta.last_row_id;
         user = await env.DB.prepare(`SELECT * FROM users WHERE user_id = ?`).bind(newId).first();
       }
+
+      const gender = (user.prefix?.includes('นาง') || user.user_id === 1 || user.first_name?.includes('พนิกา') || user.first_name?.includes('ณิชาภัทร') || user.first_name?.includes('สุดา')) ? 'หญิง' : 'ชาย';
 
       return jsonResponse({
         token: `demo-token-${user.user_id}`,
         user: {
           id: `usr-${user.user_id}`,
           name: `${user.first_name} ${user.last_name}`,
+          gender,
           email: user.email,
+          phone: user.phone || '081-234-5678',
+          title: user.position || (user.role_id === 3 ? 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ' : 'นักวิชาการสหกรณ์ปฏิบัติการ'),
           role: user.role_id === 3 || user.role_id === 1 ? 'approver' : 'employee',
-          department: user.department_name || 'ฝ่ายเทคโนโลยีสารสนเทศ',
+          department: user.department_name || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
           employeeId: user.employee_code,
-          avatar: user.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
+          avatar: user.avatar_url || (gender === 'ชาย' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80'),
         },
       });
     }
@@ -195,6 +222,42 @@ export async function onRequest(context) {
         JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
         LEFT JOIN departments d ON u.department_id = d.department_id
         ORDER BY lr.created_at DESC
+      `).all();
+
+      return jsonResponse(results || []);
+    }
+
+    // -------------------------------------------------------------
+    // 3.0 ดึงรายชื่อพนักงานทั้งหมด (Get All Employees)
+    // GET /api/employees
+    // -------------------------------------------------------------
+    if (path === '/employees' && method === 'GET') {
+      const { results } = await env.DB.prepare(`
+        SELECT 
+          u.user_id as raw_id,
+          ('usr-' || u.user_id) as id,
+          (u.first_name || ' ' || u.last_name) as name,
+          CASE WHEN u.prefix LIKE '%นาง%' OR u.user_id = 1 THEN 'หญิง' ELSE 'ชาย' END as gender,
+          u.email,
+          COALESCE(u.phone, '081-234-5678') as phone,
+          u.employee_code as employeeId,
+          COALESCE(u.position, 'เจ้าหน้าที่สหกรณ์') as title,
+          COALESCE(d.name_th, 'สำนักงานสหกรณ์จังหวัดขอนแก่น') as department,
+          COALESCE(u.avatar_url, 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80') as avatar,
+          CASE WHEN u.role_id = 3 OR u.role_id = 1 THEN 'approver' ELSE 'employee' END as role,
+          COALESCE(q_vacation.remaining_days, 10.0) as vacationRem,
+          COALESCE(q_personal.remaining_days, 15.0) as personalRem,
+          COALESCE(q_sick.remaining_days, 30.0) as sickRem,
+          COALESCE(q_maternity.remaining_days, 90.0) as maternityRem,
+          'ปกติ' as status
+        FROM users u
+        LEFT JOIN departments d ON u.department_id = d.department_id
+        LEFT JOIN employee_leave_quotas q_vacation ON u.user_id = q_vacation.user_id AND q_vacation.leave_type_id = 1
+        LEFT JOIN employee_leave_quotas q_personal ON u.user_id = q_personal.user_id AND q_personal.leave_type_id = 3
+        LEFT JOIN employee_leave_quotas q_sick ON u.user_id = q_sick.user_id AND q_sick.leave_type_id = 2
+        LEFT JOIN employee_leave_quotas q_maternity ON u.user_id = q_maternity.user_id AND q_maternity.leave_type_id = 4
+        WHERE u.is_active = 1
+        ORDER BY u.user_id ASC
       `).all();
 
       return jsonResponse(results || []);
@@ -340,28 +403,37 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if ((path === '/users/profile' || path === '/auth/profile') && (method === 'PUT' || method === 'POST')) {
       const body = await request.json().catch(() => ({}));
-      const { name, email, phone, title, department, avatar, employeeId } = body;
+      const { name, email, phone, title, department, avatar, employeeId, gender } = body;
 
       let firstName = name;
       let lastName = '';
+      let prefix = gender === 'หญิง' ? 'นางสาว' : (gender === 'ชาย' ? 'นาย' : null);
+
       if (name && name.includes(' ')) {
         const parts = name.trim().split(/\s+/);
-        firstName = parts[0];
-        lastName = parts.slice(1).join(' ');
+        if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
+          prefix = parts[0];
+          firstName = parts[1];
+          lastName = parts.slice(2).join(' ');
+        } else {
+          firstName = parts[0];
+          lastName = parts.slice(1).join(' ');
+        }
       }
 
       if (email || employeeId) {
         try {
           await env.DB.prepare(`
             UPDATE users 
-            SET first_name = COALESCE(?, first_name),
+            SET prefix = COALESCE(?, prefix),
+                first_name = COALESCE(?, first_name),
                 last_name = COALESCE(?, last_name),
                 phone = COALESCE(?, phone),
                 position = COALESCE(?, position),
                 avatar_url = COALESCE(?, avatar_url),
                 updated_at = datetime('now', 'localtime')
             WHERE email = ? OR employee_code = ?
-          `).bind(firstName, lastName, phone, title, avatar, email, employeeId).run();
+          `).bind(prefix, firstName, lastName, phone, title, avatar, email, employeeId).run();
         } catch (dbErr) {
           console.log('[D1 Update Profile Note]:', dbErr.message);
         }
@@ -370,7 +442,10 @@ export async function onRequest(context) {
       return jsonResponse({
         success: true,
         message: 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว',
-        user: body,
+        user: {
+          ...body,
+          gender: gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
+        },
       });
     }
 
