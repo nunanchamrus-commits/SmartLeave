@@ -236,9 +236,6 @@ export function LeaveProvider({ children }) {
     const updated = [newReq, ...leaveRequests];
     setLeaveRequests(updated);
 
-    // Sync to D1
-    api.rejectLeave(requestId, rejectReason).catch(() => {});
-
     // Sync to Cloudflare D1 asynchronously
     api.createLeaveRequest({
       typeKey: newRequestData.typeKey || 'vacation',
@@ -279,9 +276,6 @@ export function LeaveProvider({ children }) {
     });
 
     setLeaveRequests(updated);
-
-    // Sync to D1
-    api.rejectLeave(requestId, rejectReason).catch(() => {});
     recalculateQuotas(updated);
 
     // Sync to D1
@@ -360,11 +354,83 @@ export function LeaveProvider({ children }) {
     );
   };
 
+  // Update User Profile (Settings)
+  const updateUserProfile = (updatedData) => {
+    // 1. Merge with current user
+    const updatedUser = {
+      ...currentUser,
+      ...updatedData,
+    };
+
+    // 2. Update currentUser state & localStorage
+    setCurrentUser(updatedUser);
+    localStorage.setItem('smartleave_user', JSON.stringify(updatedUser));
+
+    // 3. Update matching employee in employees state & localStorage
+    const updatedEmployees = employees.map((emp) => {
+      if (
+        emp.id === updatedUser.id ||
+        (updatedUser.employeeId && emp.employeeId === updatedUser.employeeId) ||
+        (updatedUser.email && emp.email?.toLowerCase() === updatedUser.email?.toLowerCase())
+      ) {
+        return {
+          ...emp,
+          name: updatedUser.name || emp.name,
+          title: updatedUser.title || emp.title,
+          department: updatedUser.department || emp.department,
+          email: updatedUser.email || emp.email,
+          phone: updatedUser.phone || emp.phone,
+          avatar: updatedUser.avatar || emp.avatar,
+        };
+      }
+      return emp;
+    });
+    setEmployees(updatedEmployees);
+    localStorage.setItem('smartleave_employees', JSON.stringify(updatedEmployees));
+
+    // 4. Update matching leaveRequests so past requests reflect the new name/department
+    const updatedRequests = leaveRequests.map((r) => {
+      if (
+        r.employeeId === updatedUser.id ||
+        r.employeeId === updatedUser.employeeId ||
+        (currentUser.name && r.employeeName === currentUser.name)
+      ) {
+        return {
+          ...r,
+          employeeName: updatedUser.name || r.employeeName,
+          department: updatedUser.department || r.department,
+        };
+      }
+      return r;
+    });
+    setLeaveRequests(updatedRequests);
+    localStorage.setItem('smartleave_requests', JSON.stringify(updatedRequests));
+
+    // 5. Try calling Cloudflare Worker / D1 API
+    api.updateProfile(updatedUser).catch((err) => {
+      console.log('[UpdateProfile D1 Fallback]:', err.message);
+    });
+
+    // 6. Show toast notification
+    showToast('บันทึกข้อมูลส่วนบุคคลเรียบร้อยแล้ว', 'success');
+
+    return updatedUser;
+  };
+
   // Login action
   const login = (email, password) => {
     if (!email) return false;
-    let userToSet = initialUser;
     const lowerEmail = email.toLowerCase();
+
+    // Check if there is saved user data in localStorage to preserve profile updates
+    let savedUser = null;
+    try {
+      const savedUserJson = localStorage.getItem('smartleave_user');
+      if (savedUserJson) savedUser = JSON.parse(savedUserJson);
+    } catch (e) {}
+
+    let userToSet = initialUser;
+
     if (
       lowerEmail.includes('somchai') ||
       lowerEmail.includes('mgr') ||
@@ -372,15 +438,31 @@ export function LeaveProvider({ children }) {
       lowerEmail.includes('admin')
     ) {
       userToSet = approverUser;
+      if (savedUser && (savedUser.role === 'approver' || savedUser.role === 'admin' || savedUser.id === approverUser.id)) {
+        userToSet = { ...approverUser, ...savedUser };
+      }
     } else if (lowerEmail.includes('panika') || lowerEmail.includes('user')) {
       userToSet = initialUser;
+      if (savedUser && (savedUser.role === 'employee' || savedUser.id === initialUser.id)) {
+        userToSet = { ...initialUser, ...savedUser };
+      }
     } else {
-      userToSet = {
-        ...initialUser,
-        email,
-        name: email.split('@')[0],
-      };
+      // Look up in existing employees
+      const matchedEmp = employees.find((e) => e.email?.toLowerCase() === lowerEmail);
+      if (matchedEmp) {
+        userToSet = {
+          ...initialUser,
+          ...matchedEmp,
+        };
+      } else {
+        userToSet = {
+          ...initialUser,
+          email,
+          name: email.split('@')[0],
+        };
+      }
     }
+
     setCurrentUser(userToSet);
     setIsAuthenticated(true);
     sessionStorage.setItem('smartleave_auth', 'true');
@@ -461,6 +543,7 @@ export function LeaveProvider({ children }) {
         logout,
         currentUser,
         setCurrentUser,
+        updateUserProfile,
         switchRole,
         activeTab,
         setActiveTab,
