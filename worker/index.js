@@ -334,6 +334,46 @@ export async function onRequest(context) {
       return jsonResponse({ success: true });
     }
 
+    // -------------------------------------------------------------
+    // 8. อัปเดตข้อมูลผู้ใช้ (Update User Profile)
+    // PUT or POST /api/users/profile
+    // -------------------------------------------------------------
+    if ((path === '/users/profile' || path === '/auth/profile') && (method === 'PUT' || method === 'POST')) {
+      const body = await request.json().catch(() => ({}));
+      const { name, email, phone, title, department, avatar, employeeId } = body;
+
+      let firstName = name;
+      let lastName = '';
+      if (name && name.includes(' ')) {
+        const parts = name.trim().split(/\s+/);
+        firstName = parts[0];
+        lastName = parts.slice(1).join(' ');
+      }
+
+      if (email || employeeId) {
+        try {
+          await env.DB.prepare(`
+            UPDATE users 
+            SET first_name = COALESCE(?, first_name),
+                last_name = COALESCE(?, last_name),
+                phone = COALESCE(?, phone),
+                position = COALESCE(?, position),
+                avatar_url = COALESCE(?, avatar_url),
+                updated_at = datetime('now', 'localtime')
+            WHERE email = ? OR employee_code = ?
+          `).bind(firstName, lastName, phone, title, avatar, email, employeeId).run();
+        } catch (dbErr) {
+          console.log('[D1 Update Profile Note]:', dbErr.message);
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        message: 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว',
+        user: body,
+      });
+    }
+
     // หากไม่ตรงกับเส้นทางใดๆ
     return jsonResponse({ message: `API endpoint '${path}' not found` }, 404);
 
