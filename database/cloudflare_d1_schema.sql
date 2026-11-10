@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
     prefix TEXT,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
+    gender TEXT DEFAULT 'หญิง',
     phone TEXT,
     department_id INTEGER REFERENCES departments(department_id) ON DELETE SET NULL,
     role_id INTEGER NOT NULL REFERENCES roles(role_id),

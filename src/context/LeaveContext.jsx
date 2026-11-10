@@ -199,6 +199,52 @@ export function LeaveProvider({ children }) {
     localStorage.setItem('smartleave_employees', JSON.stringify(employees));
   }, [employees]);
 
+  // -------------------------------------------------------------
+  // Live Database Sync (Cloudflare D1 Integration)
+  // ดึงข้อมูลบุคลากรสหกรณ์และคำขอลาสดจาก Database ทันทีที่เปิดแอป
+  // -------------------------------------------------------------
+  const [isDbConnected, setIsDbConnected] = useState(false);
+
+  const fetchLiveDatabaseData = async () => {
+    try {
+      // 1. ดึงข้อมูลพนักงานสดจาก Database
+      const empData = await api.getEmployees();
+      if (Array.isArray(empData) && empData.length > 0) {
+        setEmployees(empData);
+        localStorage.setItem('smartleave_employees', JSON.stringify(empData));
+        setIsDbConnected(true);
+
+        // ซิงก์ข้อมูล currentUser เข้ากับข้อมูลล่าสุดใน DB
+        if (currentUser) {
+          const freshUser = empData.find(
+            (e) => (e.email && e.email.toLowerCase() === currentUser.email?.toLowerCase()) || (e.employeeId && e.employeeId === currentUser.employeeId)
+          );
+          if (freshUser) {
+            setCurrentUser((prev) => ({
+              ...prev,
+              ...freshUser,
+              gender: freshUser.gender || prev.gender,
+            }));
+          }
+        }
+      }
+
+      // 2. ดึงรายการคำขอลาสดจาก Database
+      const leavesData = await api.getLeaveRequests();
+      if (Array.isArray(leavesData) && leavesData.length > 0) {
+        setLeaveRequests(leavesData);
+        localStorage.setItem('smartleave_requests', JSON.stringify(leavesData));
+        recalculateQuotas(leavesData);
+      }
+    } catch (err) {
+      console.log('[D1 Live Sync Note]: Running in local offline state');
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveDatabaseData();
+  }, [isAuthenticated]);
+
   // Recalculate quotas based on approved/pending requests for current user
   const recalculateQuotas = (requests) => {
     const userApprovedRequests = requests.filter(
@@ -243,11 +289,11 @@ export function LeaveProvider({ children }) {
   };
 
   // Submit a new leave request
-  const submitLeaveRequest = (newRequestData) => {
+  const submitLeaveRequest = async (newRequestData) => {
     const id = `req-${Date.now()}`;
     const newReq = {
       id,
-      employeeId: currentUser.id,
+      employeeId: currentUser.employeeId || currentUser.id,
       employeeName: currentUser.name,
       department: currentUser.department,
       status: 'รออนุมัติ',
@@ -260,6 +306,7 @@ export function LeaveProvider({ children }) {
 
     const updated = [newReq, ...leaveRequests];
     setLeaveRequests(updated);
+    recalculateQuotas(updated);
 
     // Add notification
     const newNotif = {
@@ -273,11 +320,31 @@ export function LeaveProvider({ children }) {
     setNotifications([newNotif, ...notifications]);
 
     setIsRequestModalOpen(false);
+
+    // ส่งบันทึกลง D1 Database จริง
+    try {
+      if (api && api.createLeaveRequest) {
+        await api.createLeaveRequest({
+          ...newRequestData,
+          employeeId: currentUser.employeeId,
+          email: currentUser.email,
+          userId: currentUser.id ? String(currentUser.id).replace('usr-', '') : null,
+        });
+        const fresh = await api.getLeaveRequests();
+        if (Array.isArray(fresh) && fresh.length > 0) {
+          setLeaveRequests(fresh);
+          recalculateQuotas(fresh);
+        }
+      }
+    } catch (e) {
+      console.log('[Leave submit to DB note]:', e.message);
+    }
+
     return newReq;
   };
 
   // Approve a request
-  const approveLeaveRequest = (requestId, approverNote = 'อนุมัติเรียบร้อย') => {
+  const approveLeaveRequest = async (requestId, approverNote = 'อนุมัติเรียบร้อย') => {
     const updated = leaveRequests.map((r) => {
       if (r.id === requestId) {
         return {
@@ -292,6 +359,15 @@ export function LeaveProvider({ children }) {
 
     setLeaveRequests(updated);
     recalculateQuotas(updated);
+
+    // ส่งอนุมัติไปยัง Database
+    try {
+      if (api && api.approveLeave) {
+        await api.approveLeave(requestId, approverNote);
+      }
+    } catch (e) {
+      console.log('[Leave approve to DB note]:', e.message);
+    }
 
     const target = leaveRequests.find((r) => r.id === requestId);
     if (target) {
@@ -308,7 +384,7 @@ export function LeaveProvider({ children }) {
   };
 
   // Reject a request
-  const rejectLeaveRequest = (requestId, rejectReason = 'ไม่อนุมัติเนื่องจากมีงานด่วนในช่วงเวลาดังกล่าว') => {
+  const rejectLeaveRequest = async (requestId, rejectReason = 'ไม่อนุมัติเนื่องจากมีงานด่วนในช่วงเวลาดังกล่าว') => {
     const updated = leaveRequests.map((r) => {
       if (r.id === requestId) {
         return {
@@ -322,6 +398,15 @@ export function LeaveProvider({ children }) {
     });
 
     setLeaveRequests(updated);
+
+    // ส่งปฏิเสธไปยัง Database
+    try {
+      if (api && api.rejectLeave) {
+        await api.rejectLeave(requestId, rejectReason);
+      }
+    } catch (e) {
+      console.log('[Leave reject to DB note]:', e.message);
+    }
 
     const target = leaveRequests.find((r) => r.id === requestId);
     if (target) {
@@ -364,7 +449,7 @@ export function LeaveProvider({ children }) {
   };
 
   // Update User Profile (Settings)
-  const updateUserProfile = (updatedData) => {
+  const updateUserProfile = async (updatedData) => {
     // 1. รวมข้อมูลที่แก้ไข
     const updatedUser = {
       ...currentUser,
@@ -417,22 +502,55 @@ export function LeaveProvider({ children }) {
     setLeaveRequests(updatedRequests);
     localStorage.setItem('smartleave_requests', JSON.stringify(updatedRequests));
 
-    // 5. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1) ถ้ามี
+    // 5. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1)
     try {
       if (api && api.updateProfile) {
-        api.updateProfile(updatedUser).catch(() => {});
+        await api.updateProfile(updatedUser);
+        const fresh = await api.getEmployees();
+        if (Array.isArray(fresh) && fresh.length > 0) {
+          setEmployees(fresh);
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.log('[LeaveContext Profile Sync Note]:', e.message);
+    }
 
     showToast('บันทึกข้อมูลส่วนบุคคลเรียบร้อยแล้ว', 'success');
     return updatedUser;
   };
 
   // Login action
-  const login = (email, password) => {
+  const login = async (email, password) => {
     if (!email) return false;
-    const lowerEmail = email.toLowerCase();
+    const lowerEmail = email.toLowerCase().trim();
 
+    // 1. ลอง Login กับ Database จริงผ่าน API ก่อน
+    try {
+      if (api && api.login) {
+        const res = await api.login(email, password);
+        if (res && res.user) {
+          const dbUser = {
+            ...res.user,
+            gender: res.user.gender || inferUserGender(res.user),
+          };
+          setCurrentUser(dbUser);
+          setIsAuthenticated(true);
+          setIsPdpaAccepted(false);
+          sessionStorage.setItem('smartleave_auth', 'true');
+          sessionStorage.removeItem('smartleave_pdpa');
+          localStorage.setItem('smartleave_user', JSON.stringify(dbUser));
+          if (res.token) {
+            localStorage.setItem('smartleave_token', res.token);
+          }
+          fetchLiveDatabaseData();
+          return true;
+        }
+      }
+    } catch (apiErr) {
+      console.log('[API Login Note]: Falling back to local authentication:', apiErr.message);
+    }
+
+    // 2. Fallback matching
     try {
       const savedPasswords = JSON.parse(localStorage.getItem('smartleave_passwords') || '{}');
       if (savedPasswords[lowerEmail] && savedPasswords[lowerEmail] !== password) {
@@ -468,6 +586,7 @@ export function LeaveProvider({ children }) {
     sessionStorage.setItem('smartleave_auth', 'true');
     sessionStorage.removeItem('smartleave_pdpa');
     localStorage.setItem('smartleave_user', JSON.stringify(userToSet));
+    fetchLiveDatabaseData();
     return true;
   };
 
@@ -597,6 +716,8 @@ export function LeaveProvider({ children }) {
         isAdmin,
         employees,
         updateEmployeeQuota,
+        isDbConnected,
+        fetchLiveDatabaseData,
         toast,
         showToast,
       }}

@@ -58,6 +58,10 @@ class ApiService {
     return this.request('/auth/me');
   }
 
+  async getEmployees() {
+    return this.request('/employees');
+  }
+
   async updateProfile(profileData) {
     return this.request('/users/profile', {
       method: 'PUT',

@@ -56,6 +56,33 @@ export async function onRequest(context) {
     );
   }
 
+  // เตรียมข้อมูลตั้งต้นพนักงานสหกรณ์ใน D1 อัตโนมัติหากยังไม่มี
+  try {
+    const userCount = await env.DB.prepare("SELECT count(*) as count FROM users WHERE employee_code LIKE 'EMP-%' OR employee_code LIKE 'MGR-%'").first();
+    if (!userCount || userCount.count < 5) {
+      await env.DB.batch([
+        env.DB.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (1, 'DEP-ADMIN', 'ฝ่ายบริหารทั่วไป', 'General Administration')"),
+        env.DB.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (2, 'DEP-CP1', 'กลุ่มส่งเสริมและพัฒนาสหกรณ์ 1', 'Cooperative Promotion 1')"),
+        env.DB.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (3, 'DEP-BIZ', 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', 'Cooperative Business')"),
+        env.DB.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (4, 'DEP-AUD', 'กลุ่มตรวจการสหกรณ์', 'Cooperative Inspection')"),
+        env.DB.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (5, 'DEP-CP2', 'กลุ่มส่งเสริมและพัฒนาสหกรณ์ 2', 'Cooperative Promotion 2')"),
+        
+        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
+          VALUES (2, 'EMP-001', 'panika.t@smartleave.com', 'default_hash', 'นางสาว', 'พนิกา', 'ธรรมเมือง', 'หญิง', '081-234-5678', 2, 4, 'นักวิชาการสหกรณ์ปฏิบัติการ', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
+          VALUES (3, 'MGR-002', 'somchai.m@smartleave.com', 'default_hash', 'นาย', 'สมชาย', 'มั่นคง', 'ชาย', '089-876-5432', 1, 3, 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
+          VALUES (4, 'EMP-003', 'nichaphat.w@smartleave.com', 'default_hash', 'นางสาว', 'ณิชาภัทร', 'วงศ์ษา', 'หญิง', '086-111-2233', 3, 4, 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
+          VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', 'default_hash', 'นาย', 'อัครพล', 'เจริญผล', 'ชาย', '082-333-4455', 4, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
+          VALUES (6, 'EMP-005', 'suda.j@smartleave.com', 'default_hash', 'นางสาว', 'สุดา', 'ใจดี', 'หญิง', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      ]);
+    }
+  } catch (seedErr) {
+    console.log('[D1 Auto-seed Note]:', seedErr.message);
+  }
+
   try {
     // -------------------------------------------------------------
     // 0. ทดสอบการเชื่อมต่อ D1 (Health Check)
@@ -94,21 +121,23 @@ export async function onRequest(context) {
       // จัดการ Alias อีเมลทดสอบ (เชื่อมต่อกับข้อมูลในตาราง users)
       if (!user) {
         const lower = email.toLowerCase();
-        if (lower.includes('panika') || lower === 'user@smartleave.com') {
+        if (lower.includes('panika') || lower === 'user@smartleave.com' || lower.includes('emp-001')) {
           user = await env.DB.prepare(`
             SELECT u.*, d.name_th as department_name, r.code as role_code
             FROM users u
             LEFT JOIN departments d ON u.department_id = d.department_id
             LEFT JOIN roles r ON u.role_id = r.role_id
-            WHERE u.user_id = 1
+            WHERE u.employee_code = 'EMP-001' OR u.user_id = 2
+            LIMIT 1
           `).first();
-        } else if (lower.includes('somchai') || lower === 'manager@smartleave.com') {
+        } else if (lower.includes('somchai') || lower === 'manager@smartleave.com' || lower.includes('mgr-002')) {
           user = await env.DB.prepare(`
             SELECT u.*, d.name_th as department_name, r.code as role_code
             FROM users u
             LEFT JOIN departments d ON u.department_id = d.department_id
             LEFT JOIN roles r ON u.role_id = r.role_id
-            WHERE u.user_id = 2 OR u.role_id = 3
+            WHERE u.employee_code = 'MGR-002' OR u.user_id = 3
+            LIMIT 1
           `).first();
         }
       }
@@ -123,19 +152,21 @@ export async function onRequest(context) {
         const insert = await env.DB.prepare(`
           INSERT INTO users (employee_code, email, password_hash, first_name, last_name, role_id, department_id, position)
           VALUES (?, ?, 'default_hash', ?, 'พนักงาน', ?, 1, ?)
-        `).bind(empCode, email, namePart, roleId, isApprover ? 'ผู้จัดการ' : 'เจ้าหน้าที่สหกรณ์').run();
+        `).bind(empCode, email, namePart, roleId, isApprover ? 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ' : 'เจ้าหน้าที่สหกรณ์').run();
 
         const newId = insert.meta.last_row_id;
         user = await env.DB.prepare(`SELECT * FROM users WHERE user_id = ?`).bind(newId).first();
       }
 
-      const gender = (user.prefix?.includes('นาง') || user.user_id === 1 || user.first_name?.includes('พนิกา') || user.first_name?.includes('ณิชาภัทร') || user.first_name?.includes('สุดา')) ? 'หญิง' : 'ชาย';
+      const gender = user.gender || ((user.prefix?.includes('นาง') || user.first_name?.includes('พนิกา') || user.first_name?.includes('ณิชาภัทร') || user.first_name?.includes('สุดา')) ? 'หญิง' : 'ชาย');
+      const prefix = user.prefix ? user.prefix : '';
+      const displayName = `${prefix}${user.first_name} ${user.last_name}`.trim();
 
       return jsonResponse({
         token: `demo-token-${user.user_id}`,
         user: {
           id: `usr-${user.user_id}`,
-          name: `${user.first_name} ${user.last_name}`,
+          name: displayName,
           gender,
           email: user.email,
           phone: user.phone || '081-234-5678',
@@ -236,8 +267,8 @@ export async function onRequest(context) {
         SELECT 
           u.user_id as raw_id,
           ('usr-' || u.user_id) as id,
-          (u.first_name || ' ' || u.last_name) as name,
-          CASE WHEN u.prefix LIKE '%นาง%' OR u.user_id = 1 THEN 'หญิง' ELSE 'ชาย' END as gender,
+          ((CASE WHEN u.prefix IS NOT NULL AND u.prefix != '' THEN u.prefix ELSE '' END) || u.first_name || ' ' || u.last_name) as name,
+          COALESCE(u.gender, CASE WHEN u.prefix LIKE '%นาง%' THEN 'หญิง' ELSE 'ชาย' END) as gender,
           u.email,
           COALESCE(u.phone, '081-234-5678') as phone,
           u.employee_code as employeeId,
@@ -256,7 +287,7 @@ export async function onRequest(context) {
         LEFT JOIN employee_leave_quotas q_personal ON u.user_id = q_personal.user_id AND q_personal.leave_type_id = 3
         LEFT JOIN employee_leave_quotas q_sick ON u.user_id = q_sick.user_id AND q_sick.leave_type_id = 2
         LEFT JOIN employee_leave_quotas q_maternity ON u.user_id = q_maternity.user_id AND q_maternity.leave_type_id = 4
-        WHERE u.is_active = 1
+        WHERE u.is_active = 1 AND (u.employee_code LIKE 'EMP-%' OR u.employee_code LIKE 'MGR-%')
         ORDER BY u.user_id ASC
       `).all();
 

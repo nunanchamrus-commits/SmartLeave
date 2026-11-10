@@ -36,6 +36,7 @@ CREATE TABLE users (
     prefix VARCHAR(20),                          -- นาย / นาง / นางสาว
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
+    gender VARCHAR(20) DEFAULT 'หญิง',
     phone VARCHAR(30),
     department_id INT,
     role_id INT NOT NULL,
