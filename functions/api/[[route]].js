@@ -1,0 +1,339 @@
+/**
+ * CLOUDFLARE PAGES FUNCTIONS: Backend API Layer
+ * ไฟล์นี้ทำหน้าที่เป็น Serverless API เชื่อมต่อระหว่างหน้าเว็บ React และฐานข้อมูล Cloudflare D1
+ * Routing Path: /api/*
+ */
+
+// Helper สำหรับตอบกลับ JSON พร้อม CORS
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
+// Export สำหรับ Cloudflare Workers (Worker Fetch Event)
+export default {
+  async fetch(request, env, ctx) {
+    return onRequest({ request, env, waitUntil: ctx?.waitUntil?.bind(ctx) });
+  },
+};
+
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+  // ตัด /api ออก และตัด trailing slash เพื่อป้องกัน route mismatch
+  const rawPath = url.pathname.replace(/^\/api/, '');
+  const path = (rawPath === '' || rawPath === '/') ? '/' : rawPath.replace(/\/$/, '');
+  const method = request.method;
+
+  // Handle CORS Preflight
+  if (method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    });
+  }
+
+  // ตรวจสอบว่ามี D1 Binding หรือไม่
+  if (!env.DB) {
+    return jsonResponse(
+      { error: 'D1 Database binding (env.DB) not found. กรุณาตรวจสอบ wrangler.toml' },
+      500
+    );
+  }
+
+  try {
+    // -------------------------------------------------------------
+    // 0. ทดสอบการเชื่อมต่อ D1 (Health Check)
+    // GET /api/health
+    // -------------------------------------------------------------
+    if (path === '/health' && method === 'GET') {
+      const result = await env.DB.prepare('SELECT 1 as is_connected').first();
+      return jsonResponse({
+        status: 'ok',
+        database: 'Cloudflare D1',
+        connected: result?.is_connected === 1,
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 1. เข้าสู่ระบบ (Login)
+    // POST /api/auth/login
+    // -------------------------------------------------------------
+    if (path === '/auth/login' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { email } = body;
+
+      if (!email) {
+        return jsonResponse({ message: 'กรุณากรอกอีเมล' }, 400);
+      }
+
+      // ดึงข้อมูลผู้ใช้จากตาราง users
+      let user = await env.DB.prepare(`
+        SELECT u.*, d.name_th as department_name, r.code as role_code
+        FROM users u
+        LEFT JOIN departments d ON u.department_id = d.department_id
+        LEFT JOIN roles r ON u.role_id = r.role_id
+        WHERE u.email = ? AND u.is_active = 1
+      `).bind(email).first();
+
+      // หากไม่พบบัญชี ให้สร้างบัญชีพนักงานชั่วคราวให้ทดสอบได้ทันที
+      if (!user) {
+        const isApprover = email.includes('manager') || email.includes('approver') || email.includes('admin');
+        const roleId = isApprover ? 3 : 4;
+        const namePart = email.split('@')[0];
+        const empCode = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const insert = await env.DB.prepare(`
+          INSERT INTO users (employee_code, email, password_hash, first_name, last_name, role_id, department_id, position)
+          VALUES (?, ?, 'default_hash', ?, 'พนักงาน', ?, 1, ?)
+        `).bind(empCode, email, namePart, roleId, isApprover ? 'ผู้จัดการ' : 'พนักงาน').run();
+
+        const newId = insert.meta.last_row_id;
+        user = await env.DB.prepare(`SELECT * FROM users WHERE user_id = ?`).bind(newId).first();
+      }
+
+      return jsonResponse({
+        token: `demo-token-${user.user_id}`,
+        user: {
+          id: `usr-${user.user_id}`,
+          name: `${user.first_name} ${user.last_name}`,
+          email: user.email,
+          role: user.role_id === 3 || user.role_id === 1 ? 'approver' : 'employee',
+          department: user.department_name || 'ฝ่ายเทคโนโลยีสารสนเทศ',
+          employeeId: user.employee_code,
+          avatar: user.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
+        },
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 2. ลงทะเบียนพนักงานใหม่ (Register)
+    // POST /api/auth/register
+    // -------------------------------------------------------------
+    if (path === '/auth/register' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { firstName, lastName, employeeCode, email, department, position } = body;
+
+      const empCode = employeeCode || `EMP-${Date.now().toString().slice(-4)}`;
+
+      const insert = await env.DB.prepare(`
+        INSERT INTO users (employee_code, email, password_hash, first_name, last_name, role_id, department_id, position)
+        VALUES (?, ?, 'default_hash', ?, ?, 4, 1, ?)
+      `).bind(empCode, email, firstName, lastName, position || 'พนักงาน').run();
+
+      const newUserId = insert.meta.last_row_id;
+
+      // สร้างโควตาวันลาเริ่มต้นประจำปีให้พนักงานใหม่
+      const currentYear = new Date().getFullYear();
+      await env.DB.batch([
+        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days) VALUES (?, 1, ?, 10.0, 10.0)').bind(newUserId, currentYear),
+        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days) VALUES (?, 2, ?, 30.0, 30.0)').bind(newUserId, currentYear),
+        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days) VALUES (?, 3, ?, 5.0, 5.0)').bind(newUserId, currentYear),
+      ]);
+
+      return jsonResponse({
+        success: true,
+        user: {
+          id: `usr-${newUserId}`,
+          name: `${firstName} ${lastName}`,
+          email,
+          role: 'employee',
+          department: department || 'ฝ่ายเทคโนโลยีสารสนเทศ',
+          employeeId: empCode,
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
+        },
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 3. ดึงรายการคำขอลางานทั้งหมด (Get Leaves)
+    // GET /api/leaves
+    // -------------------------------------------------------------
+    if (path === '/leaves' && method === 'GET') {
+      const { results } = await env.DB.prepare(`
+        SELECT 
+          lr.request_id as id,
+          lr.request_no,
+          lr.user_id,
+          lr.user_id as userId,
+          u.employee_code as employeeId,
+          u.email as employeeEmail,
+          (u.first_name || ' ' || u.last_name) as employeeName,
+          d.name_th as department,
+          lt.name_th as type,
+          lt.code as typeKey,
+          (lr.start_date || ' ถึง ' || lr.end_date) as dateRange,
+          lr.start_date as startDate,
+          lr.end_date as endDate,
+          lr.total_days as days,
+          CASE 
+            WHEN lr.status = 'pending' THEN 'รออนุมัติ'
+            WHEN lr.status = 'approved' THEN 'อนุมัติ'
+            WHEN lr.status = 'rejected' THEN 'ไม่อนุมัติ'
+            ELSE lr.status
+          END as status,
+          lr.reason,
+          lr.rejection_reason as note,
+          lr.created_at as appliedDate
+        FROM leave_requests lr
+        JOIN users u ON lr.user_id = u.user_id
+        JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+        LEFT JOIN departments d ON u.department_id = d.department_id
+        ORDER BY lr.created_at DESC
+      `).all();
+
+      return jsonResponse(results || []);
+    }
+
+    // -------------------------------------------------------------
+    // 3.1 ดึงโควตาวันลา (Get Quotas)
+    // GET /api/quotas
+    // -------------------------------------------------------------
+    if (path === '/quotas' && method === 'GET') {
+      const email = url.searchParams.get('email') || 'user@SmartLeave.com';
+      const user = await env.DB.prepare('SELECT user_id FROM users WHERE email = ? LIMIT 1').bind(email).first();
+      const userId = user ? user.user_id : 1;
+
+      const { results } = await env.DB.prepare(`
+        SELECT 
+          lt.code as typeKey,
+          lt.name_th as name,
+          q.total_quota as totalLimit,
+          q.used_days as used,
+          q.remaining_days as remaining,
+          lt.color_hex as color
+        FROM employee_leave_quotas q
+        JOIN leave_types lt ON q.leave_type_id = lt.leave_type_id
+        WHERE q.user_id = ?
+      `).bind(userId).all();
+
+      return jsonResponse(results || []);
+    }
+
+    // -------------------------------------------------------------
+    // 3.2 ดึงประกาศ (Get Announcements)
+    // GET /api/announcements
+    // -------------------------------------------------------------
+    if (path === '/announcements' && method === 'GET') {
+      const { results } = await env.DB.prepare(`
+        SELECT announcement_id as id, title, content, badge, is_pinned as isPinned, created_at as date
+        FROM announcements
+        ORDER BY is_pinned DESC, created_at DESC
+      `).all();
+
+      return jsonResponse(results || []);
+    }
+
+    // -------------------------------------------------------------
+    // 3.3 ดึงการแจ้งเตือน (Get Notifications)
+    // GET /api/notifications
+    // -------------------------------------------------------------
+    if (path === '/notifications' && method === 'GET') {
+      const { results } = await env.DB.prepare(`
+        SELECT notification_id as id, title, description, type, is_read as isRead, created_at as time
+        FROM notifications
+        ORDER BY created_at DESC
+      `).all();
+
+      return jsonResponse(results || []);
+    }
+
+    // -------------------------------------------------------------
+    // 4. ยื่นคำขอลางานใหม่ (Create Leave Request)
+    // POST /api/leaves
+    // -------------------------------------------------------------
+    if (path === '/leaves' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { typeKey, startDate, endDate, days, reason, substitute } = body;
+
+      const reqNo = `LV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // หา leave_type_id จาก code
+      const leaveType = await env.DB.prepare('SELECT leave_type_id FROM leave_types WHERE code = ?').bind(typeKey || 'vacation').first();
+      const typeId = leaveType ? leaveType.leave_type_id : 1;
+
+      // ดึง user คนแรกมาผูก (หรือจาก Token)
+      const firstUser = await env.DB.prepare('SELECT user_id FROM users LIMIT 1').first();
+      const userId = firstUser ? firstUser.user_id : 1;
+
+      await env.DB.prepare(`
+        INSERT INTO leave_requests (request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+      `).bind(reqNo, userId, typeId, startDate, endDate, days || 1.0, reason).run();
+
+      return jsonResponse({ success: true, request_no: reqNo });
+    }
+
+    // -------------------------------------------------------------
+    // 5. อนุมัติคำขอลา (Approve Leave)
+    // POST /api/leaves/:id/approve
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)\/approve$/) && method === 'POST') {
+      const idMatch = path.match(/^\/leaves\/([^/]+)\/approve$/);
+      const leaveId = idMatch[1];
+      const body = await request.json().catch(() => ({}));
+
+      await env.DB.prepare(`
+        UPDATE leave_requests 
+        SET status = 'approved', approved_at = datetime('now', 'localtime'), rejection_reason = ?
+        WHERE request_id = ? OR request_no = ?
+      `).bind(body.remark || 'อนุมัติเรียบร้อย', leaveId, leaveId).run();
+
+      return jsonResponse({ success: true });
+    }
+
+    // -------------------------------------------------------------
+    // 6. ปฏิเสธคำขอลา (Reject Leave)
+    // POST /api/leaves/:id/reject
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)\/reject$/) && method === 'POST') {
+      const idMatch = path.match(/^\/leaves\/([^/]+)\/reject$/);
+      const leaveId = idMatch[1];
+      const body = await request.json().catch(() => ({}));
+
+      await env.DB.prepare(`
+        UPDATE leave_requests 
+        SET status = 'rejected', approved_at = datetime('now', 'localtime'), rejection_reason = ?
+        WHERE request_id = ? OR request_no = ?
+      `).bind(body.remark || 'ไม่อนุมัติ', leaveId, leaveId).run();
+
+      return jsonResponse({ success: true });
+    }
+
+    // -------------------------------------------------------------
+    // 7. บันทึกความยินยอม PDPA (Consent)
+    // POST /api/pdpa/consent
+    // -------------------------------------------------------------
+    if (path === '/pdpa/consent' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { healthConsent } = body;
+
+      await env.DB.prepare(`
+        INSERT INTO pdpa_audit_logs (action, policy_version, details, ip_address)
+        VALUES (?, 'v1.0', ?, 'Cloudflare Edge')
+      `).bind(
+        healthConsent ? 'AGREE_NOTICE_AND_HEALTH_DATA' : 'AGREE_NOTICE_ONLY',
+        `User submitted consent choice: Health=${healthConsent}`
+      ).run();
+
+      return jsonResponse({ success: true });
+    }
+
+    // หากไม่ตรงกับเส้นทางใดๆ
+    return jsonResponse({ message: `API endpoint '${path}' not found` }, 404);
+
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500);
+  }
+}
+
