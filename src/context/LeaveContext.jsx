@@ -603,17 +603,60 @@ export function LeaveProvider({ children }) {
   };
 
   // Register action
-  const register = (userData) => {
+  const register = async (userData) => {
     const newId = `usr-${Date.now()}`;
+    const empCode = `EMP-${new Date().getFullYear() + 543}-${Math.floor(100 + Math.random() * 900)}`;
+
+    let prefix = '';
+    let firstName = userData.fullName || '';
+    let lastName = '';
+    if (userData.fullName && userData.fullName.includes(' ')) {
+      const parts = userData.fullName.trim().split(/\s+/);
+      if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
+        prefix = parts[0];
+        firstName = parts[1] || '';
+        lastName = parts.slice(2).join(' ') || '';
+      } else {
+        firstName = parts[0] || '';
+        lastName = parts.slice(1).join(' ') || '';
+      }
+    }
+
+    // 1. ส่งข้อมูลสมัครสมาชิกไปยัง Cloudflare D1 Backend ทันที!
+    let dbUserId = newId;
+    try {
+      if (api && api.register) {
+        const res = await api.register({
+          fullName: userData.fullName,
+          firstName,
+          lastName,
+          prefix: prefix || (userData.gender === 'หญิง' ? 'นางสาว' : 'นาย'),
+          gender: userData.gender || 'หญิง',
+          position: userData.title,
+          title: userData.title,
+          department: userData.department,
+          email: userData.email,
+          password: userData.password,
+          employeeCode: empCode,
+        });
+        if (res && res.user && res.user.id) {
+          dbUserId = res.user.id;
+        }
+      }
+    } catch (apiErr) {
+      console.log('[Register API Sync Note]:', apiErr.message);
+    }
+
+    // 2. จัดเก็บข้อมูลลง State
     const newUser = {
-      id: newId,
+      id: dbUserId,
       name: userData.fullName,
-      gender: userData.gender || '',
+      gender: userData.gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
       title: userData.title,
       department: userData.department,
       email: userData.email || `${newId}@smartleave.com`,
       phone: userData.phone || '081-999-8888',
-      employeeId: `EMP-${new Date().getFullYear() + 543}-${Math.floor(100 + Math.random() * 900)}`,
+      employeeId: empCode,
       avatar:
         userData.gender === 'ชาย'
           ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
@@ -636,6 +679,9 @@ export function LeaveProvider({ children }) {
     sessionStorage.setItem('smartleave_auth', 'true');
     sessionStorage.removeItem('smartleave_pdpa');
     localStorage.setItem('smartleave_user', JSON.stringify(newUser));
+
+    // ดึงข้อมูลล่าสุดจาก Database
+    fetchLiveDatabaseData();
 
     showToast(`ยินดีต้อนรับ คุณ${newUser.name} สมัครสมาชิกสำเร็จแล้ว!`, 'success');
     return newUser;
