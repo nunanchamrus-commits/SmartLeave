@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 
-export default function LoginView({ onSwitchToRegister }) {
+export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const { login } = useLeave();
 
   const [email, setEmail] = useState('panika.t@smartleave.com');
@@ -282,8 +282,8 @@ export default function LoginView({ onSwitchToRegister }) {
                   </label>
                   <button
                     type="button"
-                    onClick={() => alert('รหัสผ่านเริ่มต้นสำหรับบัญชีทดสอบคือ 123456')}
-                    className="text-[11px] text-emerald-700 hover:text-emerald-800 font-medium"
+                    onClick={onSwitchToForgotPassword}
+                    className="text-[11px] text-emerald-700 hover:text-emerald-800 font-medium hover:underline"
                   >
                     ลืมรหัสผ่าน?
                   </button>

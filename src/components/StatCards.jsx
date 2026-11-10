@@ -1,16 +1,23 @@
 import React from 'react';
-import { Calendar, Plane, Briefcase, Plus, HeartPulse } from 'lucide-react';
+import { Calendar, Plane, Briefcase, Plus, HeartPulse, Baby } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 
 export default function StatCards() {
-  const { quotas, setActiveTab } = useLeave();
+  const { quotas, setActiveTab, currentUser } = useLeave();
+
+  const isFemale =
+    currentUser?.gender === 'หญิง' ||
+    currentUser?.gender === 'female' ||
+    (!currentUser?.gender &&
+      (currentUser?.id === 'usr-101' ||
+        /^(นางสาว|น\.ส\.|นาง)/.test((currentUser?.name || '').trim())));
 
   const cards = [
     {
       id: 'total',
       title: 'วันลาคงเหลือ',
       value: `${quotas.totalRemaining} วัน`,
-      subtext: `จาก ${quotas.totalLimit} วัน/ปี`,
+      subtext: `จาก ${quotas.totalLimit} วัน`,
       icon: (
         <div className="w-12 h-12 rounded-2xl bg-[#EAF7EE] flex items-center justify-center text-[#16A34A] shadow-sm">
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -34,7 +41,7 @@ export default function StatCards() {
       id: 'vacation',
       title: 'ลาพักร้อน',
       value: `${quotas.vacation.remaining} วัน`,
-      subtext: `จาก ${quotas.vacation.limit} วัน/ปี`,
+      subtext: `จาก ${quotas.vacation.limit} วัน`,
       icon: (
         <div className="w-12 h-12 rounded-2xl bg-[#E6F5F2] flex items-center justify-center text-[#0D9488] shadow-sm">
           <Plane className="w-6 h-6 transform -rotate-45" />
@@ -47,7 +54,7 @@ export default function StatCards() {
       id: 'personal',
       title: 'ลากิจ',
       value: `${quotas.personal.remaining} วัน`,
-      subtext: `จาก ${quotas.personal.limit} วัน/ปี`,
+      subtext: `จาก ${quotas.personal.limit} วัน`,
       icon: (
         <div className="w-12 h-12 rounded-2xl bg-[#E5F5ED] flex items-center justify-center text-[#047857] shadow-sm">
           <div className="relative">
@@ -65,7 +72,7 @@ export default function StatCards() {
       id: 'sick',
       title: 'ลาป่วย',
       value: `${quotas.sick.remaining} วัน`,
-      subtext: `จาก ${quotas.sick.limit} วัน/ปี`,
+      subtext: `จาก ${quotas.sick.limit} วัน`,
       icon: (
         <div className="w-12 h-12 rounded-2xl bg-[#FFE8EC] flex items-center justify-center text-[#EF4444] shadow-sm">
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -78,24 +85,44 @@ export default function StatCards() {
     },
   ];
 
+  if (isFemale && quotas.maternity) {
+    cards.push({
+      id: 'maternity',
+      title: 'ลาคลอดบุตร',
+      value: `${quotas.maternity.remaining} วัน`,
+      subtext: `จาก ${quotas.maternity.limit} วัน`,
+      icon: (
+        <div className="w-12 h-12 rounded-2xl bg-[#FDF2F8] flex items-center justify-center text-[#EC4899] shadow-sm">
+          <Baby className="w-6 h-6" />
+        </div>
+      ),
+      percent: Math.round((quotas.maternity.remaining / quotas.maternity.limit) * 100),
+      barColor: 'bg-[#EC4899]',
+    });
+  }
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mt-6">
+    <div
+      className={`grid grid-cols-1 sm:grid-cols-2 ${
+        cards.length >= 5 ? 'lg:grid-cols-3 xl:grid-cols-5' : 'lg:grid-cols-4'
+      } gap-4 sm:gap-5 mt-6`}
+    >
       {cards.map((card) => (
         <div
           key={card.id}
           onClick={() => setActiveTab('history')}
-          className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-emerald-100 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+          className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-emerald-100 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
         >
           {/* Top Row: Icon + Value & Label */}
-          <div className="flex items-center space-x-4">
-            <div className="group-hover:scale-105 transition-transform duration-200">
+          <div className="flex items-center space-x-3 sm:space-x-3.5">
+            <div className="group-hover:scale-105 transition-transform duration-200 flex-shrink-0">
               {card.icon}
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs sm:text-sm font-medium text-slate-500">
                 {card.title}
               </p>
-              <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+              <h3 className="text-xl xl:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
                 {card.value}
               </h3>
               <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">

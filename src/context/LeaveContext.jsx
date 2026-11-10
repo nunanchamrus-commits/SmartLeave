@@ -8,9 +8,17 @@ import {
   notificationsData,
   employeesList,
 } from '../data/mockData';
-import api from '../services/api';
 
 const LeaveContext = createContext();
+
+function inferUserGender(user) {
+  if (!user) return '';
+  if (user.gender === 'หญิง' || user.gender === 'ชาย') return user.gender;
+  const name = (user.name || '').trim();
+  if (/^(นางสาว|น\.ส\.|นาง)/.test(name) || user.id === 'usr-101') return 'หญิง';
+  if (/^นาย/.test(name) || user.id === 'usr-202') return 'ชาย';
+  return '';
+}
 
 export function LeaveProvider({ children }) {
   // Authentication State: Require login before reaching dashboard
@@ -22,10 +30,24 @@ export function LeaveProvider({ children }) {
     return saved === 'true';
   });
 
+  // PDPA Consent State: Require confirmation after logging in
+  const [isPdpaAccepted, setIsPdpaAccepted] = useState(() => {
+    return sessionStorage.getItem('smartleave_pdpa') === 'true';
+  });
+
   // Load from localStorage or use initial data
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('smartleave_user');
-    return saved ? JSON.parse(saved) : initialUser;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          gender: parsed.gender || inferUserGender(parsed),
+        };
+      } catch (e) {}
+    }
+    return initialUser;
   });
 
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -64,7 +86,7 @@ export function LeaveProvider({ children }) {
         const vacationRem = Math.max(0, 10 - vacationUsed);
         const personalRem = Math.max(0, 15 - personalUsed);
         const sickRem = Math.max(0, 30 - sickUsed);
-        const maternityRem = Math.max(0, 98 - maternityUsed);
+        const maternityRem = Math.max(0, 90 - maternityUsed);
         const totalRem = vacationRem + personalRem + sickRem;
 
         return {
@@ -73,7 +95,7 @@ export function LeaveProvider({ children }) {
           vacation: { ...initialQuotas.vacation, ...parsed.vacation, limit: 10, remaining: vacationRem, used: vacationUsed },
           personal: { ...initialQuotas.personal, ...parsed.personal, name: 'ลากิจ', limit: 15, remaining: personalRem, used: personalUsed },
           sick: { ...initialQuotas.sick, ...parsed.sick, limit: 30, remaining: sickRem, used: sickUsed },
-          maternity: { ...initialQuotas.maternity, ...parsed.maternity, limit: 98, remaining: maternityRem, used: maternityUsed },
+          maternity: { ...initialQuotas.maternity, ...parsed.maternity, limit: 90, remaining: maternityRem, used: maternityUsed },
         };
       } catch (e) {}
     }
@@ -98,7 +120,19 @@ export function LeaveProvider({ children }) {
 
   const [employees, setEmployees] = useState(() => {
     const saved = localStorage.getItem('smartleave_employees') || localStorage.getItem('leaveflow_employees');
-    return saved ? JSON.parse(saved) : employeesList;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((emp) => ({
+            ...emp,
+            gender: emp.gender || inferUserGender(emp),
+            maternityRem: emp.maternityRem === 98 ? 90 : emp.maternityRem,
+          }));
+        }
+      } catch (e) {}
+    }
+    return employeesList;
   });
 
   const isAdmin = currentUser.role === 'approver' || currentUser.role === 'admin';
@@ -127,31 +161,6 @@ export function LeaveProvider({ children }) {
   const [selectedLeaveDetail, setSelectedLeaveDetail] = useState(null);
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-
-  // PDPA States
-  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
-  const [healthConsent, setHealthConsent] = useState(() => {
-    return localStorage.getItem('smartleave_pdpa_health') === 'true';
-  });
-  const [pdpaAuditLogs, setPdpaAuditLogs] = useState(() => {
-    const saved = localStorage.getItem('smartleave_pdpa_logs');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Fetch initial leave requests from Cloudflare D1 Backend
-  useEffect(() => {
-    api.getLeaveRequests()
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          console.log('[SmartLeave D1] Fetched live leave records:', data);
-          setLeaveRequests(data);
-          recalculateQuotas(data);
-        }
-      })
-      .catch((err) => {
-        console.log('[SmartLeave] Running in offline/mock mode:', err.message);
-      });
-  }, []);
 
   // Sync to local storage
   useEffect(() => {
@@ -195,7 +204,7 @@ export function LeaveProvider({ children }) {
     const vacationRem = Math.max(0, 10 - vacationUsed);
     const personalRem = Math.max(0, 15 - personalUsed);
     const sickRem = Math.max(0, 30 - sickUsed);
-    const maternityRem = Math.max(0, 98 - maternityUsed);
+    const maternityRem = Math.max(0, 90 - maternityUsed);
     const totalRem = vacationRem + personalRem + sickRem;
 
     setQuotas({
@@ -204,7 +213,7 @@ export function LeaveProvider({ children }) {
       vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: 10 },
       personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: 15, name: 'ลากิจ' },
       sick: { ...initialQuotas.sick, remaining: sickRem, used: sickUsed, limit: 30 },
-      maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: 98 },
+      maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: 90 },
     });
   };
 
@@ -235,16 +244,6 @@ export function LeaveProvider({ children }) {
 
     const updated = [newReq, ...leaveRequests];
     setLeaveRequests(updated);
-
-    // Sync to Cloudflare D1 asynchronously
-    api.createLeaveRequest({
-      typeKey: newRequestData.typeKey || 'vacation',
-      startDate: newRequestData.startDate,
-      endDate: newRequestData.endDate,
-      days: newRequestData.days || 1,
-      reason: newRequestData.reason,
-      substitute: newRequestData.substitute,
-    }).catch((err) => console.log('[D1 Sync] Note:', err.message));
 
     // Add notification
     const newNotif = {
@@ -278,9 +277,6 @@ export function LeaveProvider({ children }) {
     setLeaveRequests(updated);
     recalculateQuotas(updated);
 
-    // Sync to D1
-    api.approveLeave(requestId, approverNote).catch(() => {});
-
     const target = leaveRequests.find((r) => r.id === requestId);
     if (target) {
       const newNotif = {
@@ -310,9 +306,6 @@ export function LeaveProvider({ children }) {
     });
 
     setLeaveRequests(updated);
-
-    // Sync to D1
-    api.rejectLeave(requestId, rejectReason).catch(() => {});
 
     const target = leaveRequests.find((r) => r.id === requestId);
     if (target) {
@@ -354,127 +347,58 @@ export function LeaveProvider({ children }) {
     );
   };
 
-  // Update User Profile (Settings)
-  const updateUserProfile = (updatedData) => {
-    // 1. Merge with current user
-    const updatedUser = {
-      ...currentUser,
-      ...updatedData,
-    };
-
-    // 2. Update currentUser state & localStorage
-    setCurrentUser(updatedUser);
-    localStorage.setItem('smartleave_user', JSON.stringify(updatedUser));
-
-    // 3. Update matching employee in employees state & localStorage
-    const updatedEmployees = employees.map((emp) => {
-      if (
-        emp.id === updatedUser.id ||
-        (updatedUser.employeeId && emp.employeeId === updatedUser.employeeId) ||
-        (updatedUser.email && emp.email?.toLowerCase() === updatedUser.email?.toLowerCase())
-      ) {
-        return {
-          ...emp,
-          name: updatedUser.name || emp.name,
-          title: updatedUser.title || emp.title,
-          department: updatedUser.department || emp.department,
-          email: updatedUser.email || emp.email,
-          phone: updatedUser.phone || emp.phone,
-          avatar: updatedUser.avatar || emp.avatar,
-        };
-      }
-      return emp;
-    });
-    setEmployees(updatedEmployees);
-    localStorage.setItem('smartleave_employees', JSON.stringify(updatedEmployees));
-
-    // 4. Update matching leaveRequests so past requests reflect the new name/department
-    const updatedRequests = leaveRequests.map((r) => {
-      if (
-        r.employeeId === updatedUser.id ||
-        r.employeeId === updatedUser.employeeId ||
-        (currentUser.name && r.employeeName === currentUser.name)
-      ) {
-        return {
-          ...r,
-          employeeName: updatedUser.name || r.employeeName,
-          department: updatedUser.department || r.department,
-        };
-      }
-      return r;
-    });
-    setLeaveRequests(updatedRequests);
-    localStorage.setItem('smartleave_requests', JSON.stringify(updatedRequests));
-
-    // 5. Try calling Cloudflare Worker / D1 API
-    api.updateProfile(updatedUser).catch((err) => {
-      console.log('[UpdateProfile D1 Fallback]:', err.message);
-    });
-
-    // 6. Show toast notification
-    showToast('บันทึกข้อมูลส่วนบุคคลเรียบร้อยแล้ว', 'success');
-
-    return updatedUser;
-  };
-
   // Login action
   const login = (email, password) => {
     if (!email) return false;
     const lowerEmail = email.toLowerCase();
 
-    // Check if there is saved user data in localStorage to preserve profile updates
-    let savedUser = null;
     try {
-      const savedUserJson = localStorage.getItem('smartleave_user');
-      if (savedUserJson) savedUser = JSON.parse(savedUserJson);
+      const savedPasswords = JSON.parse(localStorage.getItem('smartleave_passwords') || '{}');
+      if (savedPasswords[lowerEmail] && savedPasswords[lowerEmail] !== password) {
+        return false;
+      }
     } catch (e) {}
 
+    const matchedEmp = employees.find(
+      (e) => e.email && e.email.toLowerCase() === lowerEmail
+    );
+
     let userToSet = initialUser;
-
-    if (
-      lowerEmail.includes('somchai') ||
-      lowerEmail.includes('mgr') ||
-      lowerEmail.includes('manager') ||
-      lowerEmail.includes('admin')
-    ) {
+    if (lowerEmail.includes('somchai') || lowerEmail.includes('mgr')) {
       userToSet = approverUser;
-      if (savedUser && (savedUser.role === 'approver' || savedUser.role === 'admin' || savedUser.id === approverUser.id)) {
-        userToSet = { ...approverUser, ...savedUser };
-      }
-    } else if (lowerEmail.includes('panika') || lowerEmail.includes('user')) {
+    } else if (lowerEmail.includes('panika')) {
       userToSet = initialUser;
-      if (savedUser && (savedUser.role === 'employee' || savedUser.id === initialUser.id)) {
-        userToSet = { ...initialUser, ...savedUser };
-      }
+    } else if (matchedEmp) {
+      userToSet = {
+        ...matchedEmp,
+        gender: matchedEmp.gender || inferUserGender(matchedEmp),
+      };
     } else {
-      // Look up in existing employees
-      const matchedEmp = employees.find((e) => e.email?.toLowerCase() === lowerEmail);
-      if (matchedEmp) {
-        userToSet = {
-          ...initialUser,
-          ...matchedEmp,
-        };
-      } else {
-        userToSet = {
-          ...initialUser,
-          email,
-          name: email.split('@')[0],
-        };
-      }
+      userToSet = {
+        ...initialUser,
+        gender: '',
+        email,
+        name: email.split('@')[0],
+      };
     }
-
     setCurrentUser(userToSet);
     setIsAuthenticated(true);
+    setIsPdpaAccepted(false);
     sessionStorage.setItem('smartleave_auth', 'true');
+    sessionStorage.removeItem('smartleave_pdpa');
     localStorage.setItem('smartleave_user', JSON.stringify(userToSet));
+    return true;
+  };
 
-    // เช็คการแสดง PDPA Modal ครั้งแรกหลังล็อกอิน
-    const hasAgreed = localStorage.getItem('smartleave_pdpa_agreed');
-    if (!hasAgreed) {
-      setTimeout(() => {
-        setIsPrivacyModalOpen(true);
-      }, 500);
-    }
+  // Reset password action
+  const resetPassword = (email, newPassword) => {
+    if (!email || !newPassword) return false;
+    try {
+      const savedPasswords = JSON.parse(localStorage.getItem('smartleave_passwords') || '{}');
+      savedPasswords[email.toLowerCase()] = newPassword;
+      localStorage.setItem('smartleave_passwords', JSON.stringify(savedPasswords));
+    } catch (e) {}
+    showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} เรียบร้อยแล้ว`, 'success');
     return true;
   };
 
@@ -484,17 +408,21 @@ export function LeaveProvider({ children }) {
     const newUser = {
       id: newId,
       name: userData.fullName,
+      gender: userData.gender || '',
       title: userData.title,
       department: userData.department,
       email: userData.email || `${newId}@smartleave.com`,
       phone: userData.phone || '081-999-8888',
       employeeId: `EMP-${new Date().getFullYear() + 543}-${Math.floor(100 + Math.random() * 900)}`,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
+      avatar:
+        userData.gender === 'ชาย'
+          ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
+          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
       role: 'employee',
       vacationRem: 10,
-      personalRem: 5,
-      sickRem: 10,
-      maternityRem: 98,
+      personalRem: 15,
+      sickRem: 30,
+      maternityRem: userData.gender === 'ชาย' ? 0 : 90,
       status: 'ปกติ',
     };
 
@@ -504,18 +432,28 @@ export function LeaveProvider({ children }) {
 
     setCurrentUser(newUser);
     setIsAuthenticated(true);
+    setIsPdpaAccepted(false);
     sessionStorage.setItem('smartleave_auth', 'true');
-    sessionStorage.setItem('smartleave_auth', 'true');
+    sessionStorage.removeItem('smartleave_pdpa');
     localStorage.setItem('smartleave_user', JSON.stringify(newUser));
 
     showToast(`ยินดีต้อนรับ คุณ${newUser.name} สมัครสมาชิกสำเร็จแล้ว!`, 'success');
     return newUser;
   };
 
+  // Accept PDPA consent action
+  const acceptPdpa = () => {
+    setIsPdpaAccepted(true);
+    sessionStorage.setItem('smartleave_pdpa', 'true');
+    showToast('ยืนยันความยินยอม PDPA เรียบร้อยแล้ว ยินดีต้อนรับเข้าสู่ระบบ', 'success');
+  };
+
   // Logout action
   const logout = () => {
     setIsAuthenticated(false);
+    setIsPdpaAccepted(false);
     sessionStorage.removeItem('smartleave_auth');
+    sessionStorage.removeItem('smartleave_pdpa');
     localStorage.removeItem('smartleave_auth');
     setActiveTab('dashboard');
   };
@@ -530,6 +468,7 @@ export function LeaveProvider({ children }) {
     setNotifications(notificationsData);
     setActiveTab('dashboard');
     setIsAuthenticated(false);
+    setIsPdpaAccepted(false);
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -538,12 +477,14 @@ export function LeaveProvider({ children }) {
     <LeaveContext.Provider
       value={{
         isAuthenticated,
+        isPdpaAccepted,
+        acceptPdpa,
         login,
         register,
+        resetPassword,
         logout,
         currentUser,
         setCurrentUser,
-        updateUserProfile,
         switchRole,
         activeTab,
         setActiveTab,
@@ -574,12 +515,6 @@ export function LeaveProvider({ children }) {
         updateEmployeeQuota,
         toast,
         showToast,
-        isPrivacyModalOpen,
-        setIsPrivacyModalOpen,
-        healthConsent,
-        setHealthConsent,
-        pdpaAuditLogs,
-        setPdpaAuditLogs,
       }}
     >
       {children}

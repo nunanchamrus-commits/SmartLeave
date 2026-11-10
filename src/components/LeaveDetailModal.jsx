@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { X, Calendar, User, FileText, CheckCircle, Clock, XCircle, AlertTriangle, Check, Ban, Printer, FileDown } from 'lucide-react';
+import { X, Calendar, User, FileText, CheckCircle, Clock, XCircle, AlertTriangle, Check, Ban, FileDown } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
-import { downloadLeaveSlipPdf, printLeaveSlip } from '../utils/exportPdf';
+import { downloadLeaveSlipPdf } from '../utils/exportPdf';
 
 export default function LeaveDetailModal() {
   const {
@@ -47,14 +47,10 @@ export default function LeaveDetailModal() {
       if (showToast) showToast('ดาวน์โหลดใบลาเป็น PDF เรียบร้อยแล้ว', 'success');
     } catch (e) {
       console.error(e);
-      if (showToast) showToast('เปิดหน้าต่างพิมพ์ใบลาเพื่อบันทึกเป็น PDF', 'info');
+      if (showToast) showToast('เกิดข้อผิดพลาดในการดาวน์โหลด PDF', 'error');
     } finally {
       setIsExportingPdf(false);
     }
-  };
-
-  const handlePrintSlip = () => {
-    printLeaveSlip(req);
   };
 
   return (
@@ -225,16 +221,6 @@ export default function LeaveDetailModal() {
                 <FileDown className="w-3.5 h-3.5 text-lime-300" />
               )}
               <span>{isExportingPdf ? 'กำลังประมวลผล PDF...' : 'ส่งออกเป็น PDF'}</span>
-            </button>
-
-            {/* Print Slip Button */}
-            <button
-              onClick={handlePrintSlip}
-              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors shadow-2xs"
-              title="เปิดหน้าต่างพิมพ์ใบลา หรือบันทึกผ่านคำสั่งพิมพ์"
-            >
-              <Printer className="w-3.5 h-3.5 text-slate-600" />
-              <span>พิมพ์ใบลา</span>
             </button>
 
             {!isApprover && isPending && (

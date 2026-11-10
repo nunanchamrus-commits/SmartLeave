@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { LeaveProvider, useLeave } from './context/LeaveContext';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import LoginView from './components/LoginView';
 import RegisterView from './components/RegisterView';
+import ForgotPasswordView from './components/ForgotPasswordView';
+import PdpaConsentView from './components/PdpaConsentView';
 import DashboardView from './components/views/DashboardView';
 import AdminDashboardView from './components/views/AdminDashboardView';
 import AdminEmployeesView from './components/views/AdminEmployeesView';
@@ -15,7 +18,6 @@ import SettingsView from './components/views/SettingsView';
 import LeaveRequestModal from './components/LeaveRequestModal';
 import LeaveDetailModal from './components/LeaveDetailModal';
 import AnnouncementsModal from './components/AnnouncementsModal';
-import PrivacyPolicyModal from './components/PrivacyPolicyModal';
 
 function MainLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -67,23 +69,69 @@ function MainLayout() {
       <LeaveRequestModal />
       <LeaveDetailModal />
       <AnnouncementsModal />
-      <PrivacyPolicyModal />
     </div>
   );
 }
 
 function AppContent() {
-  const { isAuthenticated } = useLeave();
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const { isAuthenticated, isPdpaAccepted, toast } = useLeave();
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'forgot-password'
 
-  if (!isAuthenticated) {
-    if (authMode === 'register') {
-      return <RegisterView onSwitchToLogin={() => setAuthMode('login')} />;
+  // Reset authMode to login once user logs in, so future logouts go back to login screen
+  useEffect(() => {
+    if (isAuthenticated) {
+      setAuthMode('login');
     }
-    return <LoginView onSwitchToRegister={() => setAuthMode('register')} />;
-  }
+  }, [isAuthenticated]);
 
-  return <MainLayout />;
+  const renderScreen = () => {
+    if (!isAuthenticated) {
+      if (authMode === 'register') {
+        return <RegisterView onSwitchToLogin={() => setAuthMode('login')} />;
+      }
+      if (authMode === 'forgot-password') {
+        return <ForgotPasswordView onSwitchToLogin={() => setAuthMode('login')} />;
+      }
+      return (
+        <LoginView
+          onSwitchToRegister={() => setAuthMode('register')}
+          onSwitchToForgotPassword={() => setAuthMode('forgot-password')}
+        />
+      );
+    }
+
+    if (!isPdpaAccepted) {
+      return <PdpaConsentView />;
+    }
+
+    return <MainLayout />;
+  };
+
+  return (
+    <>
+      {renderScreen()}
+
+      {/* Global Toast Notification */}
+      {toast?.show && (
+        <div className="fixed top-5 right-5 z-[100] animate-in fade-in slide-in-from-top-3 duration-200">
+          <div
+            className={`flex items-center space-x-2.5 px-4 py-3 rounded-2xl shadow-xl border text-xs sm:text-sm font-semibold ${
+              toast.type === 'error'
+                ? 'bg-red-50 text-red-700 border-red-200'
+                : 'bg-[#123E24] text-white border-emerald-800/50'
+            }`}
+          >
+            {toast.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-300 flex-shrink-0" />
+            )}
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 export default function App() {

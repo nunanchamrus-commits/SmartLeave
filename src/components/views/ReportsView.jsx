@@ -7,6 +7,10 @@ export default function ReportsView() {
   const { quotas, leaveRequests, showToast } = useLeave();
   const [isExporting, setIsExporting] = useState(false);
 
+  const now = new Date();
+  const currentYearBE = now.getFullYear() + 543;
+  const currentMonthIndex = now.getMonth();
+
   const handlePrint = () => {
     window.print();
   };
@@ -14,7 +18,7 @@ export default function ReportsView() {
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
-      await downloadLeaveSummaryPdf(leaveRequests, 'รายงานสถิติการลาประจำปี 2569');
+      await downloadLeaveSummaryPdf(leaveRequests, `รายงานสถิติการลาประจำปี ${currentYearBE}`);
       if (showToast) showToast('ส่งออกรายงานเป็น PDF สำเร็จ', 'success');
     } catch (e) {
       console.error(e);
@@ -31,7 +35,7 @@ export default function ReportsView() {
         <div>
           <h2 className="text-2xl font-bold text-slate-800 font-prompt">รายงานสถิติการลา (Leave Analytics)</h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            รายงานภาพรวมการใช้วันลา สถิติรายประเภท และแนวโน้มประจำปี 2569
+            รายงานภาพรวมการใช้วันลา สถิติรายประเภท และแนวโน้มประจำปี {currentYearBE}
           </p>
         </div>
 
@@ -84,7 +88,7 @@ export default function ReportsView() {
           <div className="text-3xl font-extrabold text-[#15803D] mt-2 font-prompt">
             {quotas.totalRemaining} วัน
           </div>
-          <p className="text-xs text-slate-400 mt-1">จากสิทธิ์รวม {quotas.totalLimit} วันทำการ/ปี</p>
+          <p className="text-xs text-slate-400 mt-1">จากสิทธิ์รวม {quotas.totalLimit} วัน</p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -106,7 +110,7 @@ export default function ReportsView() {
         {/* Monthly Trend Simulated Bar Chart */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
           <h3 className="font-bold text-base text-slate-800 font-prompt">
-            สถิติการลาประจำเดือน (ปี 2569)
+            สถิติการลาประจำเดือน (ปี {currentYearBE})
           </h3>
           <p className="text-xs text-slate-500">จำนวนวันลาที่พนักงานใช้แยกตามแต่ละเดือน</p>
 
@@ -122,26 +126,29 @@ export default function ReportsView() {
               { m: 'ส.ค.', v: 3 },
               { m: 'ก.ย.', v: 2 },
               { m: 'ต.ค.', v: 3 },
-              { m: 'พ.ย.', v: 4, active: true },
+              { m: 'พ.ย.', v: 4 },
               { m: 'ธ.ค.', v: 0 },
-            ].map((item, idx) => (
-              <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                <span className="text-[10px] text-slate-500 font-bold">{item.v > 0 ? item.v : '-'}</span>
-                <div
-                  style={{ height: `${item.v > 0 ? (item.v / 7) * 100 : 4}%` }}
-                  className={`w-full rounded-t-lg transition-all duration-500 ${
-                    item.active
-                      ? 'bg-[#155A32] shadow-md ring-2 ring-emerald-300'
-                      : item.v > 0
-                      ? 'bg-emerald-300 hover:bg-emerald-400'
-                      : 'bg-slate-100'
-                  }`}
-                />
-                <span className={`text-[10px] ${item.active ? 'font-bold text-[#155A32]' : 'text-slate-400'}`}>
-                  {item.m}
-                </span>
-              </div>
-            ))}
+            ].map((item, idx) => {
+              const isCurrentMonth = idx === currentMonthIndex;
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                  <span className="text-[10px] text-slate-500 font-bold">{item.v > 0 ? item.v : '-'}</span>
+                  <div
+                    style={{ height: `${item.v > 0 ? (item.v / 7) * 100 : 4}%` }}
+                    className={`w-full rounded-t-lg transition-all duration-500 ${
+                      isCurrentMonth
+                        ? 'bg-[#155A32] shadow-md ring-2 ring-emerald-300'
+                        : item.v > 0
+                        ? 'bg-emerald-300 hover:bg-emerald-400'
+                        : 'bg-slate-100'
+                    }`}
+                  />
+                  <span className={`text-[10px] ${isCurrentMonth ? 'font-bold text-[#155A32]' : 'text-slate-400'}`}>
+                    {item.m}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -208,12 +215,12 @@ export default function ReportsView() {
                     <span className="w-2.5 h-2.5 rounded-full bg-pink-500" />
                     <span>ลาคลอดบุตร (Maternity Leave)</span>
                   </span>
-                  <span>{quotas.maternity.used} จาก 98 วัน ({Math.round((quotas.maternity.used / 98) * 100)}%)</span>
+                  <span>{quotas.maternity.used} จาก {quotas.maternity.limit || 90} วัน ({Math.round((quotas.maternity.used / (quotas.maternity.limit || 90)) * 100)}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                   <div
                     className="bg-pink-500 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${(quotas.maternity.used / 98) * 100}%` }}
+                    style={{ width: `${(quotas.maternity.used / (quotas.maternity.limit || 90)) * 100}%` }}
                   />
                 </div>
               </div>

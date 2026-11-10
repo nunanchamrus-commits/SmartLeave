@@ -249,7 +249,6 @@ export default function Header({ onMenuClick }) {
                 <p className="text-xs text-slate-400 font-medium">เข้าสู่ระบบในชื่อ</p>
                 <p className="text-sm font-semibold text-slate-800 mt-0.5">{currentUser.name}</p>
                 <p className="text-xs text-emerald-700 font-medium">{currentUser.department}</p>
-                <p className="text-[11px] text-slate-400 font-mono mt-1">รหัส: {currentUser.employeeId}</p>
               </div>
 
               {/* Role Switcher */}

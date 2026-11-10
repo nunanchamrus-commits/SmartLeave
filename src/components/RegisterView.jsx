@@ -23,6 +23,7 @@ export default function RegisterView({ onSwitchToLogin }) {
 
   const [formData, setFormData] = useState({
     fullName: '',
+    gender: '',
     email: '',
     title: '',
     department: '',
@@ -35,13 +36,18 @@ export default function RegisterView({ onSwitchToLogin }) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Auto-generate email preview if email empty
+  // Auto-generate valid ASCII email preview when empty
   const handleNameChange = (e) => {
     const val = e.target.value;
+    const asciiSlug = val
+      .toLowerCase()
+      .replace(/[^a-z0-9\s.]/g, '')
+      .trim()
+      .replace(/\s+/g, '.');
     setFormData((prev) => ({
       ...prev,
       fullName: val,
-      email: prev.email ? prev.email : val ? `${val.toLowerCase().replace(/\s+/g, '.')}@smartleave.com` : '',
+      email: prev.email ? prev.email : asciiSlug ? `${asciiSlug}@smartleave.com` : '',
     }));
     setError('');
   };
@@ -52,6 +58,10 @@ export default function RegisterView({ onSwitchToLogin }) {
     // 1. Validation
     if (!formData.fullName.trim()) {
       setError('กรุณากรอกชื่อ - นามสกุล');
+      return;
+    }
+    if (!formData.gender) {
+      setError('กรุณาเลือกเพศ');
       return;
     }
     if (!formData.title.trim()) {
@@ -82,6 +92,7 @@ export default function RegisterView({ onSwitchToLogin }) {
       // Register through LeaveContext
       register({
         fullName: formData.fullName.trim(),
+        gender: formData.gender,
         title: formData.title.trim(),
         department: formData.department.trim(),
         email: formData.email.trim(),
@@ -254,6 +265,40 @@ export default function RegisterView({ onSwitchToLogin }) {
                     placeholder="เช่น นายชาญชัย มิ่งขวัญ"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
                   />
+                </div>
+              </div>
+
+              {/* 1.5 เพศ */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  เพศ <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="เพศ">
+                  {[
+                    { value: 'ชาย', label: 'ชาย' },
+                    { value: 'หญิง', label: 'หญิง' },
+                  ].map((option) => {
+                    const isSelected = formData.gender === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => {
+                          setFormData((prev) => ({ ...prev, gender: option.value }));
+                          setError('');
+                        }}
+                        className={`py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-medium transition-all flex items-center justify-center ${
+                          isSelected
+                            ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold ring-2 ring-emerald-500/20'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <span>{option.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

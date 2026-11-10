@@ -1,6 +1,7 @@
 export const initialUser = {
   id: 'usr-101',
   name: 'นางสาวพนิกา ธรรมเมือง',
+  gender: 'หญิง',
   title: 'พนักงาน',
   department: 'ฝ่ายออกแบบผลิตภัณฑ์ (UI/UX Design)',
   email: 'panika.t@smartleave.com',
@@ -13,6 +14,7 @@ export const initialUser = {
 export const approverUser = {
   id: 'usr-202',
   name: 'นายสมชาย มั่นคง',
+  gender: 'ชาย',
   title: 'ผู้จัดการแผนก / ผู้อนุมัติ',
   department: 'ฝ่ายบริหารทรัพยากรบุคคลและปฏิบัติการ',
   email: 'somchai.m@smartleave.com',
@@ -54,8 +56,8 @@ export const initialQuotas = {
   },
   maternity: {
     name: 'ลาคลอดบุตร',
-    remaining: 98,
-    limit: 98,
+    remaining: 90,
+    limit: 90,
     unit: 'วัน',
     used: 0,
     color: '#EC4899',
@@ -261,6 +263,7 @@ export const employeesList = [
   {
     id: 'usr-101',
     name: 'นางสาวพนิกา ธรรมเมือง',
+    gender: 'หญิง',
     title: 'พนักงาน',
     role: 'employee',
     department: 'ฝ่ายออกแบบผลิตภัณฑ์ (UI/UX Design)',
@@ -270,12 +273,13 @@ export const employeesList = [
     vacationRem: 8,
     personalRem: 15,
     sickRem: 29,
-    maternityRem: 98,
+    maternityRem: 90,
     status: 'ปกติ',
   },
   {
     id: 'usr-102',
     name: 'นายอัครพล เจริญผล',
+    gender: 'ชาย',
     title: 'วิศวกรซอฟต์แวร์อาวุโส',
     role: 'employee',
     department: 'ฝ่ายวิศวกรรมซอฟต์แวร์ (Frontend)',
@@ -291,6 +295,7 @@ export const employeesList = [
   {
     id: 'usr-103',
     name: 'นางสาวณิชาภัทร วงศ์ษา',
+    gender: 'หญิง',
     title: 'เจ้าหน้าที่การตลาดดิจิทัล',
     role: 'employee',
     department: 'ฝ่ายการตลาดและการเติบโต (Marketing)',
@@ -300,12 +305,13 @@ export const employeesList = [
     vacationRem: 9,
     personalRem: 2,
     sickRem: 8,
-    maternityRem: 98,
+    maternityRem: 90,
     status: 'ปกติ',
   },
   {
     id: 'usr-104',
     name: 'นายวิชัย สุขใจ',
+    gender: 'ชาย',
     title: 'หัวหน้าทีมออกแบบ UI/UX',
     role: 'employee',
     department: 'ฝ่ายออกแบบผลิตภัณฑ์ (UI/UX Design)',
@@ -321,6 +327,7 @@ export const employeesList = [
   {
     id: 'usr-105',
     name: 'นางสาวสุดา ใจดี',
+    gender: 'หญิง',
     title: 'วิศวกรควบคุมคุณภาพ (QA Lead)',
     role: 'employee',
     department: 'ฝ่ายประกันคุณภาพ (Quality Assurance)',
@@ -330,12 +337,13 @@ export const employeesList = [
     vacationRem: 4,
     personalRem: 3,
     sickRem: 7,
-    maternityRem: 98,
+    maternityRem: 90,
     status: 'ปกติ',
   },
   {
     id: 'usr-106',
     name: 'นายกิตติศักดิ์ พูลสวัสดิ์',
+    gender: 'ชาย',
     title: 'วิศวกรโครงสร้างพื้นฐานระบบ',
     role: 'employee',
     department: 'ฝ่ายไอทีและระบบคลาวด์ (DevOps & Cloud)',
@@ -349,25 +357,4 @@ export const employeesList = [
     status: 'ปกติ',
   },
 ];
-
-export const initialPDPAPolicy = {
-  version: '1.0',
-  title: 'นโยบายความเป็นส่วนตัวและสิทธิของเจ้าของข้อมูล (Privacy Notice)',
-  effectiveDate: '1 มกราคม 2569',
-  dataCollected: [
-    'ข้อมูลระบุตัวตนและข้อมูลติดต่อ: ชื่อ-นามสกุล, รหัสพนักงาน, แผนก, ตำแหน่ง, อีเมล, หมายเลขโทรศัพท์',
-    'ข้อมูลการปฏิบัติงานและการลา: ประเภทการลา, วันที่เริ่มต้น-สิ้นสุด, เหตุผลการลา, โควตาวันลาคงเหลือ',
-    'ข้อมูลสุขภาพ (ข้อมูลส่วนบุคคลที่มีความอ่อนไหว): ข้อมูลใบรับรองแพทย์หรืออาการเจ็บป่วยสำหรับประกอบการลาป่วย',
-  ],
-  purposes: [
-    'เพื่อการตรวจสอบ คำนวณสิทธิประโยชน์ และพิจารณาอนุมัติคำขอลางานตามข้อบังคับการทำงาน',
-    'เพื่อบันทึกประวัติการลา สถิติการปฏิบัติงาน และการบริหารทรัพยากรบุคคลภายในองค์กร',
-    'เพื่อปฏิบัติตามกฎหมายคุ้มครองแรงงานและพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562',
-  ],
-  rights: [
-    'สิทธิขอเข้าถึงและขอรับสำเนาข้อมูลส่วนบุคคลที่เกี่ยวกับตน',
-    'สิทธิขอให้แก้ไขข้อมูลที่ไม่ถูกต้องหรือไม่สมบูรณ์',
-    'สิทธิในการถอนความยินยอม (Right to Withdraw Consent) ได้ตลอดเวลาโดยไม่มีเงื่อนไขและไม่มีผลกระทบต่อสิทธิการจ้างงาน',
-  ],
-};
 

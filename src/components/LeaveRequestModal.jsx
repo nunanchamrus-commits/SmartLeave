@@ -51,7 +51,7 @@ export default function LeaveRequestModal() {
       case 'sick':
         return { name: 'ลาป่วย', remaining: quotas.sick.remaining };
       case 'maternity':
-        return { name: 'ลาคลอดบุตร', remaining: quotas.maternity ? quotas.maternity.remaining : 98 };
+        return { name: 'ลาคลอดบุตร', remaining: quotas.maternity ? quotas.maternity.remaining : 90 };
       default:
         return { name: 'อื่นๆ', remaining: 10 };
     }

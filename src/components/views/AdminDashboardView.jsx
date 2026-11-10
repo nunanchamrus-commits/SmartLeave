@@ -19,6 +19,11 @@ import {
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf } from '../../utils/exportPdf';
 
+const THAI_MONTHS_SHORT = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+];
+
 export default function AdminDashboardView() {
   const {
     currentUser,
@@ -28,9 +33,14 @@ export default function AdminDashboardView() {
     setSelectedLeaveDetail,
     setActiveTab,
     employees,
+    showToast,
   } = useLeave();
 
   const [searchEmployee, setSearchEmployee] = useState('');
+
+  const now = new Date();
+  const currentYearBE = now.getFullYear() + 543;
+  const currentMonthYearBE = `${THAI_MONTHS_SHORT[now.getMonth()]} ${currentYearBE}`;
 
   const pendingRequests = leaveRequests.filter((r) => r.status === 'รออนุมัติ');
   const approvedRequests = leaveRequests.filter((r) => r.status === 'อนุมัติ');
@@ -169,7 +179,7 @@ export default function AdminDashboardView() {
               <TrendingUp className="w-6 h-6" />
             </div>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800">
-              ปี 2568
+              ปี {currentYearBE}
             </span>
           </div>
           <div className="mt-4">
@@ -240,7 +250,15 @@ export default function AdminDashboardView() {
                   <div className="flex items-center space-x-1.5 flex-shrink-0 self-end sm:self-center">
                     <button
                       type="button"
-                      onClick={() => downloadLeaveSlipPdf(req)}
+                      onClick={async () => {
+                        try {
+                          await downloadLeaveSlipPdf(req);
+                          if (showToast) showToast(`ส่งออกใบลา ${req.id} เป็น PDF สำเร็จ`, 'success');
+                        } catch (err) {
+                          console.error(err);
+                          if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF', 'error');
+                        }
+                      }}
                       className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 transition-colors shadow-2xs"
                       title="ส่งออกใบลาเป็น PDF"
                     >
@@ -277,7 +295,7 @@ export default function AdminDashboardView() {
                   สถานะการลาประจำวัน
                 </h3>
               </div>
-              <span className="text-xs font-medium text-slate-400">พ.ย. 2568</span>
+              <span className="text-xs font-medium text-slate-400">{currentMonthYearBE}</span>
             </div>
 
             <div className="mt-3 space-y-3">
@@ -378,7 +396,6 @@ export default function AdminDashboardView() {
                     />
                     <div>
                       <p className="font-bold text-slate-800">{emp.name}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">{emp.employeeId}</p>
                     </div>
                   </td>
                   <td className="py-3 px-4 text-slate-600">{emp.department}</td>
@@ -386,10 +403,10 @@ export default function AdminDashboardView() {
                     {emp.vacationRem} / 10 วัน
                   </td>
                   <td className="py-3 px-4 text-center font-bold text-teal-700">
-                    {emp.personalRem} / 5 วัน
+                    {emp.personalRem} / 15 วัน
                   </td>
                   <td className="py-3 px-4 text-center font-bold text-rose-600">
-                    {emp.sickRem} / 10 วัน
+                    {emp.sickRem} / 30 วัน
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span

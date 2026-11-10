@@ -153,7 +153,6 @@ export default function AdminEmployeesView() {
                     <div>
                       <p className="font-bold text-slate-900">{emp.name}</p>
                       <p className="text-xs text-slate-500">{emp.title}</p>
-                      <span className="text-[10px] text-slate-400 font-mono">{emp.employeeId}</span>
                     </div>
                   </td>
                   <td className="py-3 px-4 text-slate-600 max-w-xs">{emp.department}</td>
@@ -225,7 +224,6 @@ export default function AdminEmployeesView() {
                 <div>
                   <p className="font-bold text-slate-800">{editingEmp.name}</p>
                   <p className="text-xs text-slate-500">{editingEmp.department}</p>
-                  <p className="text-[10px] text-slate-400 font-mono">{editingEmp.employeeId}</p>
                 </div>
               </div>
 
@@ -278,7 +276,7 @@ export default function AdminEmployeesView() {
                 <input
                   type="number"
                   min="0"
-                  max="120"
+                  max="90"
                   value={editForm.maternityRem}
                   onChange={(e) => setEditForm({ ...editForm, maternityRem: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
