@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ArrowLeft,
   ChevronDown,
+  UserCheck,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
@@ -54,6 +55,13 @@ const DEPARTMENT_OPTIONS = [
   'นิคมสหกรณ์ดงมูล',
 ];
 
+const EMPLOYMENT_TYPE_OPTIONS = [
+  'ข้าราชการ',
+  'ลูกจ้างประจำ',
+  'พนักงานราชการ',
+  'ลูกจ้างเหมาบริการ',
+];
+
 export default function RegisterView({ onSwitchToLogin }) {
   const { register } = useLeave();
 
@@ -63,6 +71,7 @@ export default function RegisterView({ onSwitchToLogin }) {
     email: '',
     title: '',
     department: '',
+    employmentType: '',
     password: '',
     confirmPassword: '',
   });
@@ -108,6 +117,10 @@ export default function RegisterView({ onSwitchToLogin }) {
       setError('กรุณาเลือกสังกัดกลุ่ม / ฝ่าย');
       return;
     }
+    if (!formData.employmentType) {
+      setError('กรุณาเลือกประเภทการจ้างงาน');
+      return;
+    }
     if (!formData.password) {
       setError('กรุณากำหนดรหัสผ่าน');
       return;
@@ -132,6 +145,7 @@ export default function RegisterView({ onSwitchToLogin }) {
           gender: formData.gender,
           title: formData.title.trim(),
           department: formData.department.trim(),
+          employmentType: formData.employmentType,
           email: formData.email.trim(),
           password: formData.password,
         });
@@ -411,6 +425,41 @@ export default function RegisterView({ onSwitchToLogin }) {
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
                       <ChevronDown className="w-4 h-4" />
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2.5 ประเภทการจ้างงาน */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ประเภทการจ้างงาน <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <UserCheck className="w-4 h-4" />
+                  </div>
+                  <select
+                    aria-label="ประเภทการจ้างงาน"
+                    value={formData.employmentType}
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, employmentType: e.target.value }));
+                      setError('');
+                    }}
+                    className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer ${
+                      formData.employmentType ? 'text-slate-800' : 'text-slate-400'
+                    }`}
+                  >
+                    <option value="" className="text-slate-400">
+                      -- เลือกประเภทการจ้างงาน --
+                    </option>
+                    {EMPLOYMENT_TYPE_OPTIONS.map((empType) => (
+                      <option key={empType} value={empType} className="text-slate-800">
+                        {empType}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                    <ChevronDown className="w-4 h-4" />
                   </div>
                 </div>
               </div>
