@@ -42,6 +42,39 @@ function normalizeLeaveStatus(status) {
   }
 }
 
+function normalizeEmployeeQuotas(emp) {
+  if (!emp) return emp;
+  const gender = emp.gender || inferUserGender(emp);
+  const defaults = {
+    vacation: 10,
+    personal: 15,
+    sick: 30,
+    maternity: gender === 'ชาย' ? 0 : 90,
+  };
+  const next = { ...emp, gender };
+  Object.entries(defaults).forEach(([key, defLimit]) => {
+    const rawRem = emp[`${key}Rem`];
+    const rawLimit = emp[`${key}Limit`];
+    const rawUsed = emp[`${key}Used`];
+
+    let limit = rawLimit !== undefined && rawLimit !== null ? Math.max(0, Number(rawLimit)) : defLimit;
+    let rem = rawRem !== undefined && rawRem !== null ? Math.max(0, Number(rawRem)) : limit;
+    if (key === 'maternity' && rem === 98) rem = 90;
+    if (rem > limit && (rawLimit === undefined || rawLimit === null)) {
+      limit = rem;
+    }
+    const used =
+      rawUsed !== undefined && rawUsed !== null
+        ? Math.max(0, Number(rawUsed))
+        : Math.max(0, limit - rem);
+
+    next[`${key}Limit`] = limit;
+    next[`${key}Used`] = used;
+    next[`${key}Rem`] = rem;
+  });
+  return next;
+}
+
 export function LeaveProvider({ children }) {
   // Authentication State: Require login before reaching dashboard
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -162,17 +195,19 @@ export function LeaveProvider({ children }) {
           // หากแคชเดิมมีจำนวนคนไม่ใช่ 5 คน หรือเป็นแผนกไอที ให้ล้างแคชและใช้รายชื่อเจ้าหน้าที่สหกรณ์ 5 คนใหม่ทันที
           if (parsed.length !== 5 || parsed.some((e) => e.department?.includes('UI/UX') || e.department?.includes('วิศวกรรม'))) {
             localStorage.setItem('smartleave_employees', JSON.stringify(employeesList));
-            return employeesList;
+            return employeesList.map(normalizeEmployeeQuotas);
           }
-          return parsed.map((emp) => ({
-            ...emp,
-            gender: emp.gender || inferUserGender(emp),
-            maternityRem: emp.maternityRem === 98 ? 90 : emp.maternityRem,
-          }));
+          return parsed.map((emp) =>
+            normalizeEmployeeQuotas({
+              ...emp,
+              gender: emp.gender || inferUserGender(emp),
+              maternityRem: emp.maternityRem === 98 ? 90 : emp.maternityRem,
+            })
+          );
         }
       } catch (e) {}
     }
-    return employeesList;
+    return employeesList.map(normalizeEmployeeQuotas);
   });
 
   const isAdmin = currentUser.role === 'approver' || currentUser.role === 'admin';
@@ -201,26 +236,65 @@ export function LeaveProvider({ children }) {
     } catch (e) {}
   }, []);
 
-  const updateEmployeeQuota = async (empId, quotaKey, value) => {
-    const numVal = Number(value);
-    const updated = employees.map((emp) => {
-      if (emp.id === empId) {
-        return { ...emp, [quotaKey]: numVal };
+  const updateEmployeeQuota = async (empId, quotaUpdatesOrKey, value) => {
+    const rawUpdates =
+      typeof quotaUpdatesOrKey === 'object' && quotaUpdatesOrKey !== null
+        ? quotaUpdatesOrKey
+        : { [quotaUpdatesOrKey]: value };
+
+    const normalizedUpdates = {};
+    Object.entries(rawUpdates).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && !Number.isNaN(Number(v))) {
+        normalizedUpdates[k] = Math.max(0, Number(v));
       }
-      return emp;
     });
-    setEmployees(updated);
+
+    const targetBase = employees.find((emp) => emp.id === empId || emp.employeeId === empId);
+    const nextEmp = targetBase ? normalizeEmployeeQuotas({ ...targetBase, ...normalizedUpdates }) : null;
+
+    setEmployees((prev) =>
+      prev.map((emp) => {
+        if (emp.id === empId || emp.employeeId === empId) {
+          return normalizeEmployeeQuotas({ ...emp, ...normalizedUpdates });
+        }
+        return emp;
+      })
+    );
+
+    // ซิงก์การ์ดโควตาหน้าหลักหากแอดมินแก้ไขวันลาของผู้ใช้งานปัจจุบัน
+    if (
+      nextEmp &&
+      currentUser &&
+      (nextEmp.id === currentUser.id ||
+        (currentUser.employeeId && nextEmp.employeeId === currentUser.employeeId) ||
+        (currentUser.email && nextEmp.email?.toLowerCase() === currentUser.email.toLowerCase()))
+    ) {
+      const totalRem = nextEmp.vacationRem + nextEmp.personalRem + nextEmp.sickRem;
+      const totalLim = nextEmp.vacationLimit + nextEmp.personalLimit + nextEmp.sickLimit;
+      setQuotas((prev) => ({
+        ...prev,
+        totalRemaining: totalRem,
+        totalLimit: totalLim,
+        vacation: { ...prev.vacation, remaining: nextEmp.vacationRem, used: nextEmp.vacationUsed, limit: nextEmp.vacationLimit },
+        personal: { ...prev.personal, name: 'ลากิจ', remaining: nextEmp.personalRem, used: nextEmp.personalUsed, limit: nextEmp.personalLimit },
+        sick: { ...prev.sick, remaining: nextEmp.sickRem, used: nextEmp.sickUsed, limit: nextEmp.sickLimit },
+        maternity: { ...prev.maternity, remaining: nextEmp.maternityRem, used: nextEmp.maternityUsed, limit: nextEmp.maternityLimit },
+      }));
+    }
 
     // บันทึกลง Cloudflare D1 Database จริง 100%
     try {
       if (api && api.updateEmployeeQuota) {
-        await api.updateEmployeeQuota(empId, { [quotaKey]: numVal });
+        await api.updateEmployeeQuota(empId, {
+          ...normalizedUpdates,
+          email: nextEmp?.email || '',
+        });
       }
     } catch (e) {
       console.log('[Update Quota D1 Note]:', e.message);
     }
 
-    showToast('อัปเดตโควตาวันลาพนักงานลง Cloudflare D1 เรียบร้อยแล้ว', 'success');
+    showToast('อัปเดตจำนวนวันลาและสิทธิ์ลาของพนักงานเรียบร้อยแล้ว', 'success');
   };
 
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -246,13 +320,15 @@ export function LeaveProvider({ children }) {
     try {
       // 1. ดึงข้อมูลพนักงานสดจาก Cloudflare D1
       const empData = await api.getEmployees();
+      let latestEmployees = employees;
       if (Array.isArray(empData) && empData.length > 0) {
-        setEmployees(empData);
+        latestEmployees = empData.map(normalizeEmployeeQuotas);
+        setEmployees(latestEmployees);
         setIsDbConnected(true);
 
         // ซิงก์ข้อมูล currentUser เข้ากับข้อมูลล่าสุดใน DB
         if (currentUser) {
-          const freshUser = empData.find(
+          const freshUser = latestEmployees.find(
             (e) => (e.email && e.email.toLowerCase() === currentUser.email?.toLowerCase()) || (e.employeeId && e.employeeId === currentUser.employeeId)
           );
           if (freshUser) {
@@ -273,7 +349,7 @@ export function LeaveProvider({ children }) {
           status: normalizeLeaveStatus(r.status),
         }));
         setLeaveRequests(normalizedLeaves);
-        recalculateQuotas(normalizedLeaves);
+        recalculateQuotas(normalizedLeaves, latestEmployees, Array.isArray(empData) && empData.length > 0);
       }
 
       // 3. ดึงประกาศสดจาก Cloudflare D1
@@ -296,47 +372,76 @@ export function LeaveProvider({ children }) {
     fetchLiveDatabaseData();
   }, [isAuthenticated]);
 
-  // Recalculate quotas based on approved/pending requests for current user
-  const recalculateQuotas = (requests) => {
+  // Recalculate quotas based on employee quota record or approved requests for current user
+  const recalculateQuotas = (requests, employeeList = employees, preferEmpQuotas = false, targetUser = currentUser) => {
+    const matchedEmp = (employeeList || []).find(
+      (e) =>
+        e.id === targetUser?.id ||
+        (targetUser?.employeeId && e.employeeId === targetUser.employeeId) ||
+        (targetUser?.email && e.email?.toLowerCase() === targetUser.email.toLowerCase())
+    );
+    const vacLimit = matchedEmp?.vacationLimit ?? 10;
+    const perLimit = matchedEmp?.personalLimit ?? 15;
+    const sicLimit = matchedEmp?.sickLimit ?? 30;
+    const matLimit = matchedEmp?.maternityLimit ?? (targetUser?.gender === 'ชาย' ? 0 : 90);
+
+    if (preferEmpQuotas && matchedEmp) {
+      const vacationUsed = Number(matchedEmp.vacationUsed ?? 0);
+      const personalUsed = Number(matchedEmp.personalUsed ?? 0);
+      const sickUsed = Number(matchedEmp.sickUsed ?? 0);
+      const maternityUsed = Number(matchedEmp.maternityUsed ?? 0);
+      const vacationRem = Number(matchedEmp.vacationRem ?? Math.max(0, vacLimit - vacationUsed));
+      const personalRem = Number(matchedEmp.personalRem ?? Math.max(0, perLimit - personalUsed));
+      const sickRem = Number(matchedEmp.sickRem ?? Math.max(0, sicLimit - sickUsed));
+      const maternityRem = Number(matchedEmp.maternityRem ?? Math.max(0, matLimit - maternityUsed));
+      setQuotas({
+        totalRemaining: vacationRem + personalRem + sickRem,
+        totalLimit: vacLimit + perLimit + sicLimit,
+        vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: vacLimit },
+        personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: perLimit, name: 'ลากิจ' },
+        sick: { ...initialQuotas.sick, remaining: sickRem, used: sickUsed, limit: sicLimit },
+        maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: matLimit },
+      });
+      return;
+    }
+
     const userApprovedRequests = requests.filter(
-      (r) => (r.employeeId === currentUser?.id || r.employeeId === currentUser?.employeeId || r.employeeName === currentUser?.name) && r.status === 'อนุมัติ'
+      (r) => (r.employeeId === targetUser?.id || r.employeeId === targetUser?.employeeId || r.employeeName === targetUser?.name) && r.status === 'อนุมัติ'
     );
     const vacationUsed = userApprovedRequests
       .filter((r) => r.typeKey === 'vacation')
-      .reduce((sum, r) => sum + r.days, 0);
+      .reduce((sum, r) => sum + Number(r.days || 0), 0);
     const personalUsed = userApprovedRequests
       .filter((r) => r.typeKey === 'personal')
-      .reduce((sum, r) => sum + r.days, 0);
+      .reduce((sum, r) => sum + Number(r.days || 0), 0);
     const sickUsed = userApprovedRequests
       .filter((r) => r.typeKey === 'sick')
-      .reduce((sum, r) => sum + r.days, 0);
+      .reduce((sum, r) => sum + Number(r.days || 0), 0);
     const maternityUsed = userApprovedRequests
       .filter((r) => r.typeKey === 'maternity')
-      .reduce((sum, r) => sum + r.days, 0);
+      .reduce((sum, r) => sum + Number(r.days || 0), 0);
 
-    const vacationRem = Math.max(0, 10 - vacationUsed);
-    const personalRem = Math.max(0, 15 - personalUsed);
-    const sickRem = Math.max(0, 30 - sickUsed);
-    const maternityRem = Math.max(0, 90 - maternityUsed);
+    const vacationRem = Math.max(0, vacLimit - vacationUsed);
+    const personalRem = Math.max(0, perLimit - personalUsed);
+    const sickRem = Math.max(0, sicLimit - sickUsed);
+    const maternityRem = Math.max(0, matLimit - maternityUsed);
     const totalRem = vacationRem + personalRem + sickRem;
 
     setQuotas({
       totalRemaining: totalRem,
-      totalLimit: 55,
-      vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: 10 },
-      personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: 15, name: 'ลากิจ' },
-      sick: { ...initialQuotas.sick, remaining: sickRem, used: sickUsed, limit: 30 },
-      maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: 90 },
+      totalLimit: vacLimit + perLimit + sicLimit,
+      vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: vacLimit },
+      personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: perLimit, name: 'ลากิจ' },
+      sick: { ...initialQuotas.sick, remaining: sickRem, used: sickUsed, limit: sicLimit },
+      maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: matLimit },
     });
   };
 
   // Switch role between employee and approver
   const switchRole = (role) => {
-    if (role === 'approver') {
-      setCurrentUser(approverUser);
-    } else {
-      setCurrentUser(initialUser);
-    }
+    const nextUser = role === 'approver' ? approverUser : initialUser;
+    setCurrentUser(nextUser);
+    recalculateQuotas(leaveRequests, employees, true, nextUser);
   };
 
   // Submit a new leave request
@@ -357,7 +462,7 @@ export function LeaveProvider({ children }) {
 
     const updated = [newReq, ...leaveRequests];
     setLeaveRequests(updated);
-    recalculateQuotas(updated);
+    recalculateQuotas(updated, employees, true);
 
     // Add notification
     const newNotif = {
@@ -388,7 +493,7 @@ export function LeaveProvider({ children }) {
             status: normalizeLeaveStatus(r.status),
           }));
           setLeaveRequests(normalizedFresh);
-          recalculateQuotas(normalizedFresh);
+          recalculateQuotas(normalizedFresh, employees, true);
         }
       }
     } catch (e) {
@@ -416,8 +521,44 @@ export function LeaveProvider({ children }) {
       return r;
     });
 
+    const target = leaveRequests.find((r) => r.id === requestId);
+    const wasApproved = target?.status === 'อนุมัติ';
+    const isNowApproved = normalizedStatus === 'อนุมัติ';
+
     setLeaveRequests(updated);
-    recalculateQuotas(updated);
+
+    // ปรับวันลาที่ใช้ไปและคงเหลือในตารางพนักงานทันทีเมื่อเปลี่ยนสถานะเข้าหรือออกจากการอนุมัติ
+    let nextEmployees = employees;
+    if (target && wasApproved !== isNowApproved) {
+      const typeKey = ['vacation', 'personal', 'sick', 'maternity'].includes(target.typeKey)
+        ? target.typeKey
+        : null;
+      const daysDelta = isNowApproved ? Number(target.days || 0) : -Number(target.days || 0);
+      if (typeKey && daysDelta !== 0) {
+        nextEmployees = employees.map((emp) => {
+          const isMatch =
+            (emp.raw_id && target.user_id && Number(emp.raw_id) === Number(target.user_id)) ||
+            (target.userId && emp.id && `usr-${target.userId}` === emp.id) ||
+            (target.employeeId && (emp.employeeId === target.employeeId || emp.id === target.employeeId)) ||
+            (target.employeeEmail && emp.email?.toLowerCase() === target.employeeEmail.toLowerCase()) ||
+            (target.employeeName && emp.name === target.employeeName);
+          if (!isMatch) return emp;
+
+          const limit = emp[`${typeKey}Limit`] ?? (typeKey === 'vacation' ? 10 : typeKey === 'personal' ? 15 : typeKey === 'sick' ? 30 : 90);
+          const prevUsed = emp[`${typeKey}Used`] ?? Math.max(0, limit - (emp[`${typeKey}Rem`] ?? limit));
+          const nextUsed = Math.max(0, prevUsed + daysDelta);
+          const nextRem = Math.max(0, limit - nextUsed);
+          return normalizeEmployeeQuotas({
+            ...emp,
+            [`${typeKey}Limit`]: limit,
+            [`${typeKey}Used`]: nextUsed,
+            [`${typeKey}Rem`]: nextRem,
+          });
+        });
+        setEmployees(nextEmployees);
+      }
+    }
+    recalculateQuotas(updated, nextEmployees, true);
 
     if (selectedLeaveDetail?.id === requestId) {
       setSelectedLeaveDetail((prev) =>
@@ -445,7 +586,6 @@ export function LeaveProvider({ children }) {
       console.log('[Update Leave Status DB note]:', e.message);
     }
 
-    const target = leaveRequests.find((r) => r.id === requestId);
     if (target) {
       const notifType =
         normalizedStatus === 'อนุมัติ'
@@ -564,7 +704,7 @@ export function LeaveProvider({ children }) {
         await api.updateProfile(updatedUser);
         const fresh = await api.getEmployees();
         if (Array.isArray(fresh) && fresh.length > 0) {
-          setEmployees(fresh);
+          setEmployees(fresh.map(normalizeEmployeeQuotas));
         }
       }
     } catch (e) {
@@ -725,9 +865,17 @@ export function LeaveProvider({ children }) {
           ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
           : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
       role: 'employee',
+      vacationLimit: 10,
+      vacationUsed: 0,
       vacationRem: 10,
+      personalLimit: 15,
+      personalUsed: 0,
       personalRem: 15,
+      sickLimit: 30,
+      sickUsed: 0,
       sickRem: 30,
+      maternityLimit: userData.gender === 'ชาย' ? 0 : 90,
+      maternityUsed: 0,
       maternityRem: userData.gender === 'ชาย' ? 0 : 90,
       status: 'ปกติ',
     };
@@ -784,7 +932,7 @@ export function LeaveProvider({ children }) {
     setLeaveRequests(initialLeaveRequests);
     setQuotas(initialQuotas);
     setNotifications(notificationsData);
-    setEmployees(employeesList);
+    setEmployees(employeesList.map(normalizeEmployeeQuotas));
     setActiveTab('dashboard');
     setIsAuthenticated(false);
     setIsPdpaAccepted(false);

@@ -431,13 +431,13 @@ export default function AdminDashboardView() {
                   </td>
                   <td className="py-3 px-4 text-slate-600">{emp.department}</td>
                   <td className="py-3 px-4 text-center font-bold text-emerald-700">
-                    {emp.vacationRem} / 10 วัน
+                    {emp.vacationRem} / {emp.vacationLimit ?? 10} วัน
                   </td>
                   <td className="py-3 px-4 text-center font-bold text-teal-700">
-                    {emp.personalRem} / 15 วัน
+                    {emp.personalRem} / {emp.personalLimit ?? 15} วัน
                   </td>
                   <td className="py-3 px-4 text-center font-bold text-rose-600">
-                    {emp.sickRem} / 30 วัน
+                    {emp.sickRem} / {emp.sickLimit ?? 30} วัน
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span
