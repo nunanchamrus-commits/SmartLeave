@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   ChevronDown,
   UserCheck,
+  Globe,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
@@ -67,6 +68,7 @@ export default function RegisterView({ onSwitchToLogin }) {
 
   const [formData, setFormData] = useState({
     fullName: '',
+    englishName: '',
     gender: '',
     email: '',
     title: '',
@@ -76,6 +78,7 @@ export default function RegisterView({ onSwitchToLogin }) {
     confirmPassword: '',
   });
 
+  const [isEmailManuallyEdited, setIsEmailManuallyEdited] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
@@ -92,7 +95,28 @@ export default function RegisterView({ onSwitchToLogin }) {
     setFormData((prev) => ({
       ...prev,
       fullName: val,
-      email: prev.email ? prev.email : asciiSlug ? `${asciiSlug}@smartleave.com` : '',
+      email: isEmailManuallyEdited
+        ? prev.email
+        : prev.englishName.trim()
+          ? prev.email
+          : asciiSlug
+            ? `${asciiSlug}@smartleave.com`
+            : '',
+    }));
+    setError('');
+  };
+
+  const handleEnglishNameChange = (e) => {
+    const val = e.target.value;
+    const asciiSlug = val
+      .toLowerCase()
+      .replace(/[^a-z0-9\s.]/g, '')
+      .trim()
+      .replace(/\s+/g, '.');
+    setFormData((prev) => ({
+      ...prev,
+      englishName: val,
+      email: isEmailManuallyEdited ? prev.email : asciiSlug ? `${asciiSlug}@smartleave.com` : '',
     }));
     setError('');
   };
@@ -103,6 +127,14 @@ export default function RegisterView({ onSwitchToLogin }) {
     // 1. Validation
     if (!formData.fullName.trim()) {
       setError('กรุณากรอกชื่อ - นามสกุล');
+      return;
+    }
+    if (!formData.englishName.trim()) {
+      setError('กรุณากรอกชื่อ - นามสกุล (ภาษาอังกฤษ)');
+      return;
+    }
+    if (/[\u0E00-\u0E7F]/.test(formData.englishName)) {
+      setError('กรุณากรอกชื่อภาษาอังกฤษเป็นตัวอักษรภาษาอังกฤษ');
       return;
     }
     if (!formData.gender) {
@@ -142,6 +174,7 @@ export default function RegisterView({ onSwitchToLogin }) {
         // Register through LeaveContext into D1 Database
         await register({
           fullName: formData.fullName.trim(),
+          englishName: formData.englishName.trim(),
           gender: formData.gender,
           title: formData.title.trim(),
           department: formData.department.trim(),
@@ -322,6 +355,25 @@ export default function RegisterView({ onSwitchToLogin }) {
                 </div>
               </div>
 
+              {/* 1.2 ชื่อ - นามสกุล (ภาษาอังกฤษ) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ชื่อ - นามสกุล (ภาษาอังกฤษ) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.englishName}
+                    onChange={handleEnglishNameChange}
+                    placeholder="เช่น Chanchai Mingkwan"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
               {/* 1.5 เพศ */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -476,7 +528,10 @@ export default function RegisterView({ onSwitchToLogin }) {
                   <input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => {
+                      setIsEmailManuallyEdited(true);
+                      setFormData({ ...formData, email: e.target.value });
+                    }}
                     placeholder="username@smartleave.com"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
                   />

@@ -471,6 +471,7 @@ export function LeaveProvider({ children }) {
         return {
           ...emp,
           name: updatedUser.name || emp.name,
+          englishName: updatedUser.englishName ?? emp.englishName,
           gender: updatedUser.gender || emp.gender,
           title: updatedUser.title || emp.title,
           department: updatedUser.department || emp.department,
@@ -597,6 +598,7 @@ export function LeaveProvider({ children }) {
       if (api && api.register) {
         const res = await api.register({
           fullName: userData.fullName,
+          englishName: userData.englishName || '',
           firstName,
           lastName,
           prefix: prefix || (userData.gender === 'หญิง' ? 'นางสาว' : 'นาย'),
@@ -621,6 +623,7 @@ export function LeaveProvider({ children }) {
     const newUser = {
       id: dbUserId,
       name: userData.fullName,
+      englishName: userData.englishName || '',
       gender: userData.gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
       title: userData.title,
       department: userData.department,
