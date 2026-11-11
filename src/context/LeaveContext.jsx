@@ -700,20 +700,24 @@ export function LeaveProvider({ children }) {
     });
   };
 
-  // Switch role between employee and approver
+  // Switch role between employee and approver (รักษาข้อมูลผู้ใช้งานเดิมไว้ ไม่ดึง Mock data มาทับ)
   const switchRole = (role) => {
-    const templateUser = role === 'approver' ? approverUser : initialUser;
-    const matchedLive = employees.find(
-      (e) =>
-        (templateUser.email && e.email?.toLowerCase() === templateUser.email.toLowerCase()) ||
-        (templateUser.employeeId && e.employeeId === templateUser.employeeId)
-    );
-    const nextUser = matchedLive
-      ? { ...templateUser, ...matchedLive, role: templateUser.role }
-      : templateUser;
-    syncLeaveBaselineForUser(leaveRequests, nextUser);
-    setCurrentUser(nextUser);
-    recalculateQuotas(leaveRequests, employees, true, nextUser);
+    setCurrentUser((prev) => {
+      const base = prev || initialUser;
+      const isApprover = role === 'approver' || role === 'admin';
+      const nextUser = {
+        ...base,
+        role: isApprover ? 'approver' : 'employee',
+        title: isApprover
+          ? (base.title?.includes('ผู้อำนวยการ') || base.title?.includes('ผู้อนุมัติ') ? base.title : 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ')
+          : (base.title?.includes('ผู้อำนวยการ') ? 'นักวิชาการสหกรณ์ปฏิบัติการ' : base.title),
+      };
+      sessionStorage.setItem('smartleave_user', JSON.stringify(nextUser));
+      localStorage.setItem('smartleave_user', JSON.stringify(nextUser));
+      syncLeaveBaselineForUser(leaveRequests, nextUser);
+      recalculateQuotas(leaveRequests, employees, true, nextUser);
+      return nextUser;
+    });
   };
 
   // Submit a new leave request
@@ -1268,17 +1272,28 @@ export function LeaveProvider({ children }) {
 
   // Update User Profile (Settings) - บันทึกลง Cloudflare D1 100%
   const updateUserProfile = async (updatedData) => {
-    // 1. รวมข้อมูลที่แก้ไข
+    // 1. รวมข้อมูลที่แก้ไข พร้อมคำนวณชื่อเต็มไทย-อังกฤษให้สอดคล้องกันเสมอ
+    const prefix = updatedData.prefix !== undefined ? updatedData.prefix : currentUser.prefix;
+    const firstName = updatedData.firstName !== undefined ? updatedData.firstName : currentUser.firstName;
+    const lastName = updatedData.lastName !== undefined ? updatedData.lastName : currentUser.lastName;
+    const computedThaiName = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+
+    const prefixEn = updatedData.prefixEn !== undefined ? updatedData.prefixEn : currentUser.prefixEn;
+    const firstNameEn = updatedData.firstNameEn !== undefined ? updatedData.firstNameEn : currentUser.firstNameEn;
+    const lastNameEn = updatedData.lastNameEn !== undefined ? updatedData.lastNameEn : currentUser.lastNameEn;
+    const computedEnName = [prefixEn, firstNameEn, lastNameEn].filter(Boolean).join(' ').trim();
+
     const updatedUser = {
       ...currentUser,
       ...updatedData,
-      prefix: updatedData.prefix ?? currentUser.prefix,
-      firstName: updatedData.firstName ?? currentUser.firstName,
-      lastName: updatedData.lastName ?? currentUser.lastName,
-      prefixEn: updatedData.prefixEn ?? currentUser.prefixEn,
-      firstNameEn: updatedData.firstNameEn ?? currentUser.firstNameEn,
-      lastNameEn: updatedData.lastNameEn ?? currentUser.lastNameEn,
-      englishName: updatedData.englishName ?? currentUser.englishName,
+      prefix: prefix || null,
+      firstName: firstName || null,
+      lastName: lastName || null,
+      name: computedThaiName || updatedData.name || currentUser.name,
+      prefixEn: prefixEn || null,
+      firstNameEn: firstNameEn || null,
+      lastNameEn: lastNameEn || null,
+      englishName: computedEnName || updatedData.englishName || currentUser.englishName,
       gender: updatedData.gender || currentUser.gender || inferUserGender(updatedData),
     };
 

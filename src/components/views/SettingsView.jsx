@@ -121,16 +121,50 @@ function extractEnglishNameFields(user) {
   };
 }
 
+function extractThaiNameFields(user) {
+  let prefix = user?.prefix || '';
+  let firstName = user?.firstName || '';
+  let lastName = user?.lastName || '';
+  let name = (user?.name || '').trim();
+
+  if (!firstName && name) {
+    const prefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.'];
+    for (const p of prefixes) {
+      if (name.startsWith(p)) {
+        prefix = p;
+        const rest = name.slice(p.length).trim();
+        const parts = rest.split(/\s+/).filter(Boolean);
+        firstName = parts[0] || '';
+        lastName = parts.slice(1).join(' ') || '';
+        break;
+      }
+    }
+    if (!firstName) {
+      const parts = name.split(/\s+/).filter(Boolean);
+      firstName = parts[0] || '';
+      lastName = parts.slice(1).join(' ') || '';
+    }
+  }
+
+  if (!prefix) {
+    prefix = user?.gender === 'ชาย' || /^นาย/.test(name) ? 'นาย' : 'นางสาว';
+  }
+
+  const fullName = name || `${prefix}${firstName} ${lastName}`.trim();
+  return { prefix, firstName, lastName, name: fullName };
+}
+
 export default function SettingsView() {
   const { currentUser, updateUserProfile, resetToDefault, showToast } = useLeave();
 
+  const initialTh = extractThaiNameFields(currentUser);
   const initialEn = extractEnglishNameFields(currentUser);
 
   const [formData, setFormData] = useState({
-    name: currentUser?.name || '',
-    prefix: currentUser?.prefix || '',
-    firstName: currentUser?.firstName || '',
-    lastName: currentUser?.lastName || '',
+    name: initialTh.name,
+    prefix: initialTh.prefix,
+    firstName: initialTh.firstName,
+    lastName: initialTh.lastName,
     prefixEn: initialEn.prefixEn,
     firstNameEn: initialEn.firstNameEn,
     lastNameEn: initialEn.lastNameEn,
@@ -151,12 +185,13 @@ export default function SettingsView() {
   // ซิงก์ข้อมูลในฟอร์มเมื่อ currentUser ในระบบเปลี่ยนแปลง
   useEffect(() => {
     if (currentUser) {
+      const th = extractThaiNameFields(currentUser);
       const en = extractEnglishNameFields(currentUser);
       setFormData({
-        name: currentUser.name || '',
-        prefix: currentUser.prefix || '',
-        firstName: currentUser.firstName || '',
-        lastName: currentUser.lastName || '',
+        name: th.name,
+        prefix: th.prefix,
+        firstName: th.firstName,
+        lastName: th.lastName,
         prefixEn: en.prefixEn,
         firstNameEn: en.firstNameEn,
         lastNameEn: en.lastNameEn,
@@ -176,13 +211,19 @@ export default function SettingsView() {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!formData.name?.trim()) {
-      if (showToast) showToast('กรุณากรอกชื่อ-นามสกุล', 'error');
+    const fullThaiName = `${formData.prefix || ''}${formData.firstName} ${formData.lastName || ''}`.trim();
+    if (!formData.firstName?.trim() && !formData.name?.trim()) {
+      if (showToast) showToast('กรุณากรอกชื่อจริงภาษาไทย', 'error');
       return;
     }
 
+    const payload = {
+      ...formData,
+      name: fullThaiName || formData.name,
+    };
+
     if (updateUserProfile) {
-      updateUserProfile(formData);
+      updateUserProfile(payload);
     }
 
     setSavedSuccess(true);
@@ -322,49 +363,112 @@ export default function SettingsView() {
 
         {/* Input Fields Form */}
         <form onSubmit={handleSubmit} className="space-y-5 text-xs sm:text-sm">
-          {/* Row 1: ชื่อ - นามสกุล และ เพศ */}
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-            <div className="sm:col-span-8">
-              <label className="block font-semibold text-slate-700 mb-1">
-                ชื่อ - นามสกุล (ภาษาไทย) <span className="text-rose-500">*</span>
-              </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+          {/* Row 1: ชื่อ - นามสกุล (ภาษาไทย) (แยก คำนำหน้า, ชื่อ, นามสกุล) */}
+          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+            <div className="flex items-center space-x-2 text-slate-700 font-semibold mb-1">
+              <User className="w-4 h-4 text-emerald-600" />
+              <span>ชื่อ - นามสกุล (ภาษาไทย)</span>
+              <span className="text-slate-400 font-normal text-xs">(แยก คำนำหน้า, ชื่อจริง, นามสกุล) <span className="text-rose-500">*</span></span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div className="sm:col-span-3">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">คำนำหน้า (ไทย)</label>
+                <select
+                  value={formData.prefix || 'นางสาว'}
+                  onChange={(e) => {
+                    const newPrefix = e.target.value;
+                    const isMale = newPrefix === 'นาย';
+                    const newGender = isMale ? 'ชาย' : (['นาง', 'นางสาว'].includes(newPrefix) ? 'หญิง' : formData.gender);
+                    const newPrefixEn = isMale ? 'Mr.' : (newPrefix === 'นาง' ? 'Mrs.' : 'Ms.');
+                    const newFullName = `${newPrefix}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
+                    setFormData((prev) => ({
+                      ...prev,
+                      prefix: newPrefix,
+                      gender: newGender,
+                      prefixEn: prev.prefixEn || newPrefixEn,
+                      name: newFullName,
+                    }));
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium cursor-pointer"
+                >
+                  <option value="นาย">นาย</option>
+                  <option value="นาง">นาง</option>
+                  <option value="นางสาว">นางสาว</option>
+                  <option value="ดร.">ดร.</option>
+                  <option value="">(ไม่มี)</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-4">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  ชื่อจริง (First Name) <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="เช่น นางสาวพนิกา ธรรมเมือง"
+                  value={formData.firstName}
+                  onChange={(e) => {
+                    const newFirst = e.target.value;
+                    const newFullName = `${formData.prefix || ''}${newFirst} ${formData.lastName || ''}`.trim();
+                    setFormData((prev) => ({
+                      ...prev,
+                      firstName: newFirst,
+                      name: newFullName,
+                    }));
+                  }}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium"
+                  placeholder="เช่น พนิกา"
+                />
+              </div>
+
+              <div className="sm:col-span-5">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  นามสกุล (Last Name) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.lastName}
+                  onChange={(e) => {
+                    const newLast = e.target.value;
+                    const newFullName = `${formData.prefix || ''}${formData.firstName || ''} ${newLast}`.trim();
+                    setFormData((prev) => ({
+                      ...prev,
+                      lastName: newLast,
+                      name: newFullName,
+                    }));
+                  }}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium"
+                  placeholder="เช่น ธรรมเมือง"
                 />
               </div>
             </div>
+          </div>
 
-            {/* เพศ (Gender) */}
-            <div className="sm:col-span-4">
-              <label className="block font-semibold text-slate-700 mb-1">
-                เพศ (Gender) <span className="text-rose-500">*</span>
-              </label>
-              <div className="flex items-center space-x-2 pt-0.5">
-                {[
-                  { value: 'หญิง', label: 'หญิง (ญ)' },
-                  { value: 'ชาย', label: 'ชาย (ช)' },
-                ].map((g) => (
-                  <button
-                    key={g.value}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, gender: g.value })}
-                    className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
-                      formData.gender === g.value
-                        ? 'bg-[#155A32] text-white border-[#155A32] shadow-xs'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {g.label}
-                  </button>
-                ))}
-              </div>
+          {/* Row: เพศ (Gender) */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              เพศ (Gender) <span className="text-rose-500">*</span>
+            </label>
+            <div className="flex items-center space-x-2">
+              {[
+                { value: 'หญิง', label: 'หญิง (ญ)' },
+                { value: 'ชาย', label: 'ชาย (ช)' },
+              ].map((g) => (
+                <button
+                  key={g.value}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, gender: g.value })}
+                  className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
+                    formData.gender === g.value
+                      ? 'bg-[#155A32] text-white border-[#155A32] shadow-xs'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
             </div>
           </div>
 

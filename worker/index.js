@@ -56,6 +56,9 @@ const SCHEMA_COLUMNS = {
 };
 
 // แปลงสถานะระหว่าง Frontend (4 สถานะภาษาไทย) กับ D1 CHECK constraint
+// D1 constraint: CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled'))
+const VALID_DB_STATUSES = new Set(['pending', 'approved', 'rejected', 'cancelled']);
+
 function mapLeaveStatusToDb(rawStatus) {
   const s = typeof rawStatus === 'string' ? rawStatus.trim() : '';
   const lower = s.toLowerCase();
@@ -73,7 +76,8 @@ function mapLeaveStatusToDb(rawStatus) {
     s === 'รออนุมัติ' ||
     lower === 'checking' ||
     lower === 'reviewing' ||
-    lower === 'in_review'
+    lower === 'in_review' ||
+    lower === 'pending'
   ) {
     return { dbStatus: 'pending', reviewStage: 'checking', displayStatus: 'อยู่ระหว่างตรวจสอบ' };
   }
@@ -333,6 +337,48 @@ function parseEnglishName(rawName, gender = '', prefixTh = '') {
   return { prefixEn, firstNameEn, lastNameEn, fullNameEn };
 }
 
+// ฟังก์ชันแยกชื่อภาษาไทยเป็น คำนำหน้า, ชื่อจริง, นามสกุล
+function parseThaiName(rawName, fallbackGender = '') {
+  let prefix = '';
+  let firstName = '';
+  let lastName = '';
+  if (!rawName || typeof rawName !== 'string') {
+    prefix = fallbackGender === 'หญิง' ? 'นางสาว' : (fallbackGender === 'ชาย' ? 'นาย' : '');
+    return { prefix, firstName: '', lastName: '', fullNameTh: '' };
+  }
+
+  const trimmed = rawName.trim();
+  const prefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.', 'พ.ต.ต.', 'พ.ต.ท.', 'พ.ต.อ.', 'ร.ต.อ.', 'ร.ต.ท.', 'ร.ต.ต.'];
+  let foundPrefix = false;
+  for (const p of prefixes) {
+    if (trimmed.startsWith(p)) {
+      prefix = p;
+      const rest = trimmed.slice(p.length).trim();
+      const parts = rest.split(/\s+/).filter(Boolean);
+      firstName = parts[0] || '';
+      lastName = parts.slice(1).join(' ') || '';
+      foundPrefix = true;
+      break;
+    }
+  }
+
+  if (!foundPrefix) {
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      firstName = parts[0] || '';
+      lastName = parts.slice(1).join(' ') || '';
+    } else {
+      firstName = parts[0] || '';
+    }
+    if (!prefix && fallbackGender) {
+      prefix = fallbackGender === 'หญิง' ? 'นางสาว' : (fallbackGender === 'ชาย' ? 'นาย' : '');
+    }
+  }
+
+  const fullNameTh = `${prefix || ''}${firstName} ${lastName || ''}`.trim();
+  return { prefix, firstName, lastName, fullNameTh };
+}
+
 async function ensureTableColumns(db, tableName, columnSpecs) {
   try {
     const tableInfo = await db.prepare(`PRAGMA table_info(${tableName})`).all();
@@ -391,40 +437,42 @@ async function autoMigrateDatabase(db) {
 // SEED DATA: ข้อมูลตั้งต้น 14 แผนกสหกรณ์ และบุคลากร 5 ท่านใน D1
 // -------------------------------------------------------------
 async function seedMasterData(db, force = false) {
-  const panika = await db.prepare("SELECT user_id, first_name_en, english_name FROM users WHERE first_name = 'พนิกา'").first().catch(() => null);
-  if (!panika || !panika.first_name_en || force) {
-    // 1. นำเข้า 14 แผนกสหกรณ์ครบถ้วน
+  // 1. นำเข้า 14 แผนกสหกรณ์, สิทธิ์ และประเภทวันลาแบบ Idempotent
+  await db.batch([
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (1, 'DEP-ADMIN', 'ฝ่ายบริหารทั่วไป', 'General Administration Division')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (2, 'DEP-ESTAB', 'กลุ่มจัดตั้งและส่งเสริมสหกรณ์', 'Cooperative Establishment and Promotion Group')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (3, 'DEP-MGT', 'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์', 'Cooperative Management and Administration Development Group')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (4, 'DEP-BIZ', 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', 'Cooperative Business Development Group')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (5, 'DEP-AUD', 'กลุ่มตรวจการสหกรณ์', 'Cooperative Auditing and Inspection Group')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (6, 'DEP-CP1', 'กลุ่มส่งเสริมสหกรณ์ 1', 'Cooperative Promotion Group 1')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (7, 'DEP-CP2', 'กลุ่มส่งเสริมสหกรณ์ 2', 'Cooperative Promotion Group 2')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (8, 'DEP-CP3', 'กลุ่มส่งเสริมสหกรณ์ 3', 'Cooperative Promotion Group 3')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (9, 'DEP-CP4', 'กลุ่มส่งเสริมสหกรณ์ 4', 'Cooperative Promotion Group 4')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (10, 'DEP-CP5', 'กลุ่มส่งเสริมสหกรณ์ 5', 'Cooperative Promotion Group 5')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (11, 'DEP-CP6', 'กลุ่มส่งเสริมสหกรณ์ 6', 'Cooperative Promotion Group 6')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (12, 'DEP-CP7', 'กลุ่มส่งเสริมสหกรณ์ 7', 'Cooperative Promotion Group 7')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (13, 'DEP-CP8', 'กลุ่มส่งเสริมสหกรณ์ 8', 'Cooperative Promotion Group 8')"),
+    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (14, 'DEP-DONGMUN', 'นิคมสหกรณ์ดงมูล', 'Dong Mun Cooperative Settlement')"),
+    db.prepare("INSERT OR IGNORE INTO roles (role_id, code, name_th, description) VALUES (1, 'SYSTEM_ADMIN', 'ผู้ดูแลระบบสูงสุด', 'จัดการโครงสร้างระบบ การตั้งค่า และผู้ใช้งานทั้งหมด')"),
+    db.prepare("INSERT OR IGNORE INTO roles (role_id, code, name_th, description) VALUES (2, 'HR_ADMIN', 'ฝ่ายทรัพยากรบุคคล (HR)', 'บริหารจัดการสถิติวันลา ตรวจสอบความยินยอม PDPA และรายงาน')"),
+    db.prepare("INSERT OR IGNORE INTO roles (role_id, code, name_th, description) VALUES (3, 'APPROVER', 'ผู้อำนวยการ / หัวหน้ากลุ่มงาน (ผู้อนุมัติ)', 'พิจารณาอนุมัติหรือปฏิเสธคำขอลางานของเจ้าหน้าที่ในสังกัด')"),
+    db.prepare("INSERT OR IGNORE INTO roles (role_id, code, name_th, description) VALUES (4, 'EMPLOYEE', 'เจ้าหน้าที่ / นักวิชาการสหกรณ์', 'ยื่นคำขอลางาน ตรวจสอบโควตา และจัดการสิทธิ PDPA ของตนเอง')"),
+    db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (1, 'vacation', 'ลาพักผ่อน (ประจำปี)', 'Annual Vacation Leave', 10.00, 1, 0, 3, '#155A32')"),
+    db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (2, 'sick', 'ลาป่วย', 'Sick Leave', 30.00, 1, 1, 0, '#ef4444')"),
+    db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (3, 'personal', 'ลากิจส่วนตัว', 'Personal Business Leave', 15.00, 1, 0, 1, '#0d9488')"),
+    db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (4, 'maternity', 'ลาคลอดบุตร', 'Maternity Leave', 90.00, 1, 1, 15, '#ec4899')"),
+    db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (5, 'ordination', 'ลาอุปสมบท / ประกอบพิธีทางศาสนา', 'Religious / Ordination Leave', 15.00, 1, 1, 30, '#8b5cf6')"),
+    db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (6, 'military', 'ลารับราชการทหาร', 'Military Service Leave', 60.00, 1, 1, 15, '#64748b')"),
+  ]).catch(() => {});
+
+  // 2. ตรวจสอบว่าในตาราง users มีข้อมูลพนักงานอยู่แล้วหรือไม่
+  // หากมีผู้ใช้งานแล้ว (ไม่ว่าจะชื่ออะไร) ห้ามนำ Mock data ไปเขียนทับเด็ดขาด (ป้องกันการย้อนกลับเป็นพนิกา)
+  const userCount = await db.prepare("SELECT count(*) as cnt FROM users").first().catch(() => ({ cnt: 0 }));
+  const hasUsers = Number(userCount?.cnt || 0) > 0;
+
+  if (!hasUsers || force) {
+    // บุคลากรสหกรณ์ 5 คน + ผู้ดูแลระบบ (เฉพาะเมื่อตาราง users ว่างเปล่า หรือสั่ง force เท่านั้น)
     await db.batch([
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (1, 'DEP-ADMIN', 'ฝ่ายบริหารทั่วไป', 'General Administration Division')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (2, 'DEP-ESTAB', 'กลุ่มจัดตั้งและส่งเสริมสหกรณ์', 'Cooperative Establishment and Promotion Group')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (3, 'DEP-MGT', 'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์', 'Cooperative Management and Administration Development Group')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (4, 'DEP-BIZ', 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', 'Cooperative Business Development Group')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (5, 'DEP-AUD', 'กลุ่มตรวจการสหกรณ์', 'Cooperative Auditing and Inspection Group')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (6, 'DEP-CP1', 'กลุ่มส่งเสริมสหกรณ์ 1', 'Cooperative Promotion Group 1')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (7, 'DEP-CP2', 'กลุ่มส่งเสริมสหกรณ์ 2', 'Cooperative Promotion Group 2')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (8, 'DEP-CP3', 'กลุ่มส่งเสริมสหกรณ์ 3', 'Cooperative Promotion Group 3')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (9, 'DEP-CP4', 'กลุ่มส่งเสริมสหกรณ์ 4', 'Cooperative Promotion Group 4')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (10, 'DEP-CP5', 'กลุ่มส่งเสริมสหกรณ์ 5', 'Cooperative Promotion Group 5')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (11, 'DEP-CP6', 'กลุ่มส่งเสริมสหกรณ์ 6', 'Cooperative Promotion Group 6')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (12, 'DEP-CP7', 'กลุ่มส่งเสริมสหกรณ์ 7', 'Cooperative Promotion Group 7')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (13, 'DEP-CP8', 'กลุ่มส่งเสริมสหกรณ์ 8', 'Cooperative Promotion Group 8')"),
-      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (14, 'DEP-DONGMUN', 'นิคมสหกรณ์ดงมูล', 'Dong Mun Cooperative Settlement')"),
-      
-      // สิทธิ์การใช้งานระบบ
-      db.prepare("INSERT OR REPLACE INTO roles (role_id, code, name_th, description) VALUES (1, 'SYSTEM_ADMIN', 'ผู้ดูแลระบบสูงสุด', 'จัดการโครงสร้างระบบ การตั้งค่า และผู้ใช้งานทั้งหมด')"),
-      db.prepare("INSERT OR REPLACE INTO roles (role_id, code, name_th, description) VALUES (2, 'HR_ADMIN', 'ฝ่ายทรัพยากรบุคคล (HR)', 'บริหารจัดการสถิติวันลา ตรวจสอบความยินยอม PDPA และรายงาน')"),
-      db.prepare("INSERT OR REPLACE INTO roles (role_id, code, name_th, description) VALUES (3, 'APPROVER', 'ผู้อำนวยการ / หัวหน้ากลุ่มงาน (ผู้อนุมัติ)', 'พิจารณาอนุมัติหรือปฏิเสธคำขอลางานของเจ้าหน้าที่ในสังกัด')"),
-      db.prepare("INSERT OR REPLACE INTO roles (role_id, code, name_th, description) VALUES (4, 'EMPLOYEE', 'เจ้าหน้าที่ / นักวิชาการสหกรณ์', 'ยื่นคำขอลางาน ตรวจสอบโควตา และจัดการสิทธิ PDPA ของตนเอง')"),
-
-      // ประเภทวันลา
-      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (1, 'vacation', 'ลาพักผ่อน (ประจำปี)', 'Annual Vacation Leave', 10.00, 1, 0, 3, '#155A32')"),
-      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (2, 'sick', 'ลาป่วย', 'Sick Leave', 30.00, 1, 1, 0, '#ef4444')"),
-      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (3, 'personal', 'ลากิจส่วนตัว', 'Personal Business Leave', 15.00, 1, 0, 1, '#0d9488')"),
-      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (4, 'maternity', 'ลาคลอดบุตร', 'Maternity Leave', 90.00, 1, 1, 15, '#ec4899')"),
-      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (5, 'ordination', 'ลาอุปสมบท / ประกอบพิธีทางศาสนา', 'Religious / Ordination Leave', 15.00, 1, 1, 30, '#8b5cf6')"),
-      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (6, 'military', 'ลารับราชการทหาร', 'Military Service Leave', 60.00, 1, 1, 15, '#64748b')"),
-
-      // บุคลากรสหกรณ์ 5 คน + ผู้ดูแลระบบ (พร้อม prefix_en, first_name_en, last_name_en, english_name ครบถ้วน)
       db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
         VALUES (1, 'ADM-001', 'admin@smartleave.com', '123456', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'Mr.', 'System', 'Administrator', 'Mr. System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
       db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
@@ -1006,16 +1054,12 @@ export async function onRequest(context) {
         vacationLimit, personalLimit, sickLimit, maternityLimit
       } = body;
 
-      if (!firstName && fullName) {
-        const parts = fullName.trim().split(/\s+/);
-        if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
-          prefix = prefix || parts[0];
-          firstName = parts[1] || '';
-          lastName = parts.slice(2).join(' ') || '';
-        } else {
-          firstName = parts[0] || '';
-          lastName = parts.slice(1).join(' ') || '';
-        }
+      const rawThai = (typeof fullName === 'string' && fullName.trim()) || '';
+      if (!firstName && rawThai) {
+        const parsedTh = parseThaiName(rawThai, gender);
+        prefix = prefix || parsedTh.prefix;
+        firstName = parsedTh.firstName;
+        lastName = lastName || parsedTh.lastName;
       }
       if (!prefix) {
         prefix = gender === 'หญิง' ? 'นางสาว' : 'นาย';
@@ -1164,24 +1208,30 @@ export async function onRequest(context) {
         phone, title, position, department, gender, employmentType, role, avatar
       } = body;
 
-      const rawThai = name || fullName;
-      if (!firstName && rawThai) {
-        const parts = rawThai.trim().split(/\s+/);
-        if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
-          prefix = prefix || parts[0];
-          firstName = parts[1] || '';
-          lastName = parts.slice(2).join(' ') || '';
-        } else {
-          firstName = parts[0] || '';
-          lastName = parts.slice(1).join(' ') || '';
-        }
+      const rawThai = (typeof name === 'string' && name.trim()) || (typeof fullName === 'string' && fullName.trim()) || '';
+      if (firstName || lastName) {
+        prefix = (typeof prefix === 'string' && prefix.trim()) ? prefix.trim() : (rawThai ? parseThaiName(rawThai, gender).prefix : (user.prefix || ''));
+        firstName = (typeof firstName === 'string') ? firstName.trim() : '';
+        lastName = (typeof lastName === 'string') ? lastName.trim() : '';
+      } else if (rawThai) {
+        const parsedTh = parseThaiName(rawThai, gender || user.gender);
+        prefix = parsedTh.prefix;
+        firstName = parsedTh.firstName;
+        lastName = parsedTh.lastName;
+      }
+      if (!prefix) {
+        prefix = gender === 'หญิง' ? 'นางสาว' : (gender === 'ชาย' ? 'นาย' : (user.prefix || ''));
       }
 
-      if ((!firstNameEn || !lastNameEn) && englishName) {
+      if (firstNameEn || lastNameEn) {
+        prefixEn = (typeof prefixEn === 'string' && prefixEn.trim()) ? prefixEn.trim() : (gender === 'ชาย' ? 'Mr.' : 'Ms.');
+        firstNameEn = (typeof firstNameEn === 'string') ? firstNameEn.trim() : '';
+        lastNameEn = (typeof lastNameEn === 'string') ? lastNameEn.trim() : '';
+      } else if (englishName && typeof englishName === 'string') {
         const parsedEn = parseEnglishName(englishName, gender, prefix);
-        prefixEn = prefixEn || parsedEn.prefixEn;
-        firstNameEn = firstNameEn || parsedEn.firstNameEn;
-        lastNameEn = lastNameEn || parsedEn.lastNameEn;
+        prefixEn = parsedEn.prefixEn;
+        firstNameEn = parsedEn.firstNameEn;
+        lastNameEn = parsedEn.lastNameEn;
       }
       const fullEn = englishName || (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
 
@@ -1598,6 +1648,8 @@ export async function onRequest(context) {
         : mapLeaveStatusToDb(prevDisplayStatus);
       const isFinalDecision = mappedStatus.dbStatus === 'approved' || mappedStatus.dbStatus === 'rejected';
 
+      const safeDbStatus = VALID_DB_STATUSES.has(mappedStatus.dbStatus) ? mappedStatus.dbStatus : 'pending';
+
       await env.DB.prepare(`
         UPDATE leave_requests
         SET leave_type_id = ?,
@@ -1622,7 +1674,7 @@ export async function onRequest(context) {
         nextSubUserId,
         nextSubName,
         safeNote,
-        mappedStatus.dbStatus,
+        safeDbStatus,
         mappedStatus.reviewStage,
         isFinalDecision ? 1 : 0,
         reqInfo.request_id
@@ -1718,6 +1770,8 @@ export async function onRequest(context) {
           ? cleanRemark
           : (reqInfo.rejection_reason ?? null);
 
+      const safeDbStatus = VALID_DB_STATUSES.has(mapped.dbStatus) ? mapped.dbStatus : 'pending';
+
       await env.DB.prepare(`
         UPDATE leave_requests
         SET status = ?,
@@ -1727,7 +1781,7 @@ export async function onRequest(context) {
             updated_at = datetime('now', 'localtime')
         WHERE request_id = ?
       `).bind(
-        mapped.dbStatus,
+        safeDbStatus,
         mapped.reviewStage,
         nextRemark,
         isFinalDecision ? 1 : 0,
@@ -1903,35 +1957,52 @@ export async function onRequest(context) {
         prefixEn, firstNameEn, lastNameEn, englishName
       } = body;
 
-      const rawThaiName = name || fullName;
-      if (!firstName && rawThaiName) {
-        const parts = rawThaiName.trim().split(/\s+/);
-        if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
-          prefix = prefix || parts[0];
-          firstName = parts[1] || '';
-          lastName = parts.slice(2).join(' ') || '';
-        } else {
-          firstName = parts[0] || '';
-          lastName = parts.slice(1).join(' ') || '';
-        }
+      const rawThaiName = (typeof name === 'string' && name.trim()) || (typeof fullName === 'string' && fullName.trim()) || '';
+      if (firstName || lastName) {
+        prefix = (typeof prefix === 'string' && prefix.trim()) ? prefix.trim() : (rawThaiName ? parseThaiName(rawThaiName, gender).prefix : (gender === 'หญิง' ? 'นางสาว' : 'นาย'));
+        firstName = (typeof firstName === 'string') ? firstName.trim() : '';
+        lastName = (typeof lastName === 'string') ? lastName.trim() : '';
+      } else if (rawThaiName) {
+        const parsedTh = parseThaiName(rawThaiName, gender);
+        prefix = parsedTh.prefix;
+        firstName = parsedTh.firstName;
+        lastName = parsedTh.lastName;
       }
       if (!prefix) {
-        prefix = gender === 'หญิง' ? 'นางสาว' : (gender === 'ชาย' ? 'นาย' : null);
+        prefix = gender === 'หญิง' ? 'นางสาว' : (gender === 'ชาย' ? 'นาย' : '');
       }
 
       // จัดการแยกชื่อภาษาอังกฤษ (prefix_en, first_name_en, last_name_en)
-      if ((!firstNameEn || !lastNameEn) && englishName) {
+      if (firstNameEn || lastNameEn) {
+        prefixEn = (typeof prefixEn === 'string' && prefixEn.trim()) ? prefixEn.trim() : (gender === 'ชาย' ? 'Mr.' : 'Ms.');
+        firstNameEn = (typeof firstNameEn === 'string') ? firstNameEn.trim() : '';
+        lastNameEn = (typeof lastNameEn === 'string') ? lastNameEn.trim() : '';
+      } else if (englishName && typeof englishName === 'string') {
         const parsedEn = parseEnglishName(englishName, gender, prefix);
-        prefixEn = prefixEn || parsedEn.prefixEn;
-        firstNameEn = firstNameEn || parsedEn.firstNameEn;
-        lastNameEn = lastNameEn || parsedEn.lastNameEn;
+        prefixEn = parsedEn.prefixEn;
+        firstNameEn = parsedEn.firstNameEn;
+        lastNameEn = parsedEn.lastNameEn;
       }
       if (!prefixEn && (firstNameEn || englishName || gender || prefix)) {
         prefixEn = (gender === 'ชาย' || prefix?.includes('นาย')) ? 'Mr.' : ((prefix?.includes('นาง') && !prefix?.includes('นางสาว')) ? 'Mrs.' : 'Ms.');
       }
       const fullEnglishName = englishName || (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
 
-      if (email || employeeId) {
+      const rawId = body.id || body.userId;
+      const cleanId = rawId ? String(rawId).replace(/^usr-/, '') : '';
+      const validUid = /^\d+$/.test(cleanId) ? Number(cleanId) : null;
+      let targetUserId = null;
+      if (validUid) {
+        const u = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ?').bind(validUid).first().catch(() => null);
+        if (u) targetUserId = u.user_id;
+      }
+      if (!targetUserId && (email || employeeId)) {
+        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(employee_code) = LOWER(?)')
+          .bind(email ? String(email).trim() : '', employeeId ? String(employeeId).trim() : '').first().catch(() => null);
+        if (u) targetUserId = u.user_id;
+      }
+
+      if (targetUserId) {
         try {
           await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
@@ -1958,7 +2029,7 @@ export async function onRequest(context) {
                 department_id = COALESCE(?, department_id),
                 avatar_url = COALESCE(?, avatar_url),
                 updated_at = datetime('now', 'localtime')
-            WHERE LOWER(email) = LOWER(?) OR LOWER(employee_code) = LOWER(?)
+            WHERE user_id = ?
           `).bind(
             prefix ?? null,
             firstName ?? null,
@@ -1973,8 +2044,7 @@ export async function onRequest(context) {
             (position || title) ?? null,
             deptId ?? null,
             avatar ?? null,
-            email ? String(email).trim() : '__NO_EMAIL__',
-            employeeId ? String(employeeId).trim() : '__NO_EMP__'
+            targetUserId
           ).run();
         } catch (dbErr) {
           console.log('[D1 Update Profile Note]:', dbErr.message);
