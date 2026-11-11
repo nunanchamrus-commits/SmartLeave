@@ -109,9 +109,10 @@ class ApiService {
     });
   }
 
-  async cancelLeave(requestId) {
-    return this.request(`/leaves/${requestId}/cancel`, {
+  async updateLeaveStatus(requestId, status, remark) {
+    return this.request(`/leaves/${requestId}/status`, {
       method: 'POST',
+      body: JSON.stringify({ status, remark }),
     });
   }
 

@@ -37,7 +37,7 @@ export default function LeaveHistoryView() {
   const handleExportSummaryPdf = async () => {
     setIsExportingSummary(true);
     try {
-      await downloadLeaveSummaryPdf(filteredRequests, 'รายงานประวัติการลา');
+      await downloadLeaveSummaryPdf(filteredRequests, 'รายงานตรวจสอบสถานะการลา');
       if (showToast) showToast('ส่งออกรายงานสรุปการลาเป็น PDF เรียบร้อยแล้ว', 'success');
     } catch (e) {
       console.error(e);
@@ -77,7 +77,7 @@ export default function LeaveHistoryView() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `ประวัติการลา_${Date.now()}.csv`);
+    link.setAttribute('download', `ตรวจสอบสถานะการลา_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -85,16 +85,22 @@ export default function LeaveHistoryView() {
 
   const getStatusBadge = (status) => {
     switch (status) {
+      case 'ยังไม่ยื่นเอกสาร':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200/70">
+            ยังไม่ยื่นเอกสาร
+          </span>
+        );
+      case 'อยู่ระหว่างตรวจสอบ':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-200/70">
+            อยู่ระหว่างตรวจสอบ
+          </span>
+        );
       case 'อนุมัติ':
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#DCFCE7] text-[#15803D]">
             อนุมัติ
-          </span>
-        );
-      case 'รออนุมัติ':
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#FEF3C7] text-[#D97706]">
-            รออนุมัติ
           </span>
         );
       case 'ไม่อนุมัติ':
@@ -105,8 +111,8 @@ export default function LeaveHistoryView() {
         );
       default:
         return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-            {status}
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200/70">
+            {status || 'ยังไม่ยื่นเอกสาร'}
           </span>
         );
     }
@@ -117,9 +123,9 @@ export default function LeaveHistoryView() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 font-prompt">ประวัติการลาทั้งหมด</h2>
+          <h2 className="text-2xl font-bold text-slate-800 font-prompt">ตรวจสอบสถานะการลา</h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ตรวจสอบรายการคำขอลา วันลาที่อนุมัติแล้ว และสถานะการพิจารณา
+            ตรวจสอบสถานะการยื่นเอกสาร การพิจารณา และผลการอนุมัติคำขอลา
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
@@ -159,10 +165,10 @@ export default function LeaveHistoryView() {
         <div className="flex flex-wrap gap-2 pb-2 border-b border-slate-100">
           {[
             { id: 'all', label: 'ทั้งหมด' },
-            { id: 'รออนุมัติ', label: 'รออนุมัติ' },
-            { id: 'อนุมัติ', label: 'อนุมัติแล้ว' },
+            { id: 'ยังไม่ยื่นเอกสาร', label: 'ยังไม่ยื่นเอกสาร' },
+            { id: 'อยู่ระหว่างตรวจสอบ', label: 'อยู่ระหว่างตรวจสอบ' },
+            { id: 'อนุมัติ', label: 'อนุมัติ' },
             { id: 'ไม่อนุมัติ', label: 'ไม่อนุมัติ' },
-            { id: 'ยกเลิก', label: 'ยกเลิก' },
           ].map((tab) => (
             <button
               key={tab.id}

@@ -144,7 +144,7 @@ export default function LeaveRequestModal() {
             </div>
             <h4 className="text-xl font-bold text-slate-800">ยื่นคำขอลาเรียบร้อยแล้ว!</h4>
             <p className="text-sm text-slate-500">
-              คำขอของคุณถูกส่งไปยังผู้จัดการเพื่อรอการอนุมัติ
+              คำขอของคุณถูกบันทึกเรียบร้อยแล้ว (สถานะ: ยังไม่ยื่นเอกสาร)
             </p>
           </div>
         ) : (

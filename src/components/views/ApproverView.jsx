@@ -23,6 +23,7 @@ export default function ApproverView() {
     currentUser,
     switchRole,
     leaveRequests,
+    updateLeaveStatus,
     approveLeaveRequest,
     rejectLeaveRequest,
     setSelectedLeaveDetail,
@@ -34,19 +35,29 @@ export default function ApproverView() {
   const [downloadingId, setDownloadingId] = useState(null);
   const [isExportingAllPdf, setIsExportingAllPdf] = useState(false);
 
-  const pendingRequests = leaveRequests.filter((r) => r.status === 'รออนุมัติ');
-  const historyRequests = leaveRequests.filter((r) => r.status !== 'รออนุมัติ');
+  const pendingRequests = leaveRequests.filter(
+    (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ'
+  );
+  const historyRequests = leaveRequests.filter(
+    (r) => r.status === 'อนุมัติ' || r.status === 'ไม่อนุมัติ'
+  );
+
+  const handleSetChecking = (id) => {
+    updateLeaveStatus(id, 'อยู่ระหว่างตรวจสอบ', remarks[id] || '');
+  };
+
+  const handleSetNotSubmitted = (id) => {
+    updateLeaveStatus(id, 'ยังไม่ยื่นเอกสาร', remarks[id] || '');
+  };
 
   const handleApprove = (id) => {
     const remark = remarks[id] || 'อนุมัติเรียบร้อย';
     approveLeaveRequest(id, remark);
-    if (showToast) showToast('อนุมัติคำขอลาเรียบร้อยแล้ว', 'success');
   };
 
   const handleReject = (id) => {
     const remark = remarks[id] || 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน';
     rejectLeaveRequest(id, remark);
-    if (showToast) showToast('ปฏิเสธคำขอลาเรียบร้อยแล้ว', 'info');
   };
 
   const handleDownloadSlip = async (req, e) => {
@@ -67,7 +78,7 @@ export default function ApproverView() {
     setIsExportingAllPdf(true);
     try {
       const listToExport = activeTab === 'pending' ? pendingRequests : leaveRequests;
-      const title = activeTab === 'pending' ? 'รายงานคำขอรอพิจารณาอนุมัติ' : 'รายงานประวัติคำขอลาทั้งหมดในองค์กร';
+      const title = activeTab === 'pending' ? 'รายงานคำขอรอพิจารณาอนุมัติ' : 'รายงานตรวจสอบสถานะการลาทั้งหมดในองค์กร';
       await downloadLeaveSummaryPdf(listToExport, title);
       if (showToast) showToast('ส่งออกรายงานสรุป PDF สำเร็จ', 'success');
     } catch (err) {
@@ -157,7 +168,7 @@ export default function ApproverView() {
               }`}
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              <span>ประวัติที่พิจารณาแล้ว ({historyRequests.length})</span>
+              <span>รายการที่พิจารณาแล้ว ({historyRequests.length})</span>
             </button>
           </div>
         </div>
@@ -180,13 +191,22 @@ export default function ApproverView() {
                       className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-emerald-300 transition-all shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4"
                     >
                       <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center flex-wrap gap-2">
                           <span className="font-bold text-slate-900 text-sm">
                             {req.employeeName}
                           </span>
                           <span className="text-xs text-slate-400">({req.department})</span>
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-100">
                             {req.type}
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                              req.status === 'อยู่ระหว่างตรวจสอบ'
+                                ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                : 'bg-orange-100 text-orange-700 border-orange-200'
+                            }`}
+                          >
+                            {req.status}
                           </span>
                         </div>
 
@@ -235,6 +255,27 @@ export default function ApproverView() {
                           <span>ดูรายละเอียด</span>
                         </button>
 
+                        {/* Toggle Status: ยังไม่ยื่นเอกสาร <-> อยู่ระหว่างตรวจสอบ */}
+                        {req.status === 'ยังไม่ยื่นเอกสาร' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleSetChecking(req.id)}
+                            className="px-3.5 py-2 rounded-xl bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>อยู่ระหว่างตรวจสอบ</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSetNotSubmitted(req.id)}
+                            className="px-3.5 py-2 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
+                          >
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            <span>ยังไม่ยื่นเอกสาร</span>
+                          </button>
+                        )}
+
                         {/* Reject */}
                         <button
                           onClick={() => handleReject(req.id)}
@@ -250,7 +291,7 @@ export default function ApproverView() {
                           className="px-4 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          <span>อนุมัติคำขอ</span>
+                          <span>อนุมัติ</span>
                         </button>
                       </div>
                     </div>
@@ -284,10 +325,12 @@ export default function ApproverView() {
                           <span
                             className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
                               req.status === 'อนุมัติ'
-                                ? 'bg-emerald-100 text-emerald-800'
+                                ? 'bg-[#DCFCE7] text-[#15803D]'
                                 : req.status === 'ไม่อนุมัติ'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-slate-100 text-slate-600'
+                                ? 'bg-[#FEE2E2] text-[#DC2626]'
+                                : req.status === 'อยู่ระหว่างตรวจสอบ'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-orange-100 text-orange-700'
                             }`}
                           >
                             {req.status}

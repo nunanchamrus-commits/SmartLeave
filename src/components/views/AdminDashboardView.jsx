@@ -28,6 +28,7 @@ export default function AdminDashboardView() {
   const {
     currentUser,
     leaveRequests,
+    updateLeaveStatus,
     approveLeaveRequest,
     rejectLeaveRequest,
     setSelectedLeaveDetail,
@@ -42,7 +43,9 @@ export default function AdminDashboardView() {
   const currentYearBE = now.getFullYear() + 543;
   const currentMonthYearBE = `${THAI_MONTHS_SHORT[now.getMonth()]} ${currentYearBE}`;
 
-  const pendingRequests = leaveRequests.filter((r) => r.status === 'รออนุมัติ');
+  const pendingRequests = leaveRequests.filter(
+    (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ'
+  );
   const approvedRequests = leaveRequests.filter((r) => r.status === 'อนุมัติ');
 
   // Filter employees
@@ -114,7 +117,7 @@ export default function AdminDashboardView() {
             </span>
           </div>
           <div className="mt-4">
-            <p className="text-xs font-medium text-slate-500">คำขอที่รอการอนุมัติ</p>
+            <p className="text-xs font-medium text-slate-500">คำขอที่รอตรวจสอบ/อนุมัติ</p>
             <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
               {pendingRequests.length} รายการ
             </h3>
@@ -217,7 +220,7 @@ export default function AdminDashboardView() {
           {pendingRequests.length === 0 ? (
             <div className="py-12 text-center text-slate-400 space-y-2">
               <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">ไม่มีคำขอรออนุมัติ</p>
+              <p className="text-sm font-semibold text-slate-700">ไม่มีคำขอที่รอพิจารณา</p>
               <p className="text-xs">ทุกคำขอในระบบได้รับการพิจารณาเรียบร้อยแล้ว</p>
             </div>
           ) : (
@@ -228,12 +231,21 @@ export default function AdminDashboardView() {
                   className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-emerald-200 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center flex-wrap gap-1.5">
                       <span className="font-bold text-xs sm:text-sm text-slate-900">
                         {req.employeeName}
                       </span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
                         {req.type}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          req.status === 'อยู่ระหว่างตรวจสอบ'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-orange-100 text-orange-700'
+                        }`}
+                      >
+                        {req.status}
                       </span>
                       <span className="text-[11px] text-slate-400 font-medium">
                         {req.days} วัน
@@ -247,7 +259,7 @@ export default function AdminDashboardView() {
                     </p>
                   </div>
 
-                  <div className="flex items-center space-x-1.5 flex-shrink-0 self-end sm:self-center">
+                  <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0 self-end sm:self-center">
                     <button
                       type="button"
                       onClick={async () => {
@@ -264,16 +276,35 @@ export default function AdminDashboardView() {
                     >
                       <FileDown className="w-3.5 h-3.5" />
                     </button>
+                    {req.status === 'ยังไม่ยื่นเอกสาร' ? (
+                      <button
+                        type="button"
+                        onClick={() => updateLeaveStatus(req.id, 'อยู่ระหว่างตรวจสอบ')}
+                        className="px-2.5 py-1.5 rounded-xl bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-semibold text-xs transition-colors flex items-center space-x-1"
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>อยู่ระหว่างตรวจสอบ</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => updateLeaveStatus(req.id, 'ยังไม่ยื่นเอกสาร')}
+                        className="px-2.5 py-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 font-semibold text-xs transition-colors flex items-center space-x-1"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>ยังไม่ยื่นเอกสาร</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => rejectLeaveRequest(req.id, 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน')}
                       className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs transition-colors flex items-center space-x-1"
                     >
                       <X className="w-3.5 h-3.5" />
-                      <span>ปฏิเสธ</span>
+                      <span>ไม่อนุมัติ</span>
                     </button>
                     <button
                       onClick={() => approveLeaveRequest(req.id, 'อนุมัติเรียบร้อย')}
-                      className="px-4 py-1.5 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-xs flex items-center space-x-1"
+                      className="px-3.5 py-1.5 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-xs flex items-center space-x-1"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>อนุมัติ</span>

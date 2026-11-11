@@ -1114,12 +1114,12 @@ export function generateStandardElectronicLeaveSlipHTML(req) {
     : 'รอพิจารณา';
 
   const statusColors = {
+    'ยังไม่ยื่นเอกสาร': { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
+    'อยู่ระหว่างตรวจสอบ': { bg: '#fef9c3', text: '#a16207', border: '#fde047' },
     'อนุมัติ': { bg: '#dcfce7', text: '#15803d', border: '#86efac' },
-    'รออนุมัติ': { bg: '#fef3c7', text: '#b45309', border: '#fcd34d' },
     'ไม่อนุมัติ': { bg: '#fee2e2', text: '#b91c1c', border: '#fca5a5' },
-    'ยกเลิก': { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
   };
-  const sc = statusColors[req.status] || statusColors['อนุมัติ'];
+  const sc = statusColors[req.status] || statusColors['ยังไม่ยื่นเอกสาร'];
 
   return `
     <div style="font-family: 'Prompt', 'Sarabun', 'Segoe UI', Tahoma, sans-serif; color: #1e293b; padding: 28px 32px; background: #ffffff; width: 100%; box-sizing: border-box; line-height: 1.4;">
@@ -1439,7 +1439,7 @@ export async function printLeaveSlip(req) {
 /**
  * Export leave requests summary report as PDF
  */
-export async function downloadLeaveSummaryPdf(requests, title = 'รายงานสรุปประวัติการลา') {
+export async function downloadLeaveSummaryPdf(requests, title = 'รายงานสรุปตรวจสอบสถานะการลา') {
   const now = new Date();
   const monthsThai = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -1456,7 +1456,13 @@ export async function downloadLeaveSummaryPdf(requests, title = 'รายงา
       <td style="padding: 8px 10px; text-align: center; font-size: 11px; font-weight: bold;">${r.days}</td>
       <td style="padding: 8px 10px; text-align: center; font-size: 11px;">
         <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-weight: bold; font-size: 10px; ${
-          r.status === 'อนุมัติ' ? 'background: #dcfce7; color: #15803d;' : r.status === 'รออนุมัติ' ? 'background: #fef3c7; color: #b45309;' : 'background: #fee2e2; color: #b91c1c;'
+          r.status === 'อนุมัติ'
+            ? 'background: #dcfce7; color: #15803d;'
+            : r.status === 'อยู่ระหว่างตรวจสอบ'
+            ? 'background: #fef9c3; color: #a16207;'
+            : r.status === 'ไม่อนุมัติ'
+            ? 'background: #fee2e2; color: #b91c1c;'
+            : 'background: #ffedd5; color: #c2410c;'
         }">
           ${r.status}
         </span>

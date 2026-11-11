@@ -21,6 +21,27 @@ function inferUserGender(user) {
   return 'หญิง';
 }
 
+function normalizeLeaveStatus(status) {
+  switch (status) {
+    case 'ยังไม่ยื่นเอกสาร':
+    case 'not_submitted':
+    case 'pending':
+    case 'รออนุมัติ':
+      return 'ยังไม่ยื่นเอกสาร';
+    case 'อยู่ระหว่างตรวจสอบ':
+    case 'checking':
+      return 'อยู่ระหว่างตรวจสอบ';
+    case 'อนุมัติ':
+    case 'approved':
+      return 'อนุมัติ';
+    case 'ไม่อนุมัติ':
+    case 'rejected':
+      return 'ไม่อนุมัติ';
+    default:
+      return 'ยังไม่ยื่นเอกสาร';
+  }
+}
+
 export function LeaveProvider({ children }) {
   // Authentication State: Require login before reaching dashboard
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -70,14 +91,17 @@ export function LeaveProvider({ children }) {
             localStorage.setItem('smartleave_requests', JSON.stringify(initialLeaveRequests));
             return initialLeaveRequests;
           }
-          return parsed.map((r) => ({
-            ...r,
-            startDate: r.startDate ? r.startDate.replace('2025-', '2026-') : r.startDate,
-            endDate: r.endDate ? r.endDate.replace('2025-', '2026-') : r.endDate,
-            dateRange: r.dateRange ? r.dateRange.replace(/2568/g, '2569') : r.dateRange,
-            appliedDate: r.appliedDate ? r.appliedDate.replace(/2568/g, '2569') : r.appliedDate,
-            approvedDate: r.approvedDate ? r.approvedDate.replace(/2568/g, '2569') : r.approvedDate,
-          }));
+          return parsed
+            .filter((r) => r.status !== 'ยกเลิก' && r.status !== 'cancelled')
+            .map((r) => ({
+              ...r,
+              status: normalizeLeaveStatus(r.status),
+              startDate: r.startDate ? r.startDate.replace('2025-', '2026-') : r.startDate,
+              endDate: r.endDate ? r.endDate.replace('2025-', '2026-') : r.endDate,
+              dateRange: r.dateRange ? r.dateRange.replace(/2568/g, '2569') : r.dateRange,
+              appliedDate: r.appliedDate ? r.appliedDate.replace(/2568/g, '2569') : r.appliedDate,
+              approvedDate: r.approvedDate ? r.approvedDate.replace(/2568/g, '2569') : r.approvedDate,
+            }));
         }
       } catch (e) { }
     }
@@ -244,8 +268,12 @@ export function LeaveProvider({ children }) {
       // 2. ดึงรายการคำขอลาสดจาก Cloudflare D1
       const leavesData = await api.getLeaveRequests();
       if (Array.isArray(leavesData)) {
-        setLeaveRequests(leavesData);
-        recalculateQuotas(leavesData);
+        const normalizedLeaves = leavesData.map((r) => ({
+          ...r,
+          status: normalizeLeaveStatus(r.status),
+        }));
+        setLeaveRequests(normalizedLeaves);
+        recalculateQuotas(normalizedLeaves);
       }
 
       // 3. ดึงประกาศสดจาก Cloudflare D1
@@ -319,7 +347,7 @@ export function LeaveProvider({ children }) {
       employeeId: currentUser.employeeId || currentUser.id,
       employeeName: currentUser.name,
       department: currentUser.department,
-      status: 'รออนุมัติ',
+      status: 'ยังไม่ยื่นเอกสาร',
       appliedDate: 'วันนี้',
       approvedDate: null,
       approver: 'นายสมชาย มั่นคง',
@@ -335,7 +363,7 @@ export function LeaveProvider({ children }) {
     const newNotif = {
       id: `notif-${Date.now()}`,
       title: `ยื่นคำขอ${newReq.type}สำเร็จ`,
-      description: `คำขอลาวันที่ ${newReq.dateRange} รอการอนุมัติจากผู้จัดการ`,
+      description: `คำขอลาวันที่ ${newReq.dateRange} (สถานะ: ยังไม่ยื่นเอกสาร)`,
       time: 'เมื่อสักครู่',
       read: false,
       type: 'pending',
@@ -355,8 +383,12 @@ export function LeaveProvider({ children }) {
         });
         const fresh = await api.getLeaveRequests();
         if (Array.isArray(fresh) && fresh.length > 0) {
-          setLeaveRequests(fresh);
-          recalculateQuotas(fresh);
+          const normalizedFresh = fresh.map((r) => ({
+            ...r,
+            status: normalizeLeaveStatus(r.status),
+          }));
+          setLeaveRequests(normalizedFresh);
+          recalculateQuotas(normalizedFresh);
         }
       }
     } catch (e) {
@@ -366,15 +398,19 @@ export function LeaveProvider({ children }) {
     return newReq;
   };
 
-  // Approve a request
-  const approveLeaveRequest = async (requestId, approverNote = 'อนุมัติเรียบร้อย') => {
+  // Update status (Admin / Approver only) across the 4 workflow statuses
+  const updateLeaveStatus = async (requestId, nextStatus, remark = '') => {
+    if (!isAdmin) return;
+    const normalizedStatus = normalizeLeaveStatus(nextStatus);
+    const isFinalDecision = normalizedStatus === 'อนุมัติ' || normalizedStatus === 'ไม่อนุมัติ';
+
     const updated = leaveRequests.map((r) => {
       if (r.id === requestId) {
         return {
           ...r,
-          status: 'อนุมัติ',
-          approvedDate: 'วันนี้',
-          note: approverNote,
+          status: normalizedStatus,
+          approvedDate: isFinalDecision ? 'วันนี้' : null,
+          note: remark !== undefined && remark !== '' ? remark : r.note,
         };
       }
       return r;
@@ -383,97 +419,64 @@ export function LeaveProvider({ children }) {
     setLeaveRequests(updated);
     recalculateQuotas(updated);
 
-    // ส่งอนุมัติไปยัง Database
+    if (selectedLeaveDetail?.id === requestId) {
+      setSelectedLeaveDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: normalizedStatus,
+              approvedDate: isFinalDecision ? 'วันนี้' : null,
+              note: remark !== undefined && remark !== '' ? remark : prev.note,
+            }
+          : null
+      );
+    }
+
+    // ส่งอัปเดตสถานะไปยัง Database
     try {
-      if (api && api.approveLeave) {
-        await api.approveLeave(requestId, approverNote);
+      if (api && api.updateLeaveStatus) {
+        await api.updateLeaveStatus(requestId, normalizedStatus, remark);
+      } else if (normalizedStatus === 'อนุมัติ' && api?.approveLeave) {
+        await api.approveLeave(requestId, remark || 'อนุมัติเรียบร้อย');
+      } else if (normalizedStatus === 'ไม่อนุมัติ' && api?.rejectLeave) {
+        await api.rejectLeave(requestId, remark || 'ไม่อนุมัติ');
       }
     } catch (e) {
-      console.log('[Leave approve to DB note]:', e.message);
+      console.log('[Update Leave Status DB note]:', e.message);
     }
 
     const target = leaveRequests.find((r) => r.id === requestId);
     if (target) {
+      const notifType =
+        normalizedStatus === 'อนุมัติ'
+          ? 'approved'
+          : normalizedStatus === 'ไม่อนุมัติ'
+          ? 'rejected'
+          : 'pending';
       const newNotif = {
         id: `notif-${Date.now()}`,
-        title: `คำขอ${target.type}ได้รับการอนุมัติ`,
-        description: `คำขอวันที่ ${target.dateRange} ได้รับการอนุมัติเรียบร้อย`,
+        title: `อัปเดตสถานะคำขอ${target.type}: ${normalizedStatus}`,
+        description: remark
+          ? `คำขอวันที่ ${target.dateRange} • ${remark}`
+          : `คำขอวันที่ ${target.dateRange} เปลี่ยนเป็น "${normalizedStatus}"`,
         time: 'เมื่อสักครู่',
         read: false,
-        type: 'approved',
+        type: notifType,
       };
-      setNotifications([newNotif, ...notifications]);
+      setNotifications((prev) => [newNotif, ...prev]);
     }
+
+    showToast(`ปรับสถานะคำขอเป็น "${normalizedStatus}" เรียบร้อยแล้ว`, 'success');
+  };
+
+  // Approve a request
+  const approveLeaveRequest = async (requestId, approverNote = 'อนุมัติเรียบร้อย') => {
+    await updateLeaveStatus(requestId, 'อนุมัติ', approverNote);
   };
 
   // Reject a request
   const rejectLeaveRequest = async (requestId, rejectReason = 'ไม่อนุมัติเนื่องจากมีงานด่วนในช่วงเวลาดังกล่าว') => {
-    const updated = leaveRequests.map((r) => {
-      if (r.id === requestId) {
-        return {
-          ...r,
-          status: 'ไม่อนุมัติ',
-          approvedDate: 'วันนี้',
-          note: rejectReason,
-        };
-      }
-      return r;
-    });
-
-    setLeaveRequests(updated);
-
-    // ส่งปฏิเสธไปยัง Database
-    try {
-      if (api && api.rejectLeave) {
-        await api.rejectLeave(requestId, rejectReason);
-      }
-    } catch (e) {
-      console.log('[Leave reject to DB note]:', e.message);
-    }
-
-    const target = leaveRequests.find((r) => r.id === requestId);
-    if (target) {
-      const newNotif = {
-        id: `notif-${Date.now()}`,
-        title: `คำขอ${target.type}ไม่ได้รับการอนุมัติ`,
-        description: `เหตุผล: ${rejectReason}`,
-        time: 'เมื่อสักครู่',
-        read: false,
-        type: 'rejected',
-      };
-      setNotifications([newNotif, ...notifications]);
-    }
-  };
-
-  // Cancel a request (by employee)
-  const cancelLeaveRequest = async (requestId) => {
-    const updated = leaveRequests.map((r) => {
-      if (r.id === requestId) {
-        return {
-          ...r,
-          status: 'ยกเลิก',
-        };
-      }
-      return r;
-    });
-    setLeaveRequests(updated);
-    recalculateQuotas(updated);
-
-    // บันทึกการยกเลิกลง Cloudflare D1
-    try {
-      if (api && api.cancelLeave) {
-        await api.cancelLeave(requestId);
-        const fresh = await api.getLeaveRequests();
-        if (Array.isArray(fresh)) {
-          setLeaveRequests(fresh);
-          recalculateQuotas(fresh);
-        }
-      }
-    } catch (e) {
-      console.log('[Cancel Leave D1 Note]:', e.message);
-    }
-
-    showToast('ยกเลิกคำขอลางานเรียบร้อยแล้ว', 'info');
+    await updateLeaveStatus(requestId, 'ไม่อนุมัติ', rejectReason);
   };
 
   // Mark all notifications read
@@ -783,9 +786,9 @@ export function LeaveProvider({ children }) {
         isNotificationsOpen,
         setIsNotificationsOpen,
         submitLeaveRequest,
+        updateLeaveStatus,
         approveLeaveRequest,
         rejectLeaveRequest,
-        cancelLeaveRequest,
         markAllNotificationsRead,
         markNotificationRead,
         resetToDefault,

@@ -26,13 +26,15 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
     isAdmin,
   } = useLeave();
 
-  const pendingApprovalsCount = leaveRequests.filter((r) => r.status === 'รออนุมัติ').length;
+  const pendingApprovalsCount = leaveRequests.filter(
+    (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ'
+  ).length;
 
   // Distinct navigation items for User vs Admin
   const userNavItems = [
     { id: 'dashboard', label: 'หน้าหลัก', icon: Home },
     { id: 'request', label: 'ขอลา', icon: CalendarPlus, isAction: true },
-    { id: 'history', label: 'ประวัติการลา', icon: FileText },
+    { id: 'history', label: 'ตรวจสอบสถานะการลา', icon: FileText },
     { id: 'calendar', label: 'ปฏิทินการลา', icon: Calendar },
     { id: 'settings', label: 'ข้อมูลส่วนตัว', icon: Settings },
   ];
