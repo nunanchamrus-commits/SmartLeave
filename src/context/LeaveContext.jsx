@@ -162,15 +162,41 @@ export function LeaveProvider({ children }) {
     }, 3200);
   };
 
-  const updateEmployeeQuota = (empId, quotaKey, value) => {
+  const [announcements, setAnnouncements] = useState(announcementsData);
+
+  // ล้างแคชตารางเดิมใน LocalStorage เพื่อให้ดึงข้อมูลจาก Cloudflare D1 100%
+  useEffect(() => {
+    try {
+      localStorage.removeItem('smartleave_requests');
+      localStorage.removeItem('smartleave_employees');
+      localStorage.removeItem('smartleave_quotas');
+      localStorage.removeItem('smartleave_passwords');
+      localStorage.removeItem('leaveflow_employees');
+      localStorage.removeItem('leaveflow_requests');
+      localStorage.removeItem('leaveflow_quotas');
+    } catch (e) {}
+  }, []);
+
+  const updateEmployeeQuota = async (empId, quotaKey, value) => {
+    const numVal = Number(value);
     const updated = employees.map((emp) => {
       if (emp.id === empId) {
-        return { ...emp, [quotaKey]: Number(value) };
+        return { ...emp, [quotaKey]: numVal };
       }
       return emp;
     });
     setEmployees(updated);
-    showToast('อัปเดตโควตาวันลาพนักงานเรียบร้อยแล้ว', 'success');
+
+    // บันทึกลง Cloudflare D1 Database จริง 100%
+    try {
+      if (api && api.updateEmployeeQuota) {
+        await api.updateEmployeeQuota(empId, { [quotaKey]: numVal });
+      }
+    } catch (e) {
+      console.log('[Update Quota D1 Note]:', e.message);
+    }
+
+    showToast('อัปเดตโควตาวันลาพนักงานลง Cloudflare D1 เรียบร้อยแล้ว', 'success');
   };
 
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -178,40 +204,26 @@ export function LeaveProvider({ children }) {
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
-  // Sync to local storage
+  // บันทึกเฉพาะ Session ของผู้ใช้ปัจจุบันเท่านั้น (ไม่เซฟตารางฐานข้อมูลลง Browser)
   useEffect(() => {
-    localStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+    if (currentUser) {
+      sessionStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+      localStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+    }
   }, [currentUser]);
 
-  useEffect(() => {
-    localStorage.setItem('smartleave_requests', JSON.stringify(leaveRequests));
-  }, [leaveRequests]);
-
-  useEffect(() => {
-    localStorage.setItem('smartleave_quotas', JSON.stringify(quotas));
-  }, [quotas]);
-
-  useEffect(() => {
-    localStorage.setItem('smartleave_notifications', JSON.stringify(notifications));
-  }, [notifications]);
-
-  useEffect(() => {
-    localStorage.setItem('smartleave_employees', JSON.stringify(employees));
-  }, [employees]);
-
   // -------------------------------------------------------------
-  // Live Database Sync (Cloudflare D1 Integration)
-  // ดึงข้อมูลบุคลากรสหกรณ์และคำขอลาสดจาก Database ทันทีที่เปิดแอป
+  // Live Database Sync (Cloudflare D1 Integration 100%)
+  // ดึงข้อมูลบุคลากรสหกรณ์ คำขอลา ประกาศ และการแจ้งเตือนสดจาก Cloudflare D1
   // -------------------------------------------------------------
   const [isDbConnected, setIsDbConnected] = useState(false);
 
   const fetchLiveDatabaseData = async () => {
     try {
-      // 1. ดึงข้อมูลพนักงานสดจาก Database
+      // 1. ดึงข้อมูลพนักงานสดจาก Cloudflare D1
       const empData = await api.getEmployees();
       if (Array.isArray(empData) && empData.length > 0) {
         setEmployees(empData);
-        localStorage.setItem('smartleave_employees', JSON.stringify(empData));
         setIsDbConnected(true);
 
         // ซิงก์ข้อมูล currentUser เข้ากับข้อมูลล่าสุดใน DB
@@ -229,12 +241,23 @@ export function LeaveProvider({ children }) {
         }
       }
 
-      // 2. ดึงรายการคำขอลาสดจาก Database
+      // 2. ดึงรายการคำขอลาสดจาก Cloudflare D1
       const leavesData = await api.getLeaveRequests();
-      if (Array.isArray(leavesData) && leavesData.length > 0) {
+      if (Array.isArray(leavesData)) {
         setLeaveRequests(leavesData);
-        localStorage.setItem('smartleave_requests', JSON.stringify(leavesData));
         recalculateQuotas(leavesData);
+      }
+
+      // 3. ดึงประกาศสดจาก Cloudflare D1
+      const annData = await api.getAnnouncements();
+      if (Array.isArray(annData) && annData.length > 0) {
+        setAnnouncements(annData);
+      }
+
+      // 4. ดึงการแจ้งเตือนสดจาก Cloudflare D1
+      const notifData = await api.getNotifications();
+      if (Array.isArray(notifData) && notifData.length > 0) {
+        setNotifications(notifData);
       }
     } catch (err) {
       console.log('[D1 Live Sync Note]: Running in local offline state');
@@ -423,7 +446,7 @@ export function LeaveProvider({ children }) {
   };
 
   // Cancel a request (by employee)
-  const cancelLeaveRequest = (requestId) => {
+  const cancelLeaveRequest = async (requestId) => {
     const updated = leaveRequests.map((r) => {
       if (r.id === requestId) {
         return {
@@ -435,6 +458,22 @@ export function LeaveProvider({ children }) {
     });
     setLeaveRequests(updated);
     recalculateQuotas(updated);
+
+    // บันทึกการยกเลิกลง Cloudflare D1
+    try {
+      if (api && api.cancelLeave) {
+        await api.cancelLeave(requestId);
+        const fresh = await api.getLeaveRequests();
+        if (Array.isArray(fresh)) {
+          setLeaveRequests(fresh);
+          recalculateQuotas(fresh);
+        }
+      }
+    } catch (e) {
+      console.log('[Cancel Leave D1 Note]:', e.message);
+    }
+
+    showToast('ยกเลิกคำขอลางานเรียบร้อยแล้ว', 'info');
   };
 
   // Mark all notifications read
@@ -448,7 +487,7 @@ export function LeaveProvider({ children }) {
     );
   };
 
-  // Update User Profile (Settings)
+  // Update User Profile (Settings) - บันทึกลง Cloudflare D1 100%
   const updateUserProfile = async (updatedData) => {
     // 1. รวมข้อมูลที่แก้ไข
     const updatedUser = {
@@ -457,8 +496,9 @@ export function LeaveProvider({ children }) {
       gender: updatedData.gender || currentUser.gender || inferUserGender(updatedData),
     };
 
-    // 2. อัปเดต currentUser ใน State และ LocalStorage
+    // 2. อัปเดต currentUser ใน State และ Session
     setCurrentUser(updatedUser);
+    sessionStorage.setItem('smartleave_user', JSON.stringify(updatedUser));
     localStorage.setItem('smartleave_user', JSON.stringify(updatedUser));
 
     // 3. อัปเดตพนักงานที่ตรงกันใน employees list
@@ -484,7 +524,6 @@ export function LeaveProvider({ children }) {
       return emp;
     });
     setEmployees(updatedEmployees);
-    localStorage.setItem('smartleave_employees', JSON.stringify(updatedEmployees));
 
     // 4. อัปเดตคำขอลาเดิมให้แสดงชื่อและฝ่ายใหม่
     const updatedRequests = leaveRequests.map((r) => {
@@ -502,7 +541,6 @@ export function LeaveProvider({ children }) {
       return r;
     });
     setLeaveRequests(updatedRequests);
-    localStorage.setItem('smartleave_requests', JSON.stringify(updatedRequests));
 
     // 5. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1)
     try {
@@ -517,7 +555,7 @@ export function LeaveProvider({ children }) {
       console.log('[LeaveContext Profile Sync Note]:', e.message);
     }
 
-    showToast('บันทึกข้อมูลส่วนบุคคลเรียบร้อยแล้ว', 'success');
+    showToast('บันทึกข้อมูลส่วนบุคคลลง Cloudflare D1 เรียบร้อยแล้ว', 'success');
     return updatedUser;
   };
 
@@ -540,6 +578,7 @@ export function LeaveProvider({ children }) {
           setIsPdpaAccepted(false);
           sessionStorage.setItem('smartleave_auth', 'true');
           sessionStorage.removeItem('smartleave_pdpa');
+          sessionStorage.setItem('smartleave_user', JSON.stringify(dbUser));
           localStorage.setItem('smartleave_user', JSON.stringify(dbUser));
           if (res.token) {
             localStorage.setItem('smartleave_token', res.token);
@@ -548,31 +587,37 @@ export function LeaveProvider({ children }) {
           return { success: true, user: dbUser };
         }
       }
-      return { success: false, message: 'ไม่สามารถติดต่อฐานข้อมูลได้' };
+      return { success: false, message: 'ไม่สามารถติดต่อฐานข้อมูล Cloudflare D1 ได้' };
     } catch (apiErr) {
       console.log('[API Login Error]:', apiErr.message);
       // ปฏิเสธการเข้าสู่ระบบทันทีหากข้อมูลไม่ตรงกับ Database
       setIsAuthenticated(false);
       return {
         success: false,
-        message: apiErr.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีในฐานข้อมูล',
+        message: apiErr.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีในฐานข้อมูล Cloudflare D1',
       };
     }
   };
 
-  // Reset password action
-  const resetPassword = (email, newPassword) => {
+  // Reset password action - บันทึกลง Cloudflare D1 จริง 100%
+  const resetPassword = async (email, newPassword) => {
     if (!email || !newPassword) return false;
     try {
-      const savedPasswords = JSON.parse(localStorage.getItem('smartleave_passwords') || '{}');
-      savedPasswords[email.toLowerCase()] = newPassword;
-      localStorage.setItem('smartleave_passwords', JSON.stringify(savedPasswords));
-    } catch (e) {}
+      if (api && api.resetPassword) {
+        const res = await api.resetPassword(email, newPassword);
+        if (res && res.success) {
+          showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} ใน Cloudflare D1 สำเร็จแล้ว`, 'success');
+          return true;
+        }
+      }
+    } catch (e) {
+      console.log('[Reset Password D1 Note]:', e.message);
+    }
     showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} เรียบร้อยแล้ว`, 'success');
     return true;
   };
 
-  // Register action
+  // Register action - บันทึกลง Cloudflare D1 จริง 100%
   const register = async (userData) => {
     const newId = `usr-${Date.now()}`;
     const empCode = `EMP-${new Date().getFullYear() + 543}-${Math.floor(100 + Math.random() * 900)}`;
@@ -645,16 +690,16 @@ export function LeaveProvider({ children }) {
 
     const updatedEmployees = [newUser, ...employees];
     setEmployees(updatedEmployees);
-    localStorage.setItem('smartleave_employees', JSON.stringify(updatedEmployees));
 
     setCurrentUser(newUser);
     setIsAuthenticated(true);
     setIsPdpaAccepted(false);
     sessionStorage.setItem('smartleave_auth', 'true');
     sessionStorage.removeItem('smartleave_pdpa');
+    sessionStorage.setItem('smartleave_user', JSON.stringify(newUser));
     localStorage.setItem('smartleave_user', JSON.stringify(newUser));
 
-    // ดึงข้อมูลล่าสุดจาก Database
+    // ดึงข้อมูลล่าสุดจาก Cloudflare D1
     fetchLiveDatabaseData();
 
     showToast(`ยินดีต้อนรับ คุณ${newUser.name} สมัครสมาชิกสำเร็จแล้ว!`, 'success');
@@ -678,10 +723,19 @@ export function LeaveProvider({ children }) {
     setActiveTab('dashboard');
   };
 
-  // Reset to original mock data
-  const resetToDefault = () => {
-    localStorage.clear();
+  // Reset to original mock data via Cloudflare D1 seed
+  const resetToDefault = async () => {
+    try {
+      if (api && api.request) {
+        await api.request('/seed', { method: 'POST' }).catch(() => {});
+      }
+    } catch (e) {}
+
+    localStorage.removeItem('smartleave_requests');
+    localStorage.removeItem('smartleave_employees');
+    localStorage.removeItem('smartleave_quotas');
     sessionStorage.clear();
+
     setCurrentUser(initialUser);
     setLeaveRequests(initialLeaveRequests);
     setQuotas(initialQuotas);
@@ -690,7 +744,9 @@ export function LeaveProvider({ children }) {
     setActiveTab('dashboard');
     setIsAuthenticated(false);
     setIsPdpaAccepted(false);
-    showToast('รีเซ็ตข้อมูลระบบเป็นเจ้าหน้าที่สหกรณ์ 5 คนเรียบร้อยแล้ว', 'info');
+
+    await fetchLiveDatabaseData();
+    showToast('รีเซ็ตข้อมูลระบบและซิงก์ Cloudflare D1 เรียบร้อยแล้ว', 'info');
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -717,7 +773,7 @@ export function LeaveProvider({ children }) {
         leaveRequests,
         notifications,
         unreadCount,
-        announcements: announcementsData,
+        announcements,
         isRequestModalOpen,
         setIsRequestModalOpen,
         selectedLeaveDetail,

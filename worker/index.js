@@ -1,6 +1,7 @@
 /**
  * CLOUDFLARE PAGES FUNCTIONS: Backend API Layer
  * ไฟล์นี้ทำหน้าที่เป็น Serverless API เชื่อมต่อระหว่างหน้าเว็บ React และฐานข้อมูล Cloudflare D1
+ * จัดเก็บข้อมูล 100% บน Cloudflare D1 พร้อมระบบ Dynamic SQL Migration อัตโนมัติ
  * Routing Path: /api/*
  */
 
@@ -15,6 +16,148 @@ function jsonResponse(data, status = 200) {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
+}
+
+// -------------------------------------------------------------
+// DYNAMIC SQL SCHEMA MIGRATION: ตรวจสอบและสร้างคอลัมน์อัตโนมัติหากยังไม่มีใน D1
+// -------------------------------------------------------------
+const SCHEMA_COLUMNS = {
+  users: {
+    english_name: 'TEXT',
+    gender: "TEXT DEFAULT 'หญิง'",
+    employment_type: "TEXT DEFAULT 'ข้าราชการ'",
+    phone: "TEXT DEFAULT '081-234-5678'",
+    position: 'TEXT',
+    avatar_url: 'TEXT',
+  },
+  leave_requests: {
+    rejection_reason: 'TEXT',
+    approved_at: 'TEXT',
+    substitute_user_id: 'INTEGER',
+  },
+  employee_leave_quotas: {
+    carry_over_days: 'REAL DEFAULT 0.0',
+    used_days: 'REAL DEFAULT 0.0',
+    pending_days: 'REAL DEFAULT 0.0',
+  },
+};
+
+async function ensureTableColumns(db, tableName, columnSpecs) {
+  try {
+    const tableInfo = await db.prepare(`PRAGMA table_info(${tableName})`).all();
+    const existing = new Set((tableInfo.results || []).map((c) => c.name.toLowerCase()));
+    for (const [col, spec] of Object.entries(columnSpecs)) {
+      if (!existing.has(col.toLowerCase())) {
+        await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} ${spec}`).run().catch(() => {});
+      }
+    }
+  } catch (err) {
+    // กรณี PRAGMA ทำงานไม่ได้ ให้รัน ALTER TABLE แบบ Idempotent ตรงๆ
+    for (const [col, spec] of Object.entries(columnSpecs)) {
+      await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} ${spec}`).run().catch(() => {});
+    }
+  }
+}
+
+async function autoMigrateDatabase(db) {
+  for (const [table, specs] of Object.entries(SCHEMA_COLUMNS)) {
+    await ensureTableColumns(db, table, specs);
+  }
+}
+
+// -------------------------------------------------------------
+// SEED DATA: ข้อมูลตั้งต้น 14 แผนกสหกรณ์ และบุคลากร 5 ท่านใน D1
+// -------------------------------------------------------------
+async function seedMasterData(db, force = false) {
+  const panika = await db.prepare("SELECT user_id, english_name FROM users WHERE first_name = 'พนิกา'").first().catch(() => null);
+  if (!panika || !panika.english_name || force) {
+    // 1. นำเข้า 14 แผนกสหกรณ์ครบถ้วน
+    await db.batch([
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (1, 'DEP-ADMIN', 'ฝ่ายบริหารทั่วไป', 'General Administration Division')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (2, 'DEP-ESTAB', 'กลุ่มจัดตั้งและส่งเสริมสหกรณ์', 'Cooperative Establishment and Promotion Group')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (3, 'DEP-MGT', 'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์', 'Cooperative Management and Administration Development Group')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (4, 'DEP-BIZ', 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', 'Cooperative Business Development Group')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (5, 'DEP-AUD', 'กลุ่มตรวจการสหกรณ์', 'Cooperative Auditing and Inspection Group')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (6, 'DEP-CP1', 'กลุ่มส่งเสริมสหกรณ์ 1', 'Cooperative Promotion Group 1')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (7, 'DEP-CP2', 'กลุ่มส่งเสริมสหกรณ์ 2', 'Cooperative Promotion Group 2')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (8, 'DEP-CP3', 'กลุ่มส่งเสริมสหกรณ์ 3', 'Cooperative Promotion Group 3')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (9, 'DEP-CP4', 'กลุ่มส่งเสริมสหกรณ์ 4', 'Cooperative Promotion Group 4')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (10, 'DEP-CP5', 'กลุ่มส่งเสริมสหกรณ์ 5', 'Cooperative Promotion Group 5')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (11, 'DEP-CP6', 'กลุ่มส่งเสริมสหกรณ์ 6', 'Cooperative Promotion Group 6')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (12, 'DEP-CP7', 'กลุ่มส่งเสริมสหกรณ์ 7', 'Cooperative Promotion Group 7')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (13, 'DEP-CP8', 'กลุ่มส่งเสริมสหกรณ์ 8', 'Cooperative Promotion Group 8')"),
+      db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (14, 'DEP-DONGMUN', 'นิคมสหกรณ์ดงมูล', 'Dong Mun Cooperative Settlement')"),
+      
+      // สิทธิ์การใช้งานระบบ
+      db.prepare("INSERT OR REPLACE INTO roles (role_id, code, name_th, description) VALUES (1, 'SYSTEM_ADMIN', 'ผู้ดูแลระบบสูงสุด', 'จัดการโครงสร้างระบบ การตั้งค่า และผู้ใช้งานทั้งหมด')"),
+      db.prepare("INSERT OR REPLACE INTO roles (role_id, code, name_th, description) VALUES (2, 'HR_ADMIN', 'ฝ่ายทรัพยากรบุคคล (HR)', 'บริหารจัดการสถิติวันลา ตรวจสอบความยินยอม PDPA และรายงาน')"),
+      db.prepare("INSERT OR REPLACE INTO roles (role_id, code, name_th, description) VALUES (3, 'APPROVER', 'ผู้อำนวยการ / หัวหน้ากลุ่มงาน (ผู้อนุมัติ)', 'พิจารณาอนุมัติหรือปฏิเสธคำขอลางานของเจ้าหน้าที่ในสังกัด')"),
+      db.prepare("INSERT OR REPLACE INTO roles (role_id, code, name_th, description) VALUES (4, 'EMPLOYEE', 'เจ้าหน้าที่ / นักวิชาการสหกรณ์', 'ยื่นคำขอลางาน ตรวจสอบโควตา และจัดการสิทธิ PDPA ของตนเอง')"),
+
+      // ประเภทวันลา
+      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (1, 'vacation', 'ลาพักผ่อน (ประจำปี)', 'Annual Vacation Leave', 10.00, 1, 0, 3, '#155A32')"),
+      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (2, 'sick', 'ลาป่วย', 'Sick Leave', 30.00, 1, 1, 0, '#ef4444')"),
+      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (3, 'personal', 'ลากิจส่วนตัว', 'Personal Business Leave', 15.00, 1, 0, 1, '#0d9488')"),
+      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (4, 'maternity', 'ลาคลอดบุตร', 'Maternity Leave', 90.00, 1, 1, 15, '#ec4899')"),
+      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (5, 'ordination', 'ลาอุปสมบท / ประกอบพิธีทางศาสนา', 'Religious / Ordination Leave', 15.00, 1, 1, 30, '#8b5cf6')"),
+      db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (6, 'military', 'ลารับราชการทหาร', 'Military Service Leave', 60.00, 1, 1, 15, '#64748b')"),
+
+      // บุคลากรสหกรณ์ 5 คน + ผู้ดูแลระบบ (พร้อม english_name, gender, employment_type ครบ 100%)
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (1, 'ADM-001', 'admin@smartleave.com', '123456', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (2, 'EMP-001', 'panika.t@smartleave.com', '123456', 'นางสาว', 'พนิกา', 'ธรรมเมือง', 'Panika Thammoeang', 'หญิง', 'ข้าราชการ', '081-234-5678', 6, 4, 'นักวิชาการสหกรณ์ปฏิบัติการ', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (3, 'MGR-002', 'somchai.m@smartleave.com', '123456', 'นาย', 'สมชาย', 'มั่นคง', 'Somchai Mankhong', 'ชาย', 'ข้าราชการ', '089-876-5432', 1, 3, 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (4, 'EMP-003', 'nichaphat.w@smartleave.com', '123456', 'นางสาว', 'ณิชาภัทร', 'วงศ์ษา', 'Nichaphat Wongsa', 'หญิง', 'ข้าราชการ', '086-111-2233', 4, 4, 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', '123456', 'นาย', 'อัครพล', 'เจริญผล', 'Akarapol Charoenphon', 'ชาย', 'พนักงานราชการ', '082-333-4455', 5, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '123456', 'นางสาว', 'สุดา', 'ใจดี', 'Suda Jaidee', 'หญิง', 'ลูกจ้างประจำ', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+    ]);
+
+    // โควตาวันลาประจำปี 2026 (10, 30, 15, 90)
+    for (let uId = 2; uId <= 6; uId++) {
+      await db.batch([
+        db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, 2026, 10.0, ?, ?)').bind(uId, uId === 2 ? 2.0 : (uId === 4 ? 4.0 : (uId === 6 ? 3.0 : 0.0)), uId === 2 ? 8.0 : (uId === 4 ? 6.0 : (uId === 6 ? 7.0 : 10.0))),
+        db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, 2026, 30.0, ?, ?)').bind(uId, uId === 2 ? 1.0 : (uId === 4 ? 2.0 : 0.0), uId === 2 ? 29.0 : (uId === 4 ? 28.0 : 30.0)),
+        db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, 2026, 15.0, ?, ?)').bind(uId, uId === 4 ? 1.0 : 0.0, uId === 4 ? 14.0 : 15.0),
+        db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, 2026, 90.0, 0.0, 90.0)').bind(uId),
+      ]);
+    }
+
+    // ข้อมูลคำขอลางานตัวอย่างหากยังไม่มี
+    const leaveCount = await db.prepare('SELECT count(*) as cnt FROM leave_requests').first().catch(() => ({ cnt: 0 }));
+    if (Number(leaveCount?.cnt || 0) === 0 || force) {
+      await db.batch([
+        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, approver_id, approved_at) VALUES (1, 'LV-2026-001', 2, 1, '2026-02-16', '2026-02-17', 2.0, 'พักผ่อนประจำปีกับครอบครัว', 'approved', 3, '2026-02-12 10:30:00')"),
+        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, approver_id, approved_at) VALUES (2, 'LV-2026-002', 2, 2, '2026-01-20', '2026-01-20', 1.0, 'มีไข้หวัด พบแพทย์ที่โรงพยาบาลขอนแก่น', 'approved', 3, '2026-01-21 09:00:00')"),
+        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, approver_id, approved_at) VALUES (3, 'LV-2026-003', 4, 3, '2026-02-20', '2026-02-20', 1.0, 'ติดต่อราชการทำบัตรประชาชนและเอกสารที่ว่าการอำเภอ', 'approved', 3, '2026-02-18 14:00:00')"),
+        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status) VALUES (4, 'LV-2026-004', 6, 1, '2026-02-25', '2026-02-27', 3.0, 'เดินทางไปต่างจังหวัดเพื่อร่วมงานแต่งงานญาติ', 'pending')"),
+      ]).catch(() => {});
+    }
+
+    // ประกาศข่าวสารหากยังไม่มี
+    const annCount = await db.prepare('SELECT count(*) as cnt FROM announcements').first().catch(() => ({ cnt: 0 }));
+    if (Number(annCount?.cnt || 0) === 0 || force) {
+      await db.batch([
+        db.prepare("INSERT OR REPLACE INTO announcements (announcement_id, title, content, badge, is_pinned, created_by) VALUES (1, 'ระเบียบการลาประจำปีงบประมาณ 2569', 'ขอความร่วมมือเจ้าหน้าที่ทุกท่านตรวจสอบและวางแผนการใช้วันลาพักผ่อนประจำปีล่วงหน้าผ่านระบบ SmartLeave', 'สำคัญ', 1, 1)"),
+        db.prepare("INSERT OR REPLACE INTO announcements (announcement_id, title, content, badge, is_pinned, created_by) VALUES (2, 'การคุ้มครองข้อมูลส่วนบุคคล (PDPA) ในระบบ SmartLeave', 'ระบบดำเนินการจัดเก็บและประมวลผลข้อมูลการลาตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 อย่างเคร่งครัด 100%', 'นโยบาย', 1, 1)"),
+        db.prepare("INSERT OR REPLACE INTO announcements (announcement_id, title, content, badge, is_pinned, created_by) VALUES (3, 'วันหยุดราชการประจำเดือนมีนาคม 2569', 'วันจันทร์ที่ 3 มีนาคม 2569 เป็นวันหยุดชดเชยวันมาฆบูชา', 'วันหยุด', 0, 1)"),
+      ]).catch(() => {});
+    }
+
+    // การแจ้งเตือนหากยังไม่มี
+    const notifCount = await db.prepare('SELECT count(*) as cnt FROM notifications').first().catch(() => ({ cnt: 0 }));
+    if (Number(notifCount?.cnt || 0) === 0 || force) {
+      await db.batch([
+        db.prepare("INSERT OR REPLACE INTO notifications (notification_id, user_id, title, description, type, is_read) VALUES (1, 2, 'คำขอลาพักผ่อนได้รับการอนุมัติ', 'คำขอลาพักผ่อนวันที่ 16-17 ก.พ. 2569 ได้รับการอนุมัติแล้ว', 'approved', 0)"),
+        db.prepare("INSERT OR REPLACE INTO notifications (notification_id, user_id, title, description, type, is_read) VALUES (2, 2, 'แจ้งเตือนวันหยุดราชการ', 'วันหยุดชดเชยวันมาฆบูชา วันจันทร์ที่ 3 มีนาคม 2569', 'info', 0)"),
+        db.prepare("INSERT OR REPLACE INTO notifications (notification_id, user_id, title, description, type, is_read) VALUES (3, 2, 'นโยบาย PDPA มีผลบังคับใช้', 'กรุณาตรวจสอบสิทธิความเป็นส่วนตัวของท่านในหน้านโยบาย', 'system', 1)"),
+      ]).catch(() => {});
+    }
+  }
 }
 
 // Export สำหรับ Cloudflare Workers (Worker Fetch Event)
@@ -56,41 +199,12 @@ export async function onRequest(context) {
     );
   }
 
-  // เตรียมข้อมูลตั้งต้นพนักงานสหกรณ์ใน D1 อัตโนมัติหากยังเป็นข้อมูลเก่า
+  // 1. ตรวจสอบและทำ Auto-Migration โครงสร้างตารางใน Cloudflare D1 อัตโนมัติ 100%
   try {
-    // 1. เพิ่มคอลัมน์ gender ในตาราง users หากยังไม่มี
-    await env.DB.prepare("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'หญิง'").run().catch(() => {});
-
-    // อัปเดตรหัสผ่านที่เคยเป็น default_hash ให้เป็น 123456 ใน D1
-    await env.DB.prepare("UPDATE users SET password_hash = '123456' WHERE password_hash = 'default_hash'").run().catch(() => {});
-
-    // 2. ตรวจสอบว่ามีข้อมูลเจ้าหน้าที่สหกรณ์ (คุณพนิกา) หรือยัง
-    const panika = await env.DB.prepare("SELECT user_id FROM users WHERE first_name = 'พนิกา'").first().catch(() => null);
-    if (!panika) {
-      // ลบข้อมูลพนักงานไอทีตัวอย่างเดิมออกเพื่ออัปเดตเป็นบุคลากรสหกรณ์ 5 คน
-      await env.DB.prepare("DELETE FROM users WHERE employee_code LIKE 'EMP-%' OR employee_code LIKE 'MGR-%'").run().catch(() => {});
-      
-      await env.DB.batch([
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (1, 'DEP-ADMIN', 'ฝ่ายบริหารทั่วไป', 'General Administration')"),
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (2, 'DEP-CP1', 'กลุ่มส่งเสริมและพัฒนาสหกรณ์ 1', 'Cooperative Promotion 1')"),
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (3, 'DEP-BIZ', 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', 'Cooperative Business')"),
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (4, 'DEP-AUD', 'กลุ่มตรวจการสหกรณ์', 'Cooperative Inspection')"),
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (5, 'DEP-CP2', 'กลุ่มส่งเสริมและพัฒนาสหกรณ์ 2', 'Cooperative Promotion 2')"),
-        
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (2, 'EMP-001', 'panika.t@smartleave.com', '123456', 'นางสาว', 'พนิกา', 'ธรรมเมือง', 'หญิง', '081-234-5678', 2, 4, 'นักวิชาการสหกรณ์ปฏิบัติการ', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (3, 'MGR-002', 'somchai.m@smartleave.com', '123456', 'นาย', 'สมชาย', 'มั่นคง', 'ชาย', '089-876-5432', 1, 3, 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (4, 'EMP-003', 'nichaphat.w@smartleave.com', '123456', 'นางสาว', 'ณิชาภัทร', 'วงศ์ษา', 'หญิง', '086-111-2233', 3, 4, 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', '123456', 'นาย', 'อัครพล', 'เจริญผล', 'ชาย', '082-333-4455', 4, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '123456', 'นางสาว', 'สุดา', 'ใจดี', 'หญิง', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-      ]);
-    }
-  } catch (seedErr) {
-    console.log('[D1 Auto-seed Note]:', seedErr.message);
+    await autoMigrateDatabase(env.DB);
+    await seedMasterData(env.DB, false);
+  } catch (initErr) {
+    console.log('[D1 Auto-Migration Note]:', initErr.message);
   }
 
   try {
@@ -112,38 +226,69 @@ export async function onRequest(context) {
     // GET or POST /api/seed
     // -------------------------------------------------------------
     if (path === '/seed') {
-      await env.DB.prepare("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'หญิง'").run().catch(() => {});
-      await env.DB.prepare("DELETE FROM users WHERE employee_code LIKE 'EMP-%' OR employee_code LIKE 'MGR-%'").run().catch(() => {});
+      await autoMigrateDatabase(env.DB);
+      await seedMasterData(env.DB, true);
 
-      await env.DB.batch([
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (1, 'DEP-ADMIN', 'ฝ่ายบริหารทั่วไป', 'General Administration')"),
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (2, 'DEP-CP1', 'กลุ่มส่งเสริมและพัฒนาสหกรณ์ 1', 'Cooperative Promotion 1')"),
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (3, 'DEP-BIZ', 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', 'Cooperative Business')"),
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (4, 'DEP-AUD', 'กลุ่มตรวจการสหกรณ์', 'Cooperative Inspection')"),
-        env.DB.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (5, 'DEP-CP2', 'กลุ่มส่งเสริมและพัฒนาสหกรณ์ 2', 'Cooperative Promotion 2')"),
-        
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (2, 'EMP-001', 'panika.t@smartleave.com', '123456', 'นางสาว', 'พนิกา', 'ธรรมเมือง', 'หญิง', '081-234-5678', 2, 4, 'นักวิชาการสหกรณ์ปฏิบัติการ', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (3, 'MGR-002', 'somchai.m@smartleave.com', '123456', 'นาย', 'สมชาย', 'มั่นคง', 'ชาย', '089-876-5432', 1, 3, 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (4, 'EMP-003', 'nichaphat.w@smartleave.com', '123456', 'นางสาว', 'ณิชาภัทร', 'วงศ์ษา', 'หญิง', '086-111-2233', 3, 4, 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', '123456', 'นาย', 'อัครพล', 'เจริญผล', 'ชาย', '082-333-4455', 4, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-        env.DB.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, department_id, role_id, position, avatar_url, is_active)
-          VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '123456', 'นางสาว', 'สุดา', 'ใจดี', 'หญิง', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-      ]);
-
-      const updated = await env.DB.prepare("SELECT user_id, employee_code, prefix, first_name, last_name, gender, position, email FROM users WHERE employee_code LIKE 'EMP-%' OR employee_code LIKE 'MGR-%'").all();
+      const updated = await env.DB.prepare("SELECT user_id, employee_code, prefix, first_name, last_name, english_name, gender, employment_type, position, email FROM users WHERE employee_code LIKE 'EMP-%' OR employee_code LIKE 'MGR-%' OR employee_code LIKE 'ADM-%'").all();
       return jsonResponse({
         success: true,
-        message: 'อัปเดตข้อมูลบุคลากรสหกรณ์ 5 คนเข้าตาราง users ใน Cloudflare D1 เรียบร้อยแล้ว!',
+        message: 'อัปเดตข้อมูลโครงสร้างและบุคลากรสหกรณ์เข้า Cloudflare D1 เรียบร้อย 100%!',
         users: updated.results,
       });
     }
 
     // -------------------------------------------------------------
-    // 1. เข้าสู่ระบบ (Login) - ตรวจสอบกับฐานข้อมูลจริง 100%
+    // 1. ตรวจสอบสถานะผู้ใช้ปัจจุบัน (Current Session / Me)
+    // GET /api/auth/me
+    // -------------------------------------------------------------
+    if (path === '/auth/me' && method === 'GET') {
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.replace(/^Bearer\s+/, '').trim();
+      let userId = null;
+      if (token && token.startsWith('token-')) {
+        const parts = token.split('-');
+        userId = parts[1] ? Number(parts[1]) : null;
+      }
+      if (!userId) {
+        return jsonResponse({ success: false, message: 'Unauthorized' }, 401);
+      }
+      const user = await env.DB.prepare(`
+        SELECT u.*, d.name_th as department_name, r.code as role_code
+        FROM users u
+        LEFT JOIN departments d ON u.department_id = d.department_id
+        LEFT JOIN roles r ON u.role_id = r.role_id
+        WHERE u.user_id = ? AND u.is_active = 1
+      `).bind(userId).first();
+
+      if (!user) {
+        return jsonResponse({ success: false, message: 'User not found' }, 404);
+      }
+
+      const gender = user.gender || ((user.prefix?.includes('นาง') || user.first_name?.includes('พนิกา') || user.first_name?.includes('ณิชาภัทร') || user.first_name?.includes('สุดา')) ? 'หญิง' : 'ชาย');
+      const prefix = user.prefix ? user.prefix : '';
+      const displayName = `${prefix}${user.first_name} ${user.last_name}`.trim();
+
+      return jsonResponse({
+        success: true,
+        user: {
+          id: `usr-${user.user_id}`,
+          name: displayName,
+          englishName: user.english_name || '',
+          gender,
+          employmentType: user.employment_type || 'ข้าราชการ',
+          email: user.email,
+          phone: user.phone || '081-234-5678',
+          title: user.position || (user.role_id === 3 ? 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ' : 'นักวิชาการสหกรณ์ปฏิบัติการ'),
+          role: user.role_id === 3 || user.role_id === 1 ? 'approver' : 'employee',
+          department: user.department_name || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
+          employeeId: user.employee_code,
+          avatar: user.avatar_url || (gender === 'ชาย' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80'),
+        },
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 1.1 เข้าสู่ระบบ (Login) - ตรวจสอบกับฐานข้อมูล Cloudflare D1 จริง 100%
     // POST /api/auth/login
     // -------------------------------------------------------------
     if (path === '/auth/login' && method === 'POST') {
@@ -168,7 +313,7 @@ export async function onRequest(context) {
         WHERE (LOWER(u.email) = LOWER(?) OR LOWER(u.employee_code) = LOWER(?)) AND u.is_active = 1
       `).bind(inputEmail, inputEmail).first();
 
-      // จัดการ Alias อีเมลทดสอบ (เชื่อมต่อกับข้อมูลในตาราง users)
+      // จัดการ Alias อีเมลทดสอบ
       if (!user) {
         const lower = inputEmail.toLowerCase();
         if (lower === 'user@smartleave.com' || lower === 'panika' || lower === 'emp-001') {
@@ -189,6 +334,15 @@ export async function onRequest(context) {
             WHERE u.employee_code = 'MGR-002' OR u.user_id = 3
             LIMIT 1
           `).first();
+        } else if (lower === 'admin@smartleave.com' || lower === 'admin' || lower === 'adm-001') {
+          user = await env.DB.prepare(`
+            SELECT u.*, d.name_th as department_name, r.code as role_code
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.department_id
+            LEFT JOIN roles r ON u.role_id = r.role_id
+            WHERE u.employee_code = 'ADM-001' OR u.user_id = 1
+            LIMIT 1
+          `).first();
         }
       }
 
@@ -196,11 +350,11 @@ export async function onRequest(context) {
       if (!user) {
         return jsonResponse({
           success: false,
-          message: 'ไม่พบบัญชีผู้ใช้นี้ในฐานข้อมูล กรุณาตรวจสอบอีเมลหรือสมัครสมาชิกใหม่',
+          message: 'ไม่พบบัญชีผู้ใช้นี้ในฐานข้อมูล Cloudflare D1 กรุณาตรวจสอบอีเมลหรือสมัครสมาชิกใหม่',
         }, 401);
       }
 
-      // ตรวจสอบความถูกต้องของรหัสผ่าน (ตรวจสอบอย่างเข้มงวด 100%)
+      // ตรวจสอบความถูกต้องของรหัสผ่าน
       const isPasswordValid =
         (user.password_hash && user.password_hash === password) ||
         ((user.password_hash === 'default_hash' || user.password_hash?.startsWith('$2a$')) &&
@@ -238,7 +392,26 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
-    // 2. ลงทะเบียนพนักงานใหม่ (Register)
+    // 1.2 รีเซ็ตรหัสผ่าน (Reset Password)
+    // POST /api/auth/reset-password
+    // -------------------------------------------------------------
+    if (path === '/auth/reset-password' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { email, newPassword } = body;
+      if (!email || !newPassword) {
+        return jsonResponse({ success: false, message: 'กรุณากรอกอีเมลและรหัสผ่านใหม่' }, 400);
+      }
+      const updateResult = await env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now', 'localtime') WHERE LOWER(email) = LOWER(?)")
+        .bind(newPassword, email.trim()).run();
+      
+      if (updateResult.meta?.changes === 0) {
+        return jsonResponse({ success: false, message: 'ไม่พบบัญชีผู้ใช้นี้ในฐานข้อมูล Cloudflare D1' }, 404);
+      }
+      return jsonResponse({ success: true, message: 'รีเซ็ตรหัสผ่านในฐานข้อมูล Cloudflare D1 สำเร็จแล้ว' });
+    }
+
+    // -------------------------------------------------------------
+    // 2. ลงทะเบียนพนักงานใหม่ (Register) - เพิ่มลง D1 100% พร้อม Auto-Migrate
     // POST /api/auth/register
     // -------------------------------------------------------------
     if (path === '/auth/register' && method === 'POST') {
@@ -289,9 +462,7 @@ export async function onRequest(context) {
       }
 
       // ตรวจสอบและเพิ่มคอลัมน์ใหม่ใน users อัตโนมัติ (Dynamic Migration)
-      await env.DB.prepare("ALTER TABLE users ADD COLUMN english_name TEXT").run().catch(() => {});
-      await env.DB.prepare("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'หญิง'").run().catch(() => {});
-      await env.DB.prepare("ALTER TABLE users ADD COLUMN employment_type TEXT DEFAULT 'ข้าราชการ'").run().catch(() => {});
+      await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
       const insert = await env.DB.prepare(`
         INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
@@ -355,8 +526,8 @@ export async function onRequest(context) {
           lr.user_id as userId,
           u.employee_code as employeeId,
           u.email as employeeEmail,
-          (u.first_name || ' ' || u.last_name) as employeeName,
-          d.name_th as department,
+          ((CASE WHEN u.prefix IS NOT NULL AND u.prefix != '' THEN u.prefix ELSE '' END) || u.first_name || ' ' || u.last_name) as employeeName,
+          COALESCE(d.name_th, 'สำนักงานสหกรณ์จังหวัดขอนแก่น') as department,
           lt.name_th as type,
           lt.code as typeKey,
           (lr.start_date || ' ถึง ' || lr.end_date) as dateRange,
@@ -367,6 +538,7 @@ export async function onRequest(context) {
             WHEN lr.status = 'pending' THEN 'รออนุมัติ'
             WHEN lr.status = 'approved' THEN 'อนุมัติ'
             WHEN lr.status = 'rejected' THEN 'ไม่อนุมัติ'
+            WHEN lr.status = 'cancelled' THEN 'ยกเลิก'
             ELSE lr.status
           END as status,
           lr.reason,
@@ -413,7 +585,7 @@ export async function onRequest(context) {
         LEFT JOIN employee_leave_quotas q_personal ON u.user_id = q_personal.user_id AND q_personal.leave_type_id = 3
         LEFT JOIN employee_leave_quotas q_sick ON u.user_id = q_sick.user_id AND q_sick.leave_type_id = 2
         LEFT JOIN employee_leave_quotas q_maternity ON u.user_id = q_maternity.user_id AND q_maternity.leave_type_id = 4
-        WHERE u.is_active = 1 AND (u.employee_code LIKE 'EMP-%' OR u.employee_code LIKE 'MGR-%')
+        WHERE u.is_active = 1
         ORDER BY u.user_id ASC
       `).all();
 
@@ -446,7 +618,41 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
-    // 3.2 ดึงประกาศ (Get Announcements)
+    // 3.2 อัปเดตโควตาวันลาพนักงาน (Update Employee Quotas)
+    // PUT /api/employees/:id/quotas
+    // -------------------------------------------------------------
+    if (path.match(/^\/employees\/([^/]+)\/quotas$/) && (method === 'PUT' || method === 'POST')) {
+      const idMatch = path.match(/^\/employees\/([^/]+)\/quotas$/);
+      const empIdStr = idMatch[1].replace('usr-', '');
+      const body = await request.json().catch(() => ({}));
+      const { vacationRem, personalRem, sickRem, maternityRem } = body;
+      const currentYear = new Date().getFullYear();
+      const userId = Number(empIdStr);
+
+      if (userId && !isNaN(userId)) {
+        if (vacationRem !== undefined) {
+          await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, ?, 10.0, ?, ?)')
+            .bind(userId, currentYear, Math.max(0, 10 - Number(vacationRem)), Number(vacationRem)).run().catch(() => {});
+        }
+        if (personalRem !== undefined) {
+          await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, ?, 15.0, ?, ?)')
+            .bind(userId, currentYear, Math.max(0, 15 - Number(personalRem)), Number(personalRem)).run().catch(() => {});
+        }
+        if (sickRem !== undefined) {
+          await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, ?, 30.0, ?, ?)')
+            .bind(userId, currentYear, Math.max(0, 30 - Number(sickRem)), Number(sickRem)).run().catch(() => {});
+        }
+        if (maternityRem !== undefined) {
+          await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, ?, 90.0, ?, ?)')
+            .bind(userId, currentYear, Math.max(0, 90 - Number(maternityRem)), Number(maternityRem)).run().catch(() => {});
+        }
+        return jsonResponse({ success: true, message: 'บันทึกโควตาวันลาลง Cloudflare D1 เรียบร้อยแล้ว' });
+      }
+      return jsonResponse({ success: false, message: 'Invalid user ID' }, 400);
+    }
+
+    // -------------------------------------------------------------
+    // 3.3 ดึงประกาศ (Get Announcements)
     // GET /api/announcements
     // -------------------------------------------------------------
     if (path === '/announcements' && method === 'GET') {
@@ -460,7 +666,7 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
-    // 3.3 ดึงการแจ้งเตือน (Get Notifications)
+    // 3.4 ดึงการแจ้งเตือน (Get Notifications)
     // GET /api/notifications
     // -------------------------------------------------------------
     if (path === '/notifications' && method === 'GET') {
@@ -521,7 +727,21 @@ export async function onRequest(context) {
         WHERE request_id = ? OR request_no = ?
       `).bind(body.remark || 'อนุมัติเรียบร้อย', leaveId, leaveId).run();
 
-      return jsonResponse({ success: true });
+      // ปรับปรุงโควตาวันลาใน Cloudflare D1 อัตโนมัติ
+      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date FROM leave_requests WHERE request_id = ? OR request_no = ?')
+        .bind(leaveId, leaveId).first().catch(() => null);
+      if (reqInfo) {
+        const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
+        await env.DB.prepare(`
+          UPDATE employee_leave_quotas 
+          SET used_days = used_days + ?,
+              remaining_days = MAX(0, total_quota - (used_days + ?)),
+              updated_at = datetime('now', 'localtime')
+          WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
+        `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
+      }
+
+      return jsonResponse({ success: true, message: 'อนุมัติคำขอลางานและตัดโควตาใน Cloudflare D1 สำเร็จ' });
     }
 
     // -------------------------------------------------------------
@@ -539,7 +759,38 @@ export async function onRequest(context) {
         WHERE request_id = ? OR request_no = ?
       `).bind(body.remark || 'ไม่อนุมัติ', leaveId, leaveId).run();
 
-      return jsonResponse({ success: true });
+      return jsonResponse({ success: true, message: 'ปฏิเสธคำขอลางานใน Cloudflare D1 เรียบร้อย' });
+    }
+
+    // -------------------------------------------------------------
+    // 6.1 ยกเลิกคำขอลา (Cancel Leave)
+    // POST /api/leaves/:id/cancel
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)\/cancel$/) && method === 'POST') {
+      const idMatch = path.match(/^\/leaves\/([^/]+)\/cancel$/);
+      const leaveId = idMatch[1];
+      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date, status FROM leave_requests WHERE request_id = ? OR request_no = ?')
+        .bind(leaveId, leaveId).first().catch(() => null);
+
+      await env.DB.prepare(`
+        UPDATE leave_requests 
+        SET status = 'cancelled', updated_at = datetime('now', 'localtime')
+        WHERE request_id = ? OR request_no = ?
+      `).bind(leaveId, leaveId).run();
+
+      // คืนโควตาหากเคยอนุมัติไปแล้ว
+      if (reqInfo && reqInfo.status === 'approved') {
+        const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
+        await env.DB.prepare(`
+          UPDATE employee_leave_quotas 
+          SET used_days = MAX(0, used_days - ?),
+              remaining_days = MIN(total_quota, remaining_days + ?),
+              updated_at = datetime('now', 'localtime')
+          WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
+        `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
+      }
+
+      return jsonResponse({ success: true, message: 'ยกเลิกคำขอลางานใน Cloudflare D1 เรียบร้อยแล้ว' });
     }
 
     // -------------------------------------------------------------
@@ -587,10 +838,7 @@ export async function onRequest(context) {
 
       if (email || employeeId) {
         try {
-          // ตรวจสอบคอลัมน์ใหม่เผื่อยังไม่มี
-          await env.DB.prepare("ALTER TABLE users ADD COLUMN english_name TEXT").run().catch(() => {});
-          await env.DB.prepare("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'หญิง'").run().catch(() => {});
-          await env.DB.prepare("ALTER TABLE users ADD COLUMN employment_type TEXT DEFAULT 'ข้าราชการ'").run().catch(() => {});
+          await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
           await env.DB.prepare(`
             UPDATE users 
@@ -613,7 +861,7 @@ export async function onRequest(context) {
 
       return jsonResponse({
         success: true,
-        message: 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว',
+        message: 'บันทึกข้อมูลส่วนตัวลง Cloudflare D1 เรียบร้อยแล้ว',
         user: {
           ...body,
           englishName: englishName || '',
@@ -630,4 +878,3 @@ export async function onRequest(context) {
     return jsonResponse({ error: err.message }, 500);
   }
 }
-

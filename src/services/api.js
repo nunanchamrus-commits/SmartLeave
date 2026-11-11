@@ -69,6 +69,13 @@ class ApiService {
     });
   }
 
+  async resetPassword(email, newPassword) {
+    return this.request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, newPassword }),
+    });
+  }
+
   // ==========================================
   // 2. ข้อมูลการลาและโควตา (Leaves & Quotas)
   // ==========================================
@@ -110,6 +117,13 @@ class ApiService {
 
   async getUserQuotas(userId, year) {
     return this.request(`/quotas?userId=${userId}&year=${year || new Date().getFullYear()}`);
+  }
+
+  async updateEmployeeQuota(userId, quotaData) {
+    return this.request(`/employees/${userId}/quotas`, {
+      method: 'PUT',
+      body: JSON.stringify(quotaData),
+    });
   }
 
   // ==========================================
