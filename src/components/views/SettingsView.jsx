@@ -11,8 +11,44 @@ import {
   Shield,
   Camera,
   Check,
+  ChevronDown,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
+
+const JOB_TITLE_OPTIONS = [
+  'นักวิชาการสหกรณ์ชำนาญการ',
+  'นักจัดการงานทั่วไป',
+  'นักวิชาการสหกรณ์ปฏิบัติการ',
+  'นักวิชาการสหกรณ์ชำนาญการพิเศษ',
+  'นิติกรปฏิบัติการ',
+  'นิติกรชำนาญการ',
+  'เจ้าพนักงานส่งเสริมสหกรณ์',
+  'เจ้าพนักงานส่งเสริมสหกรณ์อาวุโส',
+  'นายช่างโยธาอาวุโส',
+  'นักวิเคราะห์นโยบายและแผน',
+  'นิติกร',
+  'นักวิชาการสหกรณ์',
+  'นักวิชาการมาตราฐานสินค้า',
+  'เจ้าพนักงานธุรการ',
+  'เจ้าพนักงานการเงินและบัญชี',
+];
+
+const DEPARTMENT_OPTIONS = [
+  'ฝ่ายบริหารทั่วไป',
+  'กลุ่มจัดตั้งและส่งเสริมสหกรณ์',
+  'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์',
+  'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์',
+  'กลุ่มตรวจการสหกรณ์',
+  'กลุ่มส่งเสริมสหกรณ์ 1',
+  'กลุ่มส่งเสริมสหกรณ์ 2',
+  'กลุ่มส่งเสริมสหกรณ์ 3',
+  'กลุ่มส่งเสริมสหกรณ์ 4',
+  'กลุ่มส่งเสริมสหกรณ์ 5',
+  'กลุ่มส่งเสริมสหกรณ์ 6',
+  'กลุ่มส่งเสริมสหกรณ์ 7',
+  'กลุ่มส่งเสริมสหกรณ์ 8',
+  'นิคมสหกรณ์ดงมูล',
+];
 
 const AVATAR_PRESETS = [
   {
@@ -308,31 +344,63 @@ export default function SettingsView() {
 
           {/* Row 2: ตำแหน่งงาน และ ฝ่าย/กลุ่มงาน */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            <div className="min-w-0">
               <label className="block font-semibold text-slate-700 mb-1">ตำแหน่งงาน</label>
               <div className="relative">
                 <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                <input
-                  type="text"
+                <select
+                  aria-label="ตำแหน่งงาน"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="เช่น นักวิชาการสหกรณ์ปฏิบัติการ"
-                />
+                  className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${
+                    formData.title ? 'text-slate-800' : 'text-slate-400'
+                  }`}
+                >
+                  <option value="" className="text-slate-400">
+                    -- เลือกตำแหน่งงาน --
+                  </option>
+                  {formData.title && !JOB_TITLE_OPTIONS.includes(formData.title) && (
+                    <option value={formData.title} className="text-slate-800">
+                      {formData.title}
+                    </option>
+                  )}
+                  {JOB_TITLE_OPTIONS.map((jobTitle) => (
+                    <option key={jobTitle} value={jobTitle} className="text-slate-800">
+                      {jobTitle}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
               </div>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label className="block font-semibold text-slate-700 mb-1">ฝ่าย / กลุ่มงาน</label>
               <div className="relative">
                 <Building className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                <input
-                  type="text"
+                <select
+                  aria-label="ฝ่าย / กลุ่มงาน"
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="เช่น กลุ่มส่งเสริมและพัฒนาสหกรณ์ 1"
-                />
+                  className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${
+                    formData.department ? 'text-slate-800' : 'text-slate-400'
+                  }`}
+                >
+                  <option value="" className="text-slate-400">
+                    -- เลือกสังกัดกลุ่ม / ฝ่าย --
+                  </option>
+                  {formData.department && !DEPARTMENT_OPTIONS.includes(formData.department) && (
+                    <option value={formData.department} className="text-slate-800">
+                      {formData.department}
+                    </option>
+                  )}
+                  {DEPARTMENT_OPTIONS.map((dept) => (
+                    <option key={dept} value={dept} className="text-slate-800">
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
               </div>
             </div>
           </div>
