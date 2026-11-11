@@ -37,13 +37,18 @@ const AVATAR_PRESETS = [
   },
 ];
 
+const normalizeGender = (user) => {
+  if (user?.gender === 'หญิง' || user?.gender === 'ชาย') return user.gender;
+  return /^นาย/.test((user?.name || '').trim()) ? 'ชาย' : 'หญิง';
+};
+
 export default function SettingsView() {
   const { currentUser, updateUserProfile, resetToDefault, showToast } = useLeave();
 
   const [formData, setFormData] = useState({
     name: currentUser?.name || '',
     englishName: currentUser?.englishName || '',
-    gender: currentUser?.gender || 'หญิง',
+    gender: normalizeGender(currentUser),
     employmentType: currentUser?.employmentType || 'ข้าราชการ',
     title: currentUser?.title || '',
     department: currentUser?.department || '',
@@ -62,7 +67,7 @@ export default function SettingsView() {
       setFormData({
         name: currentUser.name || '',
         englishName: currentUser.englishName || '',
-        gender: currentUser.gender || 'หญิง',
+        gender: normalizeGender(currentUser),
         employmentType: currentUser.employmentType || 'ข้าราชการ',
         title: currentUser.title || '',
         department: currentUser.department || '',
@@ -154,16 +159,13 @@ export default function SettingsView() {
               <div className="flex items-center space-x-2">
                 <h3 className="font-bold text-lg text-slate-800">{formData.name || 'เจ้าหน้าที่สหกรณ์'}</h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
-                  {formData.gender === 'หญิง' ? 'หญิง' : formData.gender === 'ชาย' ? 'ชาย' : 'ไม่ระบุเพศ'}
+                  {formData.gender === 'ชาย' ? 'ชาย' : 'หญิง'}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
                   {currentUser?.role === 'approver' || currentUser?.role === 'admin' ? 'ผู้อนุมัติ' : 'เจ้าหน้าที่'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">{formData.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น'}</p>
-              <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                รหัสเจ้าหน้าที่: {formData.employeeId}
-              </p>
             </div>
           </div>
 
@@ -254,7 +256,6 @@ export default function SettingsView() {
                 {[
                   { value: 'หญิง', label: 'หญิง (ญ)' },
                   { value: 'ชาย', label: 'ชาย (ช)' },
-                  { value: 'อื่นๆ', label: 'อื่นๆ' },
                 ].map((g) => (
                   <button
                     key={g.value}
@@ -336,19 +337,8 @@ export default function SettingsView() {
             </div>
           </div>
 
-          {/* Row 3: รหัสพนักงาน และ อีเมล */}
+          {/* Row 3: อีเมลติดต่อ และ เบอร์โทรศัพท์ติดต่อ */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">รหัสประจำตัวเจ้าหน้าที่</label>
-              <input
-                type="text"
-                value={formData.employeeId}
-                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 font-mono text-xs sm:text-sm"
-                placeholder="เช่น EMP-001"
-              />
-            </div>
-
             <div>
               <label className="block font-semibold text-slate-700 mb-1">อีเมลติดต่อ</label>
               <div className="relative">
@@ -362,10 +352,7 @@ export default function SettingsView() {
                 />
               </div>
             </div>
-          </div>
 
-          {/* Row 4: เบอร์โทรศัพท์ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์ติดต่อ</label>
               <div className="relative">
