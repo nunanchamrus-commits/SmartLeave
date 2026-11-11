@@ -117,11 +117,11 @@ export default function CalendarView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2">
-            <h2 className="text-2xl font-bold text-slate-800 font-prompt">ปฏิทินการลาขององค์กร</h2>
+            <h2 className="text-2xl font-bold text-slate-800 font-prompt">ปฏิทินการลา</h2>
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse hidden sm:inline-block" />
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ดูตารางการลาของตนเองและบุคลากรในองค์กรแบบภาพรวม ซิงก์ตรงกับวันเวลาปัจจุบัน
+            ดูตารางการลาของตนเองและบุคลากรแบบภาพรวม ซิงก์ตรงกับวันเวลาปัจจุบัน
           </p>
         </div>
 
@@ -146,7 +146,7 @@ export default function CalendarView() {
               }`}
             >
               <Users className="w-3.5 h-3.5" />
-              <span>ทั้งองค์กร</span>
+              <span>ทั้งหมด</span>
             </button>
             <button
               onClick={() => setFilterMode('my')}
