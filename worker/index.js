@@ -12,7 +12,7 @@ function jsonResponse(data, status = 200) {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
@@ -37,6 +37,8 @@ const SCHEMA_COLUMNS = {
     rejection_reason: 'TEXT',
     approved_at: 'TEXT',
     substitute_user_id: 'INTEGER',
+    substitute_name: 'TEXT',
+    review_stage: "TEXT DEFAULT 'not_submitted'",
   },
   employee_leave_quotas: {
     carry_over_days: 'REAL DEFAULT 0.0',
@@ -48,9 +50,243 @@ const SCHEMA_COLUMNS = {
     title: 'TEXT',
     description: 'TEXT',
     type: "TEXT DEFAULT 'info'",
+    link_url: 'TEXT',
     is_read: 'INTEGER DEFAULT 0',
   },
 };
+
+// แปลงสถานะระหว่าง Frontend (4 สถานะภาษาไทย) กับ D1 CHECK constraint
+function mapLeaveStatusToDb(rawStatus) {
+  const s = typeof rawStatus === 'string' ? rawStatus.trim() : '';
+  const lower = s.toLowerCase();
+  if (s === 'อนุมัติ' || lower === 'approved') {
+    return { dbStatus: 'approved', reviewStage: 'approved', displayStatus: 'อนุมัติ' };
+  }
+  if (s === 'ไม่อนุมัติ' || lower === 'rejected') {
+    return { dbStatus: 'rejected', reviewStage: 'rejected', displayStatus: 'ไม่อนุมัติ' };
+  }
+  if (s === 'ยกเลิก' || lower === 'cancelled' || lower === 'canceled') {
+    return { dbStatus: 'cancelled', reviewStage: 'rejected', displayStatus: 'ยกเลิก' };
+  }
+  if (
+    s === 'อยู่ระหว่างตรวจสอบ' ||
+    s === 'รออนุมัติ' ||
+    lower === 'checking' ||
+    lower === 'reviewing' ||
+    lower === 'in_review'
+  ) {
+    return { dbStatus: 'pending', reviewStage: 'checking', displayStatus: 'อยู่ระหว่างตรวจสอบ' };
+  }
+  return { dbStatus: 'pending', reviewStage: 'not_submitted', displayStatus: 'ยังไม่ยื่นเอกสาร' };
+}
+
+function mapDbRowToDisplayStatus(dbStatus, reviewStage) {
+  const st = typeof dbStatus === 'string' ? dbStatus.trim() : '';
+  const stLower = st.toLowerCase();
+  const stage = typeof reviewStage === 'string' ? reviewStage.trim().toLowerCase() : '';
+  if (st === 'อนุมัติ' || stLower === 'approved' || stage === 'approved') {
+    return 'อนุมัติ';
+  }
+  if (st === 'ไม่อนุมัติ' || stLower === 'rejected' || stage === 'rejected') {
+    return 'ไม่อนุมัติ';
+  }
+  if (st === 'ยกเลิก' || stLower === 'cancelled' || stLower === 'canceled') {
+    return 'ยกเลิก';
+  }
+  if (
+    st === 'อยู่ระหว่างตรวจสอบ' ||
+    st === 'รออนุมัติ' ||
+    stage === 'checking' ||
+    stage === 'reviewing' ||
+    stage === 'in_review'
+  ) {
+    return 'อยู่ระหว่างตรวจสอบ';
+  }
+  return 'ยังไม่ยื่นเอกสาร';
+}
+
+async function findLeaveRequest(db, rawLeaveId) {
+  const cleanId = String(rawLeaveId || '').trim();
+  if (!cleanId) return null;
+  if (/^\d+$/.test(cleanId)) {
+    const byId = await db.prepare(`
+      SELECT lr.*, lt.name_th as type_name
+      FROM leave_requests lr
+      LEFT JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+      WHERE lr.request_id = ? OR lr.request_no = ?
+      LIMIT 1
+    `).bind(Number(cleanId), cleanId).first().catch(() => null);
+    if (byId) return byId;
+  }
+  return await db.prepare(`
+    SELECT lr.*, lt.name_th as type_name
+    FROM leave_requests lr
+    LEFT JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+    WHERE lr.request_no = ?
+    LIMIT 1
+  `).bind(cleanId).first().catch(() => null);
+}
+
+function extractFiscalYear(dateStr) {
+  if (typeof dateStr === 'string') {
+    const m = dateStr.trim().match(/^(\d{4})/);
+    if (m) {
+      let y = Number(m[1]);
+      if (y > 2400) y -= 543;
+      if (y >= 2000 && y <= 2200) return y;
+    }
+  }
+  const parsed = dateStr ? new Date(dateStr) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    return y > 2400 ? y - 543 : y;
+  }
+  return new Date().getFullYear();
+}
+
+async function resolveSubstituteUserId(db, rawSub) {
+  if (!rawSub || (typeof rawSub !== 'string' && typeof rawSub !== 'number')) return null;
+  const clean = String(rawSub).trim();
+  if (!clean || clean === 'ไม่มี' || clean === '-') return null;
+
+  const cleanNumeric = clean.replace(/^usr-/i, '').trim();
+  if (/^\d+$/.test(cleanNumeric)) {
+    const byId = await db.prepare('SELECT user_id FROM users WHERE user_id = ? LIMIT 1')
+      .bind(Number(cleanNumeric)).first().catch(() => null);
+    if (byId) return byId.user_id;
+  }
+
+  const byCodeOrEmail = await db.prepare(
+    'SELECT user_id FROM users WHERE LOWER(employee_code) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1'
+  ).bind(clean, clean).first().catch(() => null);
+  if (byCodeOrEmail) return byCodeOrEmail.user_id;
+
+  const byFullName = await db.prepare(`
+    SELECT user_id
+    FROM users
+    WHERE TRIM((CASE WHEN prefix IS NOT NULL AND prefix != '' THEN prefix ELSE '' END) || first_name || ' ' || last_name) = ?
+       OR TRIM((CASE WHEN prefix IS NOT NULL AND prefix != '' THEN prefix || ' ' ELSE '' END) || first_name || ' ' || last_name) = ?
+       OR TRIM(first_name || ' ' || last_name) = ?
+    LIMIT 1
+  `).bind(clean, clean, clean).first().catch(() => null);
+  return byFullName ? byFullName.user_id : null;
+}
+
+async function adjustUserLeaveQuota(db, userId, leaveTypeId, fiscalYear, deltaDays) {
+  if (!userId || !leaveTypeId || !deltaDays) return;
+  const delta = Number(deltaDays);
+  if (!Number.isFinite(delta) || delta === 0) return;
+  const year = Number(fiscalYear) || new Date().getFullYear();
+
+  const existing = await db.prepare(`
+    SELECT quota_id, total_quota, used_days, remaining_days
+    FROM employee_leave_quotas
+    WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
+    LIMIT 1
+  `).bind(userId, leaveTypeId, year).first().catch(() => null);
+
+  if (existing) {
+    const totalQuota = Number(existing.total_quota ?? 0);
+    const nextUsed = Math.max(0, Number(existing.used_days ?? 0) + delta);
+    const nextRem = Math.max(0, totalQuota - nextUsed);
+    await db.prepare(`
+      UPDATE employee_leave_quotas
+      SET used_days = ?,
+          remaining_days = ?,
+          updated_at = datetime('now', 'localtime')
+      WHERE quota_id = ?
+    `).bind(nextUsed, nextRem, existing.quota_id).run().catch(() => {});
+    return;
+  }
+
+  let defaultTotal = 10.0;
+  if (Number(leaveTypeId) === 2) defaultTotal = 30.0;
+  else if (Number(leaveTypeId) === 3) defaultTotal = 15.0;
+  else if (Number(leaveTypeId) === 4) {
+    const u = await db.prepare('SELECT gender, prefix FROM users WHERE user_id = ? LIMIT 1')
+      .bind(userId).first().catch(() => null);
+    const isMale = u && (u.gender === 'ชาย' || (u.prefix && u.prefix.includes('นาย')));
+    defaultTotal = isMale ? 0.0 : 90.0;
+  } else {
+    const lt = await db.prepare('SELECT default_days_per_year FROM leave_types WHERE leave_type_id = ? LIMIT 1')
+      .bind(leaveTypeId).first().catch(() => null);
+    if (lt && lt.default_days_per_year !== undefined && lt.default_days_per_year !== null) {
+      defaultTotal = Number(lt.default_days_per_year);
+    }
+  }
+
+  const nextUsed = Math.max(0, delta);
+  const nextRem = Math.max(0, defaultTotal - nextUsed);
+  await db.prepare(`
+    INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+  `).bind(userId, leaveTypeId, year, defaultTotal, nextUsed, nextRem).run().catch(() => {});
+}
+
+async function upsertEmployeeQuotaType(db, userId, leaveTypeId, fiscalYear, defaultLimit, limitVal, usedVal, remVal) {
+  const hasLimit = limitVal !== undefined && limitVal !== null && !Number.isNaN(Number(limitVal));
+  const hasUsed = usedVal !== undefined && usedVal !== null && !Number.isNaN(Number(usedVal));
+  const hasRem = remVal !== undefined && remVal !== null && !Number.isNaN(Number(remVal));
+  if (!hasLimit && !hasUsed && !hasRem) return;
+
+  const year = Number(fiscalYear) || new Date().getFullYear();
+  const existing = await db.prepare(`
+    SELECT quota_id, total_quota, used_days, remaining_days
+    FROM employee_leave_quotas
+    WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
+    LIMIT 1
+  `).bind(userId, leaveTypeId, year).first().catch(() => null);
+
+  let total = hasLimit ? Math.max(0, Number(limitVal)) : Number(existing?.total_quota ?? defaultLimit);
+  let rem = hasRem ? Math.max(0, Number(remVal)) : Number(existing?.remaining_days ?? total);
+  let used;
+  if (hasUsed) {
+    used = Math.max(0, Number(usedVal));
+    if (!hasRem) {
+      rem = Math.max(0, total - used);
+    }
+  } else {
+    used = Math.max(0, total - rem);
+  }
+  if (hasRem && !hasLimit && rem > total) {
+    total = rem;
+    used = 0;
+  }
+
+  await db.prepare(`
+    INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+  `).bind(userId, leaveTypeId, year, total, used, rem).run().catch(() => {});
+}
+
+async function createLeaveStatusNotification(db, reqInfo, displayStatus, remark = '') {
+  if (!reqInfo || !reqInfo.user_id) return;
+  const notifType =
+    displayStatus === 'อนุมัติ'
+      ? 'approved'
+      : displayStatus === 'ไม่อนุมัติ'
+      ? 'rejected'
+      : displayStatus === 'ยังไม่ยื่นเอกสาร'
+      ? 'warning'
+      : 'pending';
+  const reqNoText = reqInfo.request_no || `#${reqInfo.request_id}`;
+  const typeText = reqInfo.type_name ? ` (${reqInfo.type_name})` : '';
+  const dateText = reqInfo.start_date
+    ? (reqInfo.end_date && reqInfo.end_date !== reqInfo.start_date ? `${reqInfo.start_date} ถึง ${reqInfo.end_date}` : reqInfo.start_date)
+    : '';
+  const cleanRemark = typeof remark === 'string' ? remark.trim() : '';
+  const notifTitle = `อัปเดตสถานะคำขอลา: ${displayStatus}`;
+  const notifDesc = `คำขอลา ${reqNoText}${typeText}${dateText ? ` วันที่ ${dateText}` : ''} เปลี่ยนสถานะเป็น "${displayStatus}"${cleanRemark ? ` • หมายเหตุ: ${cleanRemark}` : ''}`;
+
+  try {
+    await db.prepare(`
+      INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
+      VALUES (?, ?, ?, ?, 0, datetime('now', 'localtime'))
+    `).bind(reqInfo.user_id, notifTitle, notifDesc, notifType).run();
+  } catch (notifErr) {
+    console.log('[Notification Insert Note]:', notifErr.message);
+  }
+}
 
 // ฟังก์ชันแยกชื่อภาษาอังกฤษเป็น คำนำหน้า, ชื่อ, นามสกุล
 function parseEnglishName(rawName, gender = '', prefixTh = '') {
@@ -115,6 +351,19 @@ async function ensureTableColumns(db, tableName, columnSpecs) {
 }
 
 async function autoMigrateDatabase(db) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      title TEXT NOT NULL,
+      description TEXT,
+      type TEXT DEFAULT 'info',
+      link_url TEXT,
+      is_read INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+  `).run().catch(() => {});
+
   for (const [table, specs] of Object.entries(SCHEMA_COLUMNS)) {
     await ensureTableColumns(db, table, specs);
   }
@@ -125,9 +374,17 @@ async function autoMigrateDatabase(db) {
     for (const u of (existingUsers.results || [])) {
       const parsed = parseEnglishName(u.english_name, u.gender, u.prefix);
       await db.prepare("UPDATE users SET prefix_en = ?, first_name_en = ?, last_name_en = ? WHERE user_id = ?")
-        .bind(parsed.prefixEn, parsed.firstNameEn, parsed.lastNameEn, u.user_id).run().catch(() => {});
+        .bind(parsed.prefixEn || '', parsed.firstNameEn || '', parsed.lastNameEn || '', u.user_id).run().catch(() => {});
     }
   } catch (migErr) {}
+
+  // อัปเดต review_stage ให้คำขอลาเดิมที่มีอยู่แล้วในฐานข้อมูล (รวมกรณี ALTER TABLE ... DEFAULT 'not_submitted')
+  try {
+    await db.prepare("UPDATE leave_requests SET review_stage = 'approved' WHERE status IN ('approved', 'อนุมัติ') AND COALESCE(review_stage, '') != 'approved'").run().catch(() => {});
+    await db.prepare("UPDATE leave_requests SET review_stage = 'rejected' WHERE status IN ('rejected', 'cancelled', 'ไม่อนุมัติ', 'ยกเลิก') AND COALESCE(review_stage, '') != 'rejected'").run().catch(() => {});
+    await db.prepare("UPDATE leave_requests SET review_stage = 'checking' WHERE status IN ('อยู่ระหว่างตรวจสอบ', 'รออนุมัติ') AND COALESCE(review_stage, '') != 'checking'").run().catch(() => {});
+    await db.prepare("UPDATE leave_requests SET review_stage = 'not_submitted' WHERE review_stage IS NULL OR review_stage = ''").run().catch(() => {});
+  } catch (stageMigErr) {}
 }
 
 // -------------------------------------------------------------
@@ -182,13 +439,14 @@ async function seedMasterData(db, force = false) {
         VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '123456', 'นางสาว', 'สุดา', 'ใจดี', 'Ms.', 'Suda', 'Jaidee', 'Ms. Suda Jaidee', 'หญิง', 'ลูกจ้างประจำ', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
     ]);
 
-    // โควตาวันลาประจำปี 2026 (10, 30, 15, 90)
+    // โควตาวันลาประจำปี 2026 (10, 30, 15, 90 / ชาย 0)
     for (let uId = 2; uId <= 6; uId++) {
+      const matQuota = (uId === 3 || uId === 5) ? 0.0 : 90.0;
       await db.batch([
         db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, 2026, 10.0, ?, ?)').bind(uId, uId === 2 ? 2.0 : (uId === 4 ? 4.0 : (uId === 6 ? 3.0 : 0.0)), uId === 2 ? 8.0 : (uId === 4 ? 6.0 : (uId === 6 ? 7.0 : 10.0))),
         db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, 2026, 30.0, ?, ?)').bind(uId, uId === 2 ? 1.0 : (uId === 4 ? 2.0 : 0.0), uId === 2 ? 29.0 : (uId === 4 ? 28.0 : 30.0)),
         db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, 2026, 15.0, ?, ?)').bind(uId, uId === 4 ? 1.0 : 0.0, uId === 4 ? 14.0 : 15.0),
-        db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, 2026, 90.0, 0.0, 90.0)').bind(uId),
+        db.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, 2026, ?, 0.0, ?)').bind(uId, matQuota, matQuota),
       ]);
     }
 
@@ -196,10 +454,10 @@ async function seedMasterData(db, force = false) {
     const leaveCount = await db.prepare('SELECT count(*) as cnt FROM leave_requests').first().catch(() => ({ cnt: 0 }));
     if (Number(leaveCount?.cnt || 0) === 0 || force) {
       await db.batch([
-        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, approver_id, approved_at) VALUES (1, 'LV-2026-001', 2, 1, '2026-02-16', '2026-02-17', 2.0, 'พักผ่อนประจำปีกับครอบครัว', 'approved', 3, '2026-02-12 10:30:00')"),
-        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, approver_id, approved_at) VALUES (2, 'LV-2026-002', 2, 2, '2026-01-20', '2026-01-20', 1.0, 'มีไข้หวัด พบแพทย์ที่โรงพยาบาลขอนแก่น', 'approved', 3, '2026-01-21 09:00:00')"),
-        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, approver_id, approved_at) VALUES (3, 'LV-2026-003', 4, 3, '2026-02-20', '2026-02-20', 1.0, 'ติดต่อราชการทำบัตรประชาชนและเอกสารที่ว่าการอำเภอ', 'approved', 3, '2026-02-18 14:00:00')"),
-        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status) VALUES (4, 'LV-2026-004', 6, 1, '2026-02-25', '2026-02-27', 3.0, 'เดินทางไปต่างจังหวัดเพื่อร่วมงานแต่งงานญาติ', 'pending')"),
+        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, review_stage, approver_id, approved_at) VALUES (1, 'LV-2026-001', 2, 1, '2026-02-16', '2026-02-17', 2.0, 'พักผ่อนประจำปีกับครอบครัว', 'approved', 'approved', 3, '2026-02-12 10:30:00')"),
+        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, review_stage, approver_id, approved_at) VALUES (2, 'LV-2026-002', 2, 2, '2026-01-20', '2026-01-20', 1.0, 'มีไข้หวัด พบแพทย์ที่โรงพยาบาลขอนแก่น', 'approved', 'approved', 3, '2026-01-21 09:00:00')"),
+        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, review_stage, approver_id, approved_at) VALUES (3, 'LV-2026-003', 4, 3, '2026-02-20', '2026-02-20', 1.0, 'ติดต่อราชการทำบัตรประชาชนและเอกสารที่ว่าการอำเภอ', 'approved', 'approved', 3, '2026-02-18 14:00:00')"),
+        db.prepare("INSERT OR REPLACE INTO leave_requests (request_id, request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status, review_stage) VALUES (4, 'LV-2026-004', 6, 1, '2026-02-25', '2026-02-27', 3.0, 'เดินทางไปต่างจังหวัดเพื่อร่วมงานแต่งงานญาติ', 'pending', 'not_submitted')"),
       ]).catch(() => {});
     }
 
@@ -250,7 +508,7 @@ export async function onRequest(context) {
     return new Response(null, {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       },
     });
@@ -312,7 +570,7 @@ export async function onRequest(context) {
       let userId = null;
       if (token && token.startsWith('token-')) {
         const parts = token.split('-');
-        userId = parts[1] ? Number(parts[1]) : null;
+        userId = (parts[1] && /^\d+$/.test(parts[1])) ? Number(parts[1]) : null;
       }
       if (!userId) {
         return jsonResponse({ success: false, message: 'Unauthorized' }, 401);
@@ -566,14 +824,15 @@ export async function onRequest(context) {
       // ตรวจสอบและเพิ่มคอลัมน์ใหม่ใน users อัตโนมัติ (Dynamic Migration)
       await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
+      const regEmail = (email && email.trim()) ? email.trim() : `${empCode.toLowerCase()}@smartleave.com`;
       const insert = await env.DB.prepare(`
         INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, 1)
       `).bind(
         empCode,
-        email,
+        regEmail,
         password || '123456',
-        prefix,
+        prefix || '',
         firstName || 'เจ้าหน้าที่',
         lastName || '',
         prefixEn || 'Mr.',
@@ -590,13 +849,14 @@ export async function onRequest(context) {
 
       const newUserId = insert.meta.last_row_id;
 
-      // สร้างโควตาวันลาเริ่มต้นประจำปีให้พนักงานใหม่ใน D1 (Vacation 10, Sick 30, Personal 15, Maternity 90)
+      // สร้างโควตาวันลาเริ่มต้นประจำปีให้พนักงานใหม่ใน D1 (Vacation 10, Sick 30, Personal 15, Maternity หญิง 90 / ชาย 0)
       const currentYear = new Date().getFullYear();
+      const matQuota = userGender === 'ชาย' ? 0.0 : 90.0;
       await env.DB.batch([
         env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, ?, 10.0, 0.0, 10.0)').bind(newUserId, currentYear),
         env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, ?, 30.0, 0.0, 30.0)').bind(newUserId, currentYear),
         env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, ?, 15.0, 0.0, 15.0)').bind(newUserId, currentYear),
-        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, ?, 90.0, 0.0, 90.0)').bind(newUserId, currentYear),
+        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, ?, ?, 0.0, ?)').bind(newUserId, currentYear, matQuota, matQuota),
       ]);
 
       return jsonResponse({
@@ -614,7 +874,7 @@ export async function onRequest(context) {
           gender: userGender,
           employmentType: empType,
           title: jobPosition,
-          email,
+          email: regEmail,
           phone: phone || '081-999-8888',
           role: 'employee',
           department: department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
@@ -641,28 +901,42 @@ export async function onRequest(context) {
           COALESCE(d.name_th, 'สำนักงานสหกรณ์จังหวัดขอนแก่น') as department,
           lt.name_th as type,
           lt.code as typeKey,
-          (lr.start_date || ' ถึง ' || lr.end_date) as dateRange,
+          CASE WHEN lr.start_date = lr.end_date THEN lr.start_date ELSE (lr.start_date || ' ถึง ' || lr.end_date) END as dateRange,
           lr.start_date as startDate,
           lr.end_date as endDate,
           lr.total_days as days,
-          CASE 
-            WHEN lr.status = 'pending' THEN 'รออนุมัติ'
-            WHEN lr.status = 'approved' THEN 'อนุมัติ'
-            WHEN lr.status = 'rejected' THEN 'ไม่อนุมัติ'
-            WHEN lr.status = 'cancelled' THEN 'ยกเลิก'
-            ELSE lr.status
-          END as status,
+          lr.status as dbStatus,
+          lr.review_stage as reviewStage,
           lr.reason,
-          lr.rejection_reason as note,
+          COALESCE(lr.rejection_reason, '') as note,
+          COALESCE(
+            CASE WHEN sub.user_id IS NOT NULL THEN ((CASE WHEN sub.prefix IS NOT NULL AND sub.prefix != '' THEN sub.prefix ELSE '' END) || sub.first_name || ' ' || sub.last_name) END,
+            NULLIF(lr.substitute_name, ''),
+            ''
+          ) as substitute,
+          CASE WHEN app.user_id IS NOT NULL THEN ((CASE WHEN app.prefix IS NOT NULL AND app.prefix != '' THEN app.prefix ELSE '' END) || app.first_name || ' ' || app.last_name) ELSE 'นายสมชาย มั่นคง' END as approver,
+          COALESCE(lr.approved_at, '') as approvedDate,
           lr.created_at as appliedDate
         FROM leave_requests lr
         JOIN users u ON lr.user_id = u.user_id
         JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
         LEFT JOIN departments d ON u.department_id = d.department_id
-        ORDER BY lr.created_at DESC
+        LEFT JOIN users sub ON lr.substitute_user_id = sub.user_id
+        LEFT JOIN users app ON lr.approver_id = app.user_id
+        ORDER BY lr.created_at DESC, lr.request_id DESC
       `).all();
 
-      return jsonResponse(results || []);
+      const formattedLeaves = (results || []).map((row) => {
+        const displayStatus = mapDbRowToDisplayStatus(row.dbStatus, row.reviewStage);
+        const { dbStatus, reviewStage, ...rest } = row;
+        return {
+          ...rest,
+          approvedDate: rest.approvedDate || null,
+          status: displayStatus,
+        };
+      });
+
+      return jsonResponse(formattedLeaves);
     }
 
     // -------------------------------------------------------------
@@ -670,6 +944,7 @@ export async function onRequest(context) {
     // GET /api/employees
     // -------------------------------------------------------------
     if (path === '/employees' && method === 'GET') {
+      const currentYear = new Date().getFullYear();
       const { results } = await env.DB.prepare(`
         SELECT 
           u.user_id as raw_id,
@@ -691,20 +966,28 @@ export async function onRequest(context) {
           COALESCE(d.name_th, 'สำนักงานสหกรณ์จังหวัดขอนแก่น') as department,
           COALESCE(u.avatar_url, 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80') as avatar,
           CASE WHEN u.role_id = 3 OR u.role_id = 1 THEN 'approver' ELSE 'employee' END as role,
+          COALESCE(q_vacation.total_quota, 10.0) as vacationLimit,
+          COALESCE(q_vacation.used_days, 0.0) as vacationUsed,
           COALESCE(q_vacation.remaining_days, 10.0) as vacationRem,
+          COALESCE(q_personal.total_quota, 15.0) as personalLimit,
+          COALESCE(q_personal.used_days, 0.0) as personalUsed,
           COALESCE(q_personal.remaining_days, 15.0) as personalRem,
+          COALESCE(q_sick.total_quota, 30.0) as sickLimit,
+          COALESCE(q_sick.used_days, 0.0) as sickUsed,
           COALESCE(q_sick.remaining_days, 30.0) as sickRem,
-          COALESCE(q_maternity.remaining_days, 90.0) as maternityRem,
+          COALESCE(q_maternity.total_quota, CASE WHEN u.gender = 'ชาย' OR u.prefix LIKE 'นาย%' THEN 0.0 ELSE 90.0 END) as maternityLimit,
+          COALESCE(q_maternity.used_days, 0.0) as maternityUsed,
+          COALESCE(q_maternity.remaining_days, CASE WHEN u.gender = 'ชาย' OR u.prefix LIKE 'นาย%' THEN 0.0 ELSE 90.0 END) as maternityRem,
           'ปกติ' as status
         FROM users u
         LEFT JOIN departments d ON u.department_id = d.department_id
-        LEFT JOIN employee_leave_quotas q_vacation ON u.user_id = q_vacation.user_id AND q_vacation.leave_type_id = 1
-        LEFT JOIN employee_leave_quotas q_personal ON u.user_id = q_personal.user_id AND q_personal.leave_type_id = 3
-        LEFT JOIN employee_leave_quotas q_sick ON u.user_id = q_sick.user_id AND q_sick.leave_type_id = 2
-        LEFT JOIN employee_leave_quotas q_maternity ON u.user_id = q_maternity.user_id AND q_maternity.leave_type_id = 4
+        LEFT JOIN employee_leave_quotas q_vacation ON u.user_id = q_vacation.user_id AND q_vacation.leave_type_id = 1 AND q_vacation.fiscal_year = ?
+        LEFT JOIN employee_leave_quotas q_personal ON u.user_id = q_personal.user_id AND q_personal.leave_type_id = 3 AND q_personal.fiscal_year = ?
+        LEFT JOIN employee_leave_quotas q_sick ON u.user_id = q_sick.user_id AND q_sick.leave_type_id = 2 AND q_sick.fiscal_year = ?
+        LEFT JOIN employee_leave_quotas q_maternity ON u.user_id = q_maternity.user_id AND q_maternity.leave_type_id = 4 AND q_maternity.fiscal_year = ?
         WHERE u.is_active = 1
         ORDER BY u.user_id ASC
-      `).all();
+      `).bind(currentYear, currentYear, currentYear, currentYear).all();
 
       return jsonResponse(results || []);
     }
@@ -773,24 +1056,42 @@ export async function onRequest(context) {
         INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `).bind(
-        empCode, userEmail, password || '123456',
-        prefix, firstName, lastName,
-        prefixEn, firstNameEn, lastNameEn, fullEnglishName,
-        userGender, empType, userPhone, roleId, deptId, jobPosition, avatarUrl
+        empCode,
+        userEmail,
+        password || '123456',
+        prefix || '',
+        firstName || 'เจ้าหน้าที่',
+        lastName || '',
+        prefixEn || '',
+        firstNameEn || '',
+        lastNameEn || '',
+        fullEnglishName || '',
+        userGender,
+        empType,
+        userPhone,
+        roleId,
+        deptId,
+        jobPosition,
+        avatarUrl
       ).run();
 
       const newUserId = insertRes.meta?.last_row_id;
+      const vacLim = vacationLimit !== undefined ? Number(vacationLimit) : 10.0;
+      const perLim = personalLimit !== undefined ? Number(personalLimit) : 15.0;
+      const sicLim = sickLimit !== undefined ? Number(sickLimit) : 30.0;
+      const matLim = maternityLimit !== undefined ? Number(maternityLimit) : (userGender === 'ชาย' ? 0.0 : 90.0);
+
       if (newUserId) {
         const curYear = new Date().getFullYear();
         await env.DB.batch([
           env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 1, ?, ?, ?, 0.0)")
-            .bind(newUserId, curYear, vacationLimit !== undefined ? Number(vacationLimit) : 10.0, vacationLimit !== undefined ? Number(vacationLimit) : 10.0),
+            .bind(newUserId, curYear, vacLim, vacLim),
           env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 2, ?, ?, ?, 0.0)")
-            .bind(newUserId, curYear, sickLimit !== undefined ? Number(sickLimit) : 30.0, sickLimit !== undefined ? Number(sickLimit) : 30.0),
+            .bind(newUserId, curYear, sicLim, sicLim),
           env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 3, ?, ?, ?, 0.0)")
-            .bind(newUserId, curYear, personalLimit !== undefined ? Number(personalLimit) : 15.0, personalLimit !== undefined ? Number(personalLimit) : 15.0),
+            .bind(newUserId, curYear, perLim, perLim),
           env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 4, ?, ?, ?, 0.0)")
-            .bind(newUserId, curYear, maternityLimit !== undefined ? Number(maternityLimit) : (userGender === 'ชาย' ? 0.0 : 90.0), maternityLimit !== undefined ? Number(maternityLimit) : (userGender === 'ชาย' ? 0.0 : 90.0)),
+            .bind(newUserId, curYear, matLim, matLim),
         ]).catch(() => {});
       }
 
@@ -801,10 +1102,14 @@ export async function onRequest(context) {
           id: `usr-${newUserId}`,
           raw_id: newUserId,
           employeeId: empCode,
-          name: `${prefix || ''}${firstName} ${lastName}`.trim(),
-          prefix, firstName, lastName,
-          prefixEn, firstNameEn, lastNameEn,
-          englishName: fullEnglishName,
+          name: `${prefix || ''}${firstName || ''} ${lastName || ''}`.trim(),
+          prefix: prefix || '',
+          firstName: firstName || '',
+          lastName: lastName || '',
+          prefixEn: prefixEn || '',
+          firstNameEn: firstNameEn || '',
+          lastNameEn: lastNameEn || '',
+          englishName: fullEnglishName || '',
           email: userEmail,
           phone: userPhone,
           title: jobPosition,
@@ -812,10 +1117,18 @@ export async function onRequest(context) {
           gender: userGender,
           employmentType: empType,
           role: roleId === 1 ? 'admin' : (roleId === 3 ? 'approver' : 'employee'),
-          vacationRem: vacationLimit !== undefined ? Number(vacationLimit) : 10.0,
-          personalRem: personalLimit !== undefined ? Number(personalLimit) : 15.0,
-          sickRem: sickLimit !== undefined ? Number(sickLimit) : 30.0,
-          maternityRem: maternityLimit !== undefined ? Number(maternityLimit) : (userGender === 'ชาย' ? 0.0 : 90.0),
+          vacationLimit: vacLim,
+          vacationUsed: 0,
+          vacationRem: vacLim,
+          personalLimit: perLim,
+          personalUsed: 0,
+          personalRem: perLim,
+          sickLimit: sicLim,
+          sickUsed: 0,
+          sickRem: sicLim,
+          maternityLimit: matLim,
+          maternityUsed: 0,
+          maternityRem: matLim,
           avatar: avatarUrl
         }
       });
@@ -833,10 +1146,10 @@ export async function onRequest(context) {
       const cleanId = empIdStr.replace(/^usr-/, '');
       let user = null;
       if (/^\d+$/.test(cleanId)) {
-        user = await env.DB.prepare('SELECT user_id, employee_code, email FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
+        user = await env.DB.prepare('SELECT user_id, employee_code, email, gender, prefix FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
       }
       if (!user) {
-        user = await env.DB.prepare('SELECT user_id, employee_code, email FROM users WHERE employee_code = ? OR email = ?')
+        user = await env.DB.prepare('SELECT user_id, employee_code, email, gender, prefix FROM users WHERE employee_code = ? OR LOWER(email) = LOWER(?)')
           .bind(empIdStr, empIdStr).first().catch(() => null);
       }
 
@@ -905,41 +1218,31 @@ export async function onRequest(context) {
             updated_at = datetime('now', 'localtime')
         WHERE user_id = ?
       `).bind(
-        prefix, firstName, lastName,
-        prefixEn, firstNameEn, lastNameEn, fullEn,
-        gender, employmentType, phone, position || title, deptId, roleId, avatar, uId
+        prefix ?? null,
+        firstName ?? null,
+        lastName ?? null,
+        prefixEn ?? null,
+        firstNameEn ?? null,
+        lastNameEn ?? null,
+        fullEn ?? null,
+        gender ?? null,
+        employmentType ?? null,
+        phone ?? null,
+        (position || title) ?? null,
+        deptId ?? null,
+        roleId ?? null,
+        avatar ?? null,
+        uId
       ).run();
 
-      // หากมีการส่งโควตาวันลามาด้วย ให้ปรับปรุงพร้อมกัน
+      // หากมีการส่งโควตาวันลามาด้วย ให้ปรับปรุงพร้อมกัน (รองรับทั้ง Limit, Used, Rem)
       const curYear = new Date().getFullYear();
-      if (body.vacationLimit !== undefined || body.vacationRem !== undefined || body.vacationUsed !== undefined) {
-        const limit = Number(body.vacationLimit ?? 10);
-        const used = Number(body.vacationUsed ?? 0);
-        const rem = Number(body.vacationRem ?? Math.max(0, limit - used));
-        await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, ?, ?, ?, ?)')
-          .bind(uId, curYear, limit, used, rem).run().catch(() => {});
-      }
-      if (body.sickLimit !== undefined || body.sickRem !== undefined || body.sickUsed !== undefined) {
-        const limit = Number(body.sickLimit ?? 30);
-        const used = Number(body.sickUsed ?? 0);
-        const rem = Number(body.sickRem ?? Math.max(0, limit - used));
-        await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, ?, ?, ?, ?)')
-          .bind(uId, curYear, limit, used, rem).run().catch(() => {});
-      }
-      if (body.personalLimit !== undefined || body.personalRem !== undefined || body.personalUsed !== undefined) {
-        const limit = Number(body.personalLimit ?? 15);
-        const used = Number(body.personalUsed ?? 0);
-        const rem = Number(body.personalRem ?? Math.max(0, limit - used));
-        await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, ?, ?, ?, ?)')
-          .bind(uId, curYear, limit, used, rem).run().catch(() => {});
-      }
-      if (body.maternityLimit !== undefined || body.maternityRem !== undefined || body.maternityUsed !== undefined) {
-        const limit = Number(body.maternityLimit ?? 90);
-        const used = Number(body.maternityUsed ?? 0);
-        const rem = Number(body.maternityRem ?? Math.max(0, limit - used));
-        await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, ?, ?, ?, ?)')
-          .bind(uId, curYear, limit, used, rem).run().catch(() => {});
-      }
+      const effectiveGender = gender || user.gender || (user.prefix?.includes('นาย') ? 'ชาย' : 'หญิง');
+      const defaultMat = effectiveGender === 'ชาย' ? 0.0 : 90.0;
+      await upsertEmployeeQuotaType(env.DB, uId, 1, curYear, 10.0, body.vacationLimit, body.vacationUsed, body.vacationRem);
+      await upsertEmployeeQuotaType(env.DB, uId, 2, curYear, 30.0, body.sickLimit, body.sickUsed, body.sickRem);
+      await upsertEmployeeQuotaType(env.DB, uId, 3, curYear, 15.0, body.personalLimit, body.personalUsed, body.personalRem);
+      await upsertEmployeeQuotaType(env.DB, uId, 4, curYear, defaultMat, body.maternityLimit, body.maternityUsed, body.maternityRem);
 
       return jsonResponse({
         success: true,
@@ -961,7 +1264,7 @@ export async function onRequest(context) {
         user = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
       }
       if (!user) {
-        user = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ?').bind(empIdStr).first().catch(() => null);
+        user = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ? OR LOWER(email) = LOWER(?)').bind(empIdStr, empIdStr).first().catch(() => null);
       }
 
       if (user) {
@@ -977,9 +1280,26 @@ export async function onRequest(context) {
     // GET /api/quotas
     // -------------------------------------------------------------
     if (path === '/quotas' && method === 'GET') {
-      const email = url.searchParams.get('email') || 'user@SmartLeave.com';
-      const user = await env.DB.prepare('SELECT user_id FROM users WHERE email = ? LIMIT 1').bind(email).first();
-      const userId = user ? user.user_id : 1;
+      const qUserId = url.searchParams.get('userId');
+      const qEmpId = url.searchParams.get('employeeId');
+      const qEmail = url.searchParams.get('email');
+      const qYear = Number(url.searchParams.get('year')) || new Date().getFullYear();
+
+      let user = null;
+      if (qUserId) {
+        const cleanUid = String(qUserId).replace(/^usr-/, '').trim();
+        if (/^\d+$/.test(cleanUid)) {
+          user = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ? LIMIT 1').bind(Number(cleanUid)).first().catch(() => null);
+        }
+      }
+      if (!user && (qEmpId || qEmail)) {
+        user = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(employee_code) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1')
+          .bind(qEmpId || '', qEmail || '').first().catch(() => null);
+      }
+      if (!user) {
+        user = await env.DB.prepare("SELECT user_id FROM users WHERE employee_code = 'EMP-001' OR user_id = 2 LIMIT 1").first().catch(() => null);
+      }
+      const userId = user ? user.user_id : 2;
 
       const { results } = await env.DB.prepare(`
         SELECT 
@@ -991,44 +1311,45 @@ export async function onRequest(context) {
           lt.color_hex as color
         FROM employee_leave_quotas q
         JOIN leave_types lt ON q.leave_type_id = lt.leave_type_id
-        WHERE q.user_id = ?
-      `).bind(userId).all();
+        WHERE q.user_id = ? AND q.fiscal_year = ?
+      `).bind(userId, qYear).all();
 
       return jsonResponse(results || []);
     }
 
     // -------------------------------------------------------------
     // 3.2 อัปเดตโควตาวันลาพนักงาน (Update Employee Quotas)
-    // PUT /api/employees/:id/quotas
+    // PUT or POST /api/employees/:id/quotas
     // -------------------------------------------------------------
     if (path.match(/^\/employees\/([^/]+)\/quotas$/) && (method === 'PUT' || method === 'POST')) {
       const idMatch = path.match(/^\/employees\/([^/]+)\/quotas$/);
-      const empIdStr = idMatch[1].replace('usr-', '');
+      const rawParam = idMatch[1];
+      const cleanId = rawParam.replace(/^usr-/, '').trim();
       const body = await request.json().catch(() => ({}));
-      const { vacationRem, personalRem, sickRem, maternityRem } = body;
-      const currentYear = new Date().getFullYear();
-      const userId = Number(empIdStr);
+      const currentYear = Number(body.year) || new Date().getFullYear();
 
-      if (userId && !isNaN(userId)) {
-        if (vacationRem !== undefined) {
-          await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, ?, 10.0, ?, ?)')
-            .bind(userId, currentYear, Math.max(0, 10 - Number(vacationRem)), Number(vacationRem)).run().catch(() => {});
-        }
-        if (personalRem !== undefined) {
-          await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, ?, 15.0, ?, ?)')
-            .bind(userId, currentYear, Math.max(0, 15 - Number(personalRem)), Number(personalRem)).run().catch(() => {});
-        }
-        if (sickRem !== undefined) {
-          await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, ?, 30.0, ?, ?)')
-            .bind(userId, currentYear, Math.max(0, 30 - Number(sickRem)), Number(sickRem)).run().catch(() => {});
-        }
-        if (maternityRem !== undefined) {
-          await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, ?, 90.0, ?, ?)')
-            .bind(userId, currentYear, Math.max(0, 90 - Number(maternityRem)), Number(maternityRem)).run().catch(() => {});
-        }
+      let user = null;
+      if (/^\d+$/.test(cleanId)) {
+        user = await env.DB.prepare('SELECT user_id, gender, prefix FROM users WHERE user_id = ? LIMIT 1').bind(Number(cleanId)).first().catch(() => null);
+      }
+      if (!user) {
+        user = await env.DB.prepare('SELECT user_id, gender, prefix FROM users WHERE LOWER(employee_code) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1')
+          .bind(rawParam, body.email || rawParam).first().catch(() => null);
+      }
+      if (!user && body.email) {
+        user = await env.DB.prepare('SELECT user_id, gender, prefix FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1')
+          .bind(body.email).first().catch(() => null);
+      }
+
+      if (user) {
+        const defaultMat = (user.gender === 'ชาย' || user.prefix?.includes('นาย')) ? 0.0 : 90.0;
+        await upsertEmployeeQuotaType(env.DB, user.user_id, 1, currentYear, 10.0, body.vacationLimit, body.vacationUsed, body.vacationRem);
+        await upsertEmployeeQuotaType(env.DB, user.user_id, 2, currentYear, 30.0, body.sickLimit, body.sickUsed, body.sickRem);
+        await upsertEmployeeQuotaType(env.DB, user.user_id, 3, currentYear, 15.0, body.personalLimit, body.personalUsed, body.personalRem);
+        await upsertEmployeeQuotaType(env.DB, user.user_id, 4, currentYear, defaultMat, body.maternityLimit, body.maternityUsed, body.maternityRem);
         return jsonResponse({ success: true, message: 'บันทึกโควตาวันลาลง Cloudflare D1 เรียบร้อยแล้ว' });
       }
-      return jsonResponse({ success: false, message: 'Invalid user ID' }, 400);
+      return jsonResponse({ success: false, message: 'ไม่พบพนักงานที่ต้องการปรับปรุงโควตา' }, 404);
     }
 
     // -------------------------------------------------------------
@@ -1072,14 +1393,14 @@ export async function onRequest(context) {
           SELECT notification_id as id, user_id as userId, title, description, type, is_read as isRead, created_at as time
           FROM notifications
           WHERE user_id = ? OR user_id IS NULL
-          ORDER BY created_at DESC
+          ORDER BY created_at DESC, notification_id DESC
         `).bind(targetUserId).all();
         results = q.results || [];
       } else {
         const q = await env.DB.prepare(`
           SELECT notification_id as id, user_id as userId, title, description, type, is_read as isRead, created_at as time
           FROM notifications
-          ORDER BY created_at DESC
+          ORDER BY created_at DESC, notification_id DESC
           LIMIT 50
         `).all();
         results = q.results || [];
@@ -1115,41 +1436,102 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if (path === '/leaves' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const { typeKey, startDate, endDate, days, reason, substitute } = body;
+      const { typeKey, startDate, endDate, days, reason, substitute, status } = body;
 
       const reqNo = `LV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
       // หา leave_type_id จาก code
-      const leaveType = await env.DB.prepare('SELECT leave_type_id FROM leave_types WHERE code = ?').bind(typeKey || 'vacation').first();
+      const leaveType = await env.DB.prepare('SELECT leave_type_id, name_th FROM leave_types WHERE code = ?')
+        .bind(typeKey || 'vacation').first().catch(() => null);
       const typeId = leaveType ? leaveType.leave_type_id : 1;
+      const typeName = leaveType?.name_th || 'ลาพักผ่อน (ประจำปี)';
 
-      // หา user_id ของเจ้าหน้าที่ผู้ยื่นคำขอ
-      let userId = body.userId ? Number(body.userId) : null;
+      // หา user_id ของเจ้าหน้าที่ผู้ยื่นคำขออย่างปลอดภัย
+      let userId = null;
+      const cleanBodyUid = body.userId !== undefined && body.userId !== null
+        ? String(body.userId).replace(/^usr-/i, '').trim()
+        : '';
+      if (/^\d+$/.test(cleanBodyUid)) {
+        const foundById = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ? LIMIT 1')
+          .bind(Number(cleanBodyUid)).first().catch(() => null);
+        if (foundById) userId = foundById.user_id;
+      }
       if (!userId && (body.employeeId || body.email)) {
-        const found = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ? OR email = ?').bind(body.employeeId, body.email).first();
+        const found = await env.DB.prepare(
+          'SELECT user_id FROM users WHERE LOWER(employee_code) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1'
+        ).bind(body.employeeId || '', body.email || '').first().catch(() => null);
         if (found) userId = found.user_id;
       }
       if (!userId) {
-        const firstUser = await env.DB.prepare("SELECT user_id FROM users WHERE employee_code = 'EMP-001' OR user_id = 2 LIMIT 1").first();
+        const firstUser = await env.DB.prepare(
+          "SELECT user_id FROM users WHERE employee_code = 'EMP-001' OR user_id = 2 ORDER BY user_id ASC LIMIT 1"
+        ).first().catch(() => null);
         userId = firstUser ? firstUser.user_id : 2;
       }
 
-      await env.DB.prepare(`
-        INSERT INTO leave_requests (request_no, user_id, leave_type_id, start_date, end_date, total_days, reason, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
-      `).bind(reqNo, userId, typeId, startDate, endDate, days || 1.0, reason).run();
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const safeStart = startDate ? String(startDate).trim() : todayStr;
+      const safeEnd = endDate ? String(endDate).trim() : safeStart;
+      const parsedDays = Number(days);
+      const safeDays = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 1.0;
+      const safeReason = reason !== undefined && reason !== null ? String(reason) : '';
+      const mapped = mapLeaveStatusToDb(status || 'ยังไม่ยื่นเอกสาร');
+      const substituteUserId = substitute ? await resolveSubstituteUserId(env.DB, substitute) : null;
+      const substituteName = substitute && String(substitute).trim() ? String(substitute).trim() : null;
+
+      const insertRes = await env.DB.prepare(`
+        INSERT INTO leave_requests (
+          request_no, user_id, leave_type_id, start_date, end_date, total_days, reason,
+          substitute_user_id, substitute_name, status, review_stage, approved_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'approved' THEN datetime('now', 'localtime') ELSE NULL END)
+      `).bind(
+        reqNo,
+        userId,
+        typeId,
+        safeStart,
+        safeEnd,
+        safeDays,
+        safeReason,
+        substituteUserId,
+        substituteName,
+        mapped.dbStatus,
+        mapped.reviewStage,
+        mapped.dbStatus
+      ).run();
+
+      const createdId = insertRes.meta?.last_row_id || reqNo;
+
+      if (mapped.dbStatus === 'approved') {
+        const fiscalYear = extractFiscalYear(safeStart);
+        await adjustUserLeaveQuota(env.DB, userId, typeId, fiscalYear, safeDays);
+      }
 
       // สร้างการแจ้งเตือนสำหรับผู้ยื่นคำขอคนนั้น
+      const notifType =
+        mapped.displayStatus === 'อนุมัติ'
+          ? 'approved'
+          : mapped.displayStatus === 'ไม่อนุมัติ'
+          ? 'rejected'
+          : mapped.displayStatus === 'ยังไม่ยื่นเอกสาร'
+          ? 'warning'
+          : 'pending';
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
-        VALUES (?, ?, ?, 'pending', 0, datetime('now', 'localtime'))
+        VALUES (?, ?, ?, ?, 0, datetime('now', 'localtime'))
       `).bind(
         userId,
-        `ยื่นคำขอลาสำเร็จ`,
-        `คำขอลา ${reqNo} (${startDate} ถึง ${endDate}) บันทึกลงระบบแล้ว`
+        `ยื่นคำขอลา${typeName ? ` (${typeName})` : ''}สำเร็จ`,
+        `คำขอลา ${reqNo} (${safeStart} ถึง ${safeEnd}) สถานะ: ${mapped.displayStatus}`,
+        notifType
       ).run().catch(() => {});
 
-      return jsonResponse({ success: true, request_no: reqNo });
+      return jsonResponse({
+        success: true,
+        id: createdId,
+        request_no: reqNo,
+        status: mapped.displayStatus,
+      });
     }
 
     // -------------------------------------------------------------
@@ -1162,38 +1544,122 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const { typeKey, startDate, endDate, days, reason, substitute, status, note } = body;
 
-      const reqInfo = await env.DB.prepare('SELECT request_id, user_id, leave_type_id, total_days, start_date, end_date, status FROM leave_requests WHERE request_id = ? OR request_no = ?')
-        .bind(leaveId, leaveId).first().catch(() => null);
-
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (!reqInfo) {
         return jsonResponse({ error: 'ไม่พบคำขอลางานที่ต้องการแก้ไข' }, 404);
       }
 
-      let typeId = reqInfo.leave_type_id;
+      const prevTypeId = reqInfo.leave_type_id;
+      let typeId = prevTypeId;
+      let nextTypeName = reqInfo.type_name || '';
       if (typeKey) {
-        const lt = await env.DB.prepare('SELECT leave_type_id FROM leave_types WHERE code = ?').bind(typeKey).first().catch(() => null);
-        if (lt) typeId = lt.leave_type_id;
+        const lt = await env.DB.prepare('SELECT leave_type_id, name_th FROM leave_types WHERE code = ?')
+          .bind(typeKey).first().catch(() => null);
+        if (lt) {
+          typeId = lt.leave_type_id;
+          nextTypeName = lt.name_th || nextTypeName;
+        }
       }
 
-      const newDays = days !== undefined ? parseFloat(days) : reqInfo.total_days;
-      const newStatus = status || reqInfo.status;
+      const prevDays = Number(reqInfo.total_days || 0);
+      const parsedDays =
+        days !== undefined && days !== null && !Number.isNaN(Number(days))
+          ? Number(days)
+          : prevDays;
+      const safeStart =
+        startDate !== undefined && startDate !== null && String(startDate).trim() !== ''
+          ? String(startDate).trim()
+          : reqInfo.start_date;
+      const safeEnd =
+        endDate !== undefined && endDate !== null && String(endDate).trim() !== ''
+          ? String(endDate).trim()
+          : reqInfo.end_date;
+      const safeReason =
+        reason !== undefined && reason !== null
+          ? String(reason)
+          : (reqInfo.reason ?? '');
+      const safeNote =
+        note !== undefined && note !== null
+          ? String(note)
+          : (reqInfo.rejection_reason ?? null);
+
+      let nextSubUserId = reqInfo.substitute_user_id ?? null;
+      let nextSubName = reqInfo.substitute_name ?? null;
+      if (substitute !== undefined) {
+        const cleanSub = substitute !== null ? String(substitute).trim() : '';
+        nextSubName = cleanSub || null;
+        nextSubUserId = cleanSub ? await resolveSubstituteUserId(env.DB, cleanSub) : null;
+      }
+
+      const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
+      const hasStatusUpdate = status !== undefined && status !== null && String(status).trim() !== '';
+      const mappedStatus = hasStatusUpdate
+        ? mapLeaveStatusToDb(status)
+        : mapLeaveStatusToDb(prevDisplayStatus);
+      const isFinalDecision = mappedStatus.dbStatus === 'approved' || mappedStatus.dbStatus === 'rejected';
 
       await env.DB.prepare(`
         UPDATE leave_requests
-        SET leave_type_id = COALESCE(?, leave_type_id),
-            start_date = COALESCE(?, start_date),
-            end_date = COALESCE(?, end_date),
-            total_days = COALESCE(?, total_days),
-            reason = COALESCE(?, reason),
-            rejection_reason = COALESCE(?, rejection_reason),
-            status = COALESCE(?, status),
+        SET leave_type_id = ?,
+            start_date = ?,
+            end_date = ?,
+            total_days = ?,
+            reason = ?,
+            substitute_user_id = ?,
+            substitute_name = ?,
+            rejection_reason = ?,
+            status = ?,
+            review_stage = ?,
+            approved_at = CASE WHEN ? = 1 THEN COALESCE(approved_at, datetime('now', 'localtime')) ELSE NULL END,
             updated_at = datetime('now', 'localtime')
-        WHERE request_id = ? OR request_no = ?
-      `).bind(typeId, startDate, endDate, newDays, reason, note, newStatus, leaveId, leaveId).run();
+        WHERE request_id = ?
+      `).bind(
+        typeId,
+        safeStart,
+        safeEnd,
+        parsedDays,
+        safeReason,
+        nextSubUserId,
+        nextSubName,
+        safeNote,
+        mappedStatus.dbStatus,
+        mappedStatus.reviewStage,
+        isFinalDecision ? 1 : 0,
+        reqInfo.request_id
+      ).run();
+
+      const wasApproved = prevDisplayStatus === 'อนุมัติ';
+      const isNowApproved = mappedStatus.displayStatus === 'อนุมัติ';
+      const prevYear = extractFiscalYear(reqInfo.start_date);
+      const nextYear = extractFiscalYear(safeStart);
+
+      if (!wasApproved && isNowApproved) {
+        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, typeId, nextYear, parsedDays);
+      } else if (wasApproved && !isNowApproved) {
+        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, prevTypeId, prevYear, -prevDays);
+      } else if (wasApproved && isNowApproved) {
+        if (prevTypeId !== typeId || prevYear !== nextYear) {
+          await adjustUserLeaveQuota(env.DB, reqInfo.user_id, prevTypeId, prevYear, -prevDays);
+          await adjustUserLeaveQuota(env.DB, reqInfo.user_id, typeId, nextYear, parsedDays);
+        } else if (parsedDays !== prevDays) {
+          await adjustUserLeaveQuota(env.DB, reqInfo.user_id, typeId, nextYear, parsedDays - prevDays);
+        }
+      }
+
+      if (hasStatusUpdate && mappedStatus.displayStatus !== prevDisplayStatus) {
+        await createLeaveStatusNotification(
+          env.DB,
+          { ...reqInfo, type_name: nextTypeName, start_date: safeStart, end_date: safeEnd },
+          mappedStatus.displayStatus,
+          safeNote || ''
+        );
+      }
 
       return jsonResponse({
         success: true,
-        message: 'อัปเดตรายละเอียดคำขอลางานใน Cloudflare D1 เรียบร้อยแล้ว'
+        id: reqInfo.request_id,
+        status: mappedStatus.displayStatus,
+        message: 'อัปเดตรายละเอียดคำขอลางานใน Cloudflare D1 เรียบร้อยแล้ว',
       });
     }
 
@@ -1205,23 +1671,16 @@ export async function onRequest(context) {
       const idMatch = path.match(/^\/leaves\/([^/]+)$/);
       const leaveId = idMatch[1];
 
-      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date, status FROM leave_requests WHERE request_id = ? OR request_no = ?')
-        .bind(leaveId, leaveId).first().catch(() => null);
-
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (reqInfo) {
-        if (reqInfo.status === 'approved' || reqInfo.status === 'อนุมัติ') {
-          const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
-          await env.DB.prepare(`
-            UPDATE employee_leave_quotas 
-            SET used_days = MAX(0, used_days - ?),
-                remaining_days = MIN(total_quota, remaining_days + ?),
-                updated_at = datetime('now', 'localtime')
-            WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
-          `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
+        const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
+        if (prevDisplayStatus === 'อนุมัติ') {
+          const year = extractFiscalYear(reqInfo.start_date);
+          await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -Number(reqInfo.total_days || 0));
         }
 
-        await env.DB.prepare('DELETE FROM leave_requests WHERE request_id = ? OR request_no = ?')
-          .bind(leaveId, leaveId).run();
+        await env.DB.prepare('DELETE FROM leave_requests WHERE request_id = ?')
+          .bind(reqInfo.request_id).run();
       }
 
       return jsonResponse({ success: true, message: 'ลบคำขอลางานออกจาก Cloudflare D1 เรียบร้อยแล้ว' });
@@ -1237,70 +1696,61 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const { status, remark } = body;
 
-      const reqInfo = await env.DB.prepare(`
-        SELECT lr.request_id, lr.request_no, lr.user_id, lr.leave_type_id, lr.start_date, lr.end_date, lr.total_days, lr.status, lt.name_th as type_name
-        FROM leave_requests lr
-        JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
-        WHERE lr.request_id = ? OR lr.request_no = ?
-      `).bind(leaveId, leaveId).first().catch(() => null);
-
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (!reqInfo) {
         return jsonResponse({ error: 'ไม่พบคำขอลางานที่ระบุ' }, 404);
       }
 
-      const prevStatus = reqInfo.status;
-      const normalizedStatus = status || 'อยู่ระหว่างตรวจสอบ';
+      const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
+      const wasApproved = prevDisplayStatus === 'อนุมัติ';
+      const mapped = mapLeaveStatusToDb(status || 'อยู่ระหว่างตรวจสอบ');
+      const isNowApproved = mapped.displayStatus === 'อนุมัติ';
+      const isFinalDecision = mapped.dbStatus === 'approved' || mapped.dbStatus === 'rejected';
+
+      const cleanRemark =
+        typeof remark === 'string'
+          ? remark.trim()
+          : remark !== undefined && remark !== null
+          ? String(remark)
+          : undefined;
+      const nextRemark =
+        cleanRemark !== undefined && cleanRemark !== ''
+          ? cleanRemark
+          : (reqInfo.rejection_reason ?? null);
 
       await env.DB.prepare(`
-        UPDATE leave_requests 
-        SET status = ?, 
+        UPDATE leave_requests
+        SET status = ?,
+            review_stage = ?,
             rejection_reason = ?,
-            approved_at = CASE WHEN ? = 'อนุมัติ' THEN datetime('now', 'localtime') ELSE approved_at END,
+            approved_at = CASE WHEN ? = 1 THEN datetime('now', 'localtime') ELSE NULL END,
             updated_at = datetime('now', 'localtime')
-        WHERE request_id = ? OR request_no = ?
-      `).bind(normalizedStatus, remark || null, normalizedStatus, leaveId, leaveId).run();
+        WHERE request_id = ?
+      `).bind(
+        mapped.dbStatus,
+        mapped.reviewStage,
+        nextRemark,
+        isFinalDecision ? 1 : 0,
+        reqInfo.request_id
+      ).run();
 
-      // จัดการตัด/คืนโควตาวันลา
-      const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
-      if ((normalizedStatus === 'อนุมัติ' || normalizedStatus === 'approved') && prevStatus !== 'อนุมัติ' && prevStatus !== 'approved') {
-        await env.DB.prepare(`
-          UPDATE employee_leave_quotas 
-          SET used_days = used_days + ?,
-              remaining_days = MAX(0, total_quota - (used_days + ?)),
-              updated_at = datetime('now', 'localtime')
-          WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
-        `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
-      } else if (prevStatus === 'อนุมัติ' || prevStatus === 'approved') {
-        if (normalizedStatus !== 'อนุมัติ' && normalizedStatus !== 'approved') {
-          await env.DB.prepare(`
-            UPDATE employee_leave_quotas 
-            SET used_days = MAX(0, used_days - ?),
-                remaining_days = MIN(total_quota, remaining_days + ?),
-                updated_at = datetime('now', 'localtime')
-            WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
-          `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
-        }
+      // จัดการตัด/คืนโควตาวันลาเฉพาะเมื่อมีการเปลี่ยนเข้าหรือออกจากการอนุมัติ
+      const year = extractFiscalYear(reqInfo.start_date);
+      const totalDays = Number(reqInfo.total_days || 0);
+      if (!wasApproved && isNowApproved) {
+        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, totalDays);
+      } else if (wasApproved && !isNowApproved) {
+        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -totalDays);
       }
 
       // สร้างการแจ้งเตือนใน D1 สำหรับ User เจ้าของคำขอลาคนนั้นๆ โดยเฉพาะ
-      const notifType = normalizedStatus === 'อนุมัติ' ? 'approved' : (normalizedStatus === 'ไม่อนุมัติ' ? 'rejected' : 'pending');
-      const notifTitle = `อัปเดตสถานะคำขอลา: ${normalizedStatus}`;
-      const notifDesc = `คำขอลา ${reqInfo.request_no} (${reqInfo.type_name}) วันที่ ${reqInfo.start_date} ถึง ${reqInfo.end_date} เปลี่ยนสถานะเป็น "${normalizedStatus}"${remark ? ' • หมายเหตุ: ' + remark : ''}`;
-      
-      try {
-        await env.DB.prepare(`
-          INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
-          VALUES (?, ?, ?, ?, 0, datetime('now', 'localtime'))
-        `).bind(reqInfo.user_id, notifTitle, notifDesc, notifType).run();
-      } catch (notifErr) {
-        console.log('[Notification Insert Note]:', notifErr.message);
-      }
+      await createLeaveStatusNotification(env.DB, reqInfo, mapped.displayStatus, cleanRemark || '');
 
       return jsonResponse({
         success: true,
-        message: `ปรับสถานะคำขอเป็น "${normalizedStatus}" และแจ้งเตือนให้ผู้ใช้งานทราบเรียบร้อยแล้ว`,
+        message: `ปรับสถานะคำขอเป็น "${mapped.displayStatus}" และแจ้งเตือนให้ผู้ใช้งานทราบเรียบร้อยแล้ว`,
         requestId: reqInfo.request_id,
-        status: normalizedStatus
+        status: mapped.displayStatus,
       });
     }
 
@@ -1312,32 +1762,39 @@ export async function onRequest(context) {
       const idMatch = path.match(/^\/leaves\/([^/]+)\/approve$/);
       const leaveId = idMatch[1];
       const body = await request.json().catch(() => ({}));
+      const remarkText = (typeof body.remark === 'string' && body.remark.trim()) ? body.remark.trim() : 'อนุมัติเรียบร้อย';
 
-      await env.DB.prepare(`
-        UPDATE leave_requests 
-        SET status = 'approved', approved_at = datetime('now', 'localtime'), rejection_reason = ?
-        WHERE request_id = ? OR request_no = ?
-      `).bind(body.remark || 'อนุมัติเรียบร้อย', leaveId, leaveId).run();
-
-      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date, request_no FROM leave_requests WHERE request_id = ? OR request_no = ?')
-        .bind(leaveId, leaveId).first().catch(() => null);
-      if (reqInfo) {
-        const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
-        await env.DB.prepare(`
-          UPDATE employee_leave_quotas 
-          SET used_days = used_days + ?,
-              remaining_days = MAX(0, total_quota - (used_days + ?)),
-              updated_at = datetime('now', 'localtime')
-          WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
-        `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
-
-        await env.DB.prepare(`
-          INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
-          VALUES (?, 'คำขอลาได้รับการอนุมัติแล้ว', ?, 'approved', 0, datetime('now', 'localtime'))
-        `).bind(reqInfo.user_id, `คำขอลา ${reqInfo.request_no} ได้รับการอนุมัติแล้ว (${body.remark || 'อนุมัติเรียบร้อย'})`).run().catch(() => {});
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
+      if (!reqInfo) {
+        return jsonResponse({ error: 'ไม่พบคำขอลางานที่ระบุ' }, 404);
       }
 
-      return jsonResponse({ success: true, message: 'อนุมัติคำขอลางานและตัดโควตาใน Cloudflare D1 สำเร็จ' });
+      const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
+      const wasApproved = prevDisplayStatus === 'อนุมัติ';
+
+      await env.DB.prepare(`
+        UPDATE leave_requests
+        SET status = 'approved',
+            review_stage = 'approved',
+            approved_at = datetime('now', 'localtime'),
+            rejection_reason = ?,
+            updated_at = datetime('now', 'localtime')
+        WHERE request_id = ?
+      `).bind(remarkText, reqInfo.request_id).run();
+
+      if (!wasApproved) {
+        const year = extractFiscalYear(reqInfo.start_date);
+        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, Number(reqInfo.total_days || 0));
+      }
+
+      await createLeaveStatusNotification(env.DB, reqInfo, 'อนุมัติ', remarkText);
+
+      return jsonResponse({
+        success: true,
+        requestId: reqInfo.request_id,
+        status: 'อนุมัติ',
+        message: 'อนุมัติคำขอลางานและตัดโควตาใน Cloudflare D1 สำเร็จ',
+      });
     }
 
     // -------------------------------------------------------------
@@ -1348,23 +1805,39 @@ export async function onRequest(context) {
       const idMatch = path.match(/^\/leaves\/([^/]+)\/reject$/);
       const leaveId = idMatch[1];
       const body = await request.json().catch(() => ({}));
+      const remarkText = (typeof body.remark === 'string' && body.remark.trim()) ? body.remark.trim() : 'ไม่อนุมัติ';
 
-      await env.DB.prepare(`
-        UPDATE leave_requests 
-        SET status = 'rejected', approved_at = datetime('now', 'localtime'), rejection_reason = ?
-        WHERE request_id = ? OR request_no = ?
-      `).bind(body.remark || 'ไม่อนุมัติ', leaveId, leaveId).run();
-
-      const reqInfo = await env.DB.prepare('SELECT user_id, request_no FROM leave_requests WHERE request_id = ? OR request_no = ?')
-        .bind(leaveId, leaveId).first().catch(() => null);
-      if (reqInfo) {
-        await env.DB.prepare(`
-          INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
-          VALUES (?, 'คำขอลาไม่ได้รับการอนุมัติ', ?, 'rejected', 0, datetime('now', 'localtime'))
-        `).bind(reqInfo.user_id, `คำขอลา ${reqInfo.request_no} ไม่ได้รับการอนุมัติ: ${body.remark || 'เนื่องจากมีภารกิจจำเป็น'}`).run().catch(() => {});
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
+      if (!reqInfo) {
+        return jsonResponse({ error: 'ไม่พบคำขอลางานที่ระบุ' }, 404);
       }
 
-      return jsonResponse({ success: true, message: 'ปฏิเสธคำขอลางานใน Cloudflare D1 เรียบร้อย' });
+      const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
+      const wasApproved = prevDisplayStatus === 'อนุมัติ';
+
+      await env.DB.prepare(`
+        UPDATE leave_requests
+        SET status = 'rejected',
+            review_stage = 'rejected',
+            approved_at = datetime('now', 'localtime'),
+            rejection_reason = ?,
+            updated_at = datetime('now', 'localtime')
+        WHERE request_id = ?
+      `).bind(remarkText, reqInfo.request_id).run();
+
+      if (wasApproved) {
+        const year = extractFiscalYear(reqInfo.start_date);
+        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -Number(reqInfo.total_days || 0));
+      }
+
+      await createLeaveStatusNotification(env.DB, reqInfo, 'ไม่อนุมัติ', remarkText);
+
+      return jsonResponse({
+        success: true,
+        requestId: reqInfo.request_id,
+        status: 'ไม่อนุมัติ',
+        message: 'ปฏิเสธคำขอลางานใน Cloudflare D1 เรียบร้อย',
+      });
     }
 
     // -------------------------------------------------------------
@@ -1374,24 +1847,26 @@ export async function onRequest(context) {
     if (path.match(/^\/leaves\/([^/]+)\/cancel$/) && method === 'POST') {
       const idMatch = path.match(/^\/leaves\/([^/]+)\/cancel$/);
       const leaveId = idMatch[1];
-      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date, status, request_no FROM leave_requests WHERE request_id = ? OR request_no = ?')
-        .bind(leaveId, leaveId).first().catch(() => null);
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
+      if (!reqInfo) {
+        return jsonResponse({ error: 'ไม่พบคำขอลางานที่ระบุ' }, 404);
+      }
+
+      const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
+      const wasApproved = prevDisplayStatus === 'อนุมัติ';
 
       await env.DB.prepare(`
-        UPDATE leave_requests 
-        SET status = 'cancelled', updated_at = datetime('now', 'localtime')
-        WHERE request_id = ? OR request_no = ?
-      `).bind(leaveId, leaveId).run();
+        UPDATE leave_requests
+        SET status = 'cancelled',
+            review_stage = 'rejected',
+            approved_at = NULL,
+            updated_at = datetime('now', 'localtime')
+        WHERE request_id = ?
+      `).bind(reqInfo.request_id).run();
 
-      if (reqInfo && (reqInfo.status === 'approved' || reqInfo.status === 'อนุมัติ')) {
-        const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
-        await env.DB.prepare(`
-          UPDATE employee_leave_quotas 
-          SET used_days = MAX(0, used_days - ?),
-              remaining_days = MIN(total_quota, remaining_days + ?),
-              updated_at = datetime('now', 'localtime')
-          WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
-        `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
+      if (wasApproved) {
+        const year = extractFiscalYear(reqInfo.start_date);
+        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -Number(reqInfo.total_days || 0));
       }
 
       return jsonResponse({ success: true, message: 'ยกเลิกคำขอลางานใน Cloudflare D1 เรียบร้อยแล้ว' });
@@ -1423,7 +1898,7 @@ export async function onRequest(context) {
     if ((path === '/users/profile' || path === '/auth/profile') && (method === 'PUT' || method === 'POST')) {
       const body = await request.json().catch(() => ({}));
       let { 
-        name, fullName, email, phone, title, department, avatar, employeeId, gender, employmentType,
+        name, fullName, email, phone, title, position, department, avatar, employeeId, gender, employmentType,
         prefix, firstName, lastName,
         prefixEn, firstNameEn, lastNameEn, englishName
       } = body;
@@ -1451,14 +1926,21 @@ export async function onRequest(context) {
         firstNameEn = firstNameEn || parsedEn.firstNameEn;
         lastNameEn = lastNameEn || parsedEn.lastNameEn;
       }
-      if (!prefixEn) {
+      if (!prefixEn && (firstNameEn || englishName || gender || prefix)) {
         prefixEn = (gender === 'ชาย' || prefix?.includes('นาย')) ? 'Mr.' : ((prefix?.includes('นาง') && !prefix?.includes('นางสาว')) ? 'Mrs.' : 'Ms.');
       }
-      const fullEnglishName = englishName || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn || ''} ${lastNameEn || ''}`.trim();
+      const fullEnglishName = englishName || (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
 
       if (email || employeeId) {
         try {
           await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
+
+          let deptId = null;
+          if (department && typeof department === 'string' && department.trim()) {
+            const d = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
+              .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
+            if (d) deptId = d.department_id;
+          }
 
           await env.DB.prepare(`
             UPDATE users 
@@ -1473,13 +1955,26 @@ export async function onRequest(context) {
                 employment_type = COALESCE(?, employment_type),
                 phone = COALESCE(?, phone),
                 position = COALESCE(?, position),
+                department_id = COALESCE(?, department_id),
                 avatar_url = COALESCE(?, avatar_url),
                 updated_at = datetime('now', 'localtime')
-            WHERE email = ? OR employee_code = ?
+            WHERE LOWER(email) = LOWER(?) OR LOWER(employee_code) = LOWER(?)
           `).bind(
-            prefix, firstName, lastName,
-            prefixEn, firstNameEn, lastNameEn, fullEnglishName,
-            gender, employmentType, phone, title, avatar, email, employeeId
+            prefix ?? null,
+            firstName ?? null,
+            lastName ?? null,
+            prefixEn ?? null,
+            firstNameEn ?? null,
+            lastNameEn ?? null,
+            fullEnglishName ?? null,
+            gender ?? null,
+            employmentType ?? null,
+            phone ?? null,
+            (position || title) ?? null,
+            deptId ?? null,
+            avatar ?? null,
+            email ? String(email).trim() : '__NO_EMAIL__',
+            employeeId ? String(employeeId).trim() : '__NO_EMP__'
           ).run();
         } catch (dbErr) {
           console.log('[D1 Update Profile Note]:', dbErr.message);
