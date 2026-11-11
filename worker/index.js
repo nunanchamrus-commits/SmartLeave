@@ -622,13 +622,6 @@ export async function onRequest(context) {
         },
       });
     }
-        message: 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว',
-        user: {
-          ...body,
-          gender: gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
-        },
-      });
-    }
 
     // หากไม่ตรงกับเส้นทางใดๆ
     return jsonResponse({ message: `API endpoint '${path}' not found` }, 404);
