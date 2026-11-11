@@ -48,8 +48,8 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : null,
     },
     { id: 'employees', label: 'จัดการพนักงาน & โควตา', icon: Users },
-    { id: 'calendar', label: 'ปฏิทินองค์กร', icon: Calendar },
-    { id: 'reports', label: 'รายงานสถิติองค์กร', icon: BarChart3 },
+    { id: 'calendar', label: 'ปฏิทินการลา', icon: Calendar },
+    { id: 'reports', label: 'รายงานสถิติการลา', icon: BarChart3 },
     { id: 'settings', label: 'ตั้งค่าระบบ', icon: Settings },
   ];
 

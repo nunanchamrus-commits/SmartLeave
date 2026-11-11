@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, TrendingUp, PieChart, Users, Download, Printer, FileDown } from 'lucide-react';
+import { Printer, FileDown } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSummaryPdf } from '../../utils/exportPdf';
 
@@ -60,48 +60,6 @@ export default function ReportsView() {
             <Printer className="w-4 h-4 text-emerald-600" />
             <span>พิมพ์รายงาน</span>
           </button>
-        </div>
-      </div>
-
-      {/* Top Stat Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">วันลาที่ใช้ไปแล้วทั้งหมด</span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-slate-800 mt-2 font-prompt">
-            {quotas.vacation.used + quotas.personal.used + quotas.sick.used} วัน
-          </div>
-          <p className="text-xs text-slate-400 mt-1">คิดเป็น 41.2% ของสิทธิการลาทั้งหมด</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">วันลาคงเหลือรวม</span>
-            <div className="p-2 rounded-xl bg-teal-50 text-teal-600">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-[#15803D] mt-2 font-prompt">
-            {quotas.totalRemaining} วัน
-          </div>
-          <p className="text-xs text-slate-400 mt-1">จากสิทธิ์รวม {quotas.totalLimit} วัน</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">อัตราการอนุมัติ</span>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              <Users className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-blue-600 mt-2 font-prompt">
-            94.5%
-          </div>
-          <p className="text-xs text-slate-400 mt-1">เวลาเฉลี่ยในการอนุมัติ: 4.2 ชั่วโมง</p>
         </div>
       </div>
 
