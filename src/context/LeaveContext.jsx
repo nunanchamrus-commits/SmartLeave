@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
   initialUser,
   approverUser,
@@ -11,6 +11,88 @@ import {
 import api from '../services/api';
 
 const LeaveContext = createContext();
+
+function cleanNumericUserId(val) {
+  if (val === undefined || val === null) return '';
+  return String(val).trim().replace(/^usr-/i, '');
+}
+
+function getUserStableKey(user) {
+  if (!user) return '';
+  const email = user.email ? String(user.email).trim().toLowerCase() : '';
+  const empId = user.employeeId ? String(user.employeeId).trim().toLowerCase() : '';
+  const id = user.id ? String(user.id).trim().toLowerCase() : '';
+  return email || empId || id;
+}
+
+function doesLeaveBelongToUser(req, user) {
+  if (!req || !user) return false;
+  const currRawIds = new Set(
+    [cleanNumericUserId(user.raw_id), cleanNumericUserId(user.id)].filter(Boolean)
+  );
+  const reqUserId = cleanNumericUserId(req.userId ?? req.user_id);
+  if (reqUserId && currRawIds.has(reqUserId)) return true;
+  if (user.id && req.userId && String(req.userId) === String(user.id)) return true;
+  if (
+    req.employeeId &&
+    ((user.employeeId && String(req.employeeId).toLowerCase() === String(user.employeeId).toLowerCase()) ||
+      (user.id && String(req.employeeId).toLowerCase() === String(user.id).toLowerCase()))
+  ) {
+    return true;
+  }
+  if (req.employeeEmail && user.email && req.employeeEmail.toLowerCase() === user.email.toLowerCase()) {
+    return true;
+  }
+  if (req.employeeName && user.name && req.employeeName.trim() === user.name.trim()) {
+    return true;
+  }
+  return false;
+}
+
+function doesNotificationBelongToUser(notif, user) {
+  if (!notif || !user) return false;
+  if (
+    !notif.userId &&
+    !notif.user_id &&
+    !notif.employeeId &&
+    !notif.email &&
+    !notif.employeeEmail &&
+    !notif.employeeName
+  ) {
+    return true;
+  }
+  const currRawIds = new Set(
+    [cleanNumericUserId(user.raw_id), cleanNumericUserId(user.id)].filter(Boolean)
+  );
+  const notifUid = cleanNumericUserId(notif.userId ?? notif.user_id);
+  if (notifUid && currRawIds.has(notifUid)) return true;
+  if (
+    notif.employeeId &&
+    ((user.employeeId && String(notif.employeeId).toLowerCase() === String(user.employeeId).toLowerCase()) ||
+      (user.id && String(notif.employeeId).toLowerCase() === String(user.id).toLowerCase()))
+  ) {
+    return true;
+  }
+  const notifEmail = notif.email || notif.employeeEmail;
+  if (notifEmail && user.email && notifEmail.toLowerCase() === user.email.toLowerCase()) {
+    return true;
+  }
+  if (notif.employeeName && user.name && notif.employeeName.trim() === user.name.trim()) {
+    return true;
+  }
+  return false;
+}
+
+function normalizeNotificationItem(notif) {
+  if (!notif) return notif;
+  const isRead = Boolean(notif.read || notif.isRead);
+  return {
+    ...notif,
+    description: notif.description ? notif.description.replace(/2568/g, '2569') : notif.description,
+    read: isRead,
+    isRead: isRead ? 1 : 0,
+  };
+}
 
 function inferUserGender(user) {
   if (!user) return 'หญิง';
@@ -176,14 +258,11 @@ export function LeaveProvider({ children }) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((n) => ({
-            ...n,
-            description: n.description ? n.description.replace(/2568/g, '2569') : n.description,
-          }));
+          return parsed.map(normalizeNotificationItem);
         }
       } catch (e) { }
     }
-    return notificationsData;
+    return notificationsData.map(normalizeNotificationItem);
   });
 
   const [employees, setEmployees] = useState(() => {
@@ -316,63 +395,219 @@ export function LeaveProvider({ children }) {
   // -------------------------------------------------------------
   const [isDbConnected, setIsDbConnected] = useState(false);
 
-  const fetchLiveDatabaseData = async () => {
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const isFetchingRef = useRef(false);
+  const pendingMutationRef = useRef(0);
+  const knownMyLeaveStatusesRef = useRef({ userKey: null, statuses: new Map(), seeded: false });
+
+  const syncLeaveBaselineForUser = (requests, targetUser) => {
+    const userKey = getUserStableKey(targetUser);
+    if (!userKey) return;
+    const myLeaves = (requests || []).filter((r) => doesLeaveBelongToUser(r, targetUser));
+    knownMyLeaveStatusesRef.current = {
+      userKey,
+      statuses: new Map(myLeaves.map((r) => [String(r.id), normalizeLeaveStatus(r.status)])),
+      seeded: true,
+    };
+  };
+
+  const applyEmployeeQuotaDelta = (employeeList, targetReq, typeKeyOverride, daysDelta) => {
+    if (!targetReq || !daysDelta) return employeeList;
+    const typeKey = typeKeyOverride || targetReq.typeKey;
+    if (!['vacation', 'personal', 'sick', 'maternity'].includes(typeKey)) return employeeList;
+
+    return (employeeList || []).map((emp) => {
+      const isMatch =
+        (emp.raw_id && (targetReq.user_id || targetReq.userId) && Number(emp.raw_id) === Number(cleanNumericUserId(targetReq.user_id ?? targetReq.userId))) ||
+        (targetReq.userId && emp.id && cleanNumericUserId(targetReq.userId) === cleanNumericUserId(emp.id)) ||
+        (targetReq.employeeId && (emp.employeeId === targetReq.employeeId || emp.id === targetReq.employeeId)) ||
+        (targetReq.employeeEmail && emp.email?.toLowerCase() === targetReq.employeeEmail.toLowerCase()) ||
+        (targetReq.employeeName && emp.name === targetReq.employeeName);
+      if (!isMatch) return emp;
+
+      const limit = emp[`${typeKey}Limit`] ?? (typeKey === 'vacation' ? 10 : typeKey === 'personal' ? 15 : typeKey === 'sick' ? 30 : 90);
+      const prevUsed = emp[`${typeKey}Used`] ?? Math.max(0, limit - (emp[`${typeKey}Rem`] ?? limit));
+      const nextUsed = Math.max(0, prevUsed + daysDelta);
+      const nextRem = Math.max(0, limit - nextUsed);
+      return normalizeEmployeeQuotas({
+        ...emp,
+        [`${typeKey}Limit`]: limit,
+        [`${typeKey}Used`]: nextUsed,
+        [`${typeKey}Rem`]: nextRem,
+      });
+    });
+  };
+
+  const fetchLiveDatabaseData = async (options = {}) => {
+    const { resetBaseline = false, silent = false } =
+      typeof options === 'boolean' ? { resetBaseline: options } : options;
+
+    if (isFetchingRef.current || pendingMutationRef.current > 0) return;
+
+    const activeUser = currentUserRef.current;
+    const startUserKey = getUserStableKey(activeUser);
+    isFetchingRef.current = true;
+
     try {
       // 1. ดึงข้อมูลพนักงานสดจาก Cloudflare D1
       const empData = await api.getEmployees();
+      if (getUserStableKey(currentUserRef.current) !== startUserKey) return;
+
+      const hasEmpData = Array.isArray(empData) && empData.length > 0;
       let latestEmployees = employees;
-      if (Array.isArray(empData) && empData.length > 0) {
+      let matchedActiveUser = activeUser;
+
+      if (hasEmpData) {
         latestEmployees = empData.map(normalizeEmployeeQuotas);
         setEmployees(latestEmployees);
         setIsDbConnected(true);
 
         // ซิงก์ข้อมูล currentUser เข้ากับข้อมูลล่าสุดใน DB
-        if (currentUser) {
+        if (activeUser) {
           const freshUser = latestEmployees.find(
-            (e) => (e.email && e.email.toLowerCase() === currentUser.email?.toLowerCase()) || (e.employeeId && e.employeeId === currentUser.employeeId)
+            (e) =>
+              (e.email && e.email.toLowerCase() === activeUser.email?.toLowerCase()) ||
+              (e.employeeId && e.employeeId === activeUser.employeeId)
           );
           if (freshUser) {
-            setCurrentUser((prev) => ({
-              ...prev,
+            matchedActiveUser = {
+              ...activeUser,
               ...freshUser,
-              gender: freshUser.gender || prev.gender,
-            }));
+              gender: freshUser.gender || activeUser.gender,
+            };
+            const changed =
+              activeUser.id !== matchedActiveUser.id ||
+              activeUser.name !== matchedActiveUser.name ||
+              activeUser.title !== matchedActiveUser.title ||
+              activeUser.department !== matchedActiveUser.department ||
+              activeUser.role !== matchedActiveUser.role ||
+              activeUser.phone !== matchedActiveUser.phone ||
+              activeUser.vacationRem !== matchedActiveUser.vacationRem ||
+              activeUser.personalRem !== matchedActiveUser.personalRem ||
+              activeUser.sickRem !== matchedActiveUser.sickRem ||
+              activeUser.maternityRem !== matchedActiveUser.maternityRem;
+            if (changed) {
+              setCurrentUser((prev) => ({
+                ...prev,
+                ...freshUser,
+                gender: freshUser.gender || prev.gender,
+              }));
+            }
           }
         }
       }
 
       // 2. ดึงรายการคำขอลาสดจาก Cloudflare D1
       const leavesData = await api.getLeaveRequests();
+      if (getUserStableKey(currentUserRef.current) !== startUserKey) return;
+
       if (Array.isArray(leavesData)) {
         const normalizedLeaves = leavesData.map((r) => ({
           ...r,
           status: normalizeLeaveStatus(r.status),
         }));
         setLeaveRequests(normalizedLeaves);
-        recalculateQuotas(normalizedLeaves, latestEmployees, Array.isArray(empData) && empData.length > 0);
+        setSelectedLeaveDetail((prev) => {
+          if (!prev) return null;
+          const updatedItem = normalizedLeaves.find((r) => String(r.id) === String(prev.id));
+          return updatedItem ? { ...prev, ...updatedItem } : prev;
+        });
+        recalculateQuotas(normalizedLeaves, latestEmployees, hasEmpData, matchedActiveUser);
+
+        // ตรวจจับการเปลี่ยนสถานะจากฝั่ง Admin แล้วแจ้งเตือน Toast บนหน้าจอ User ทันที
+        const tracker = knownMyLeaveStatusesRef.current;
+        const myLeaves = normalizedLeaves.filter((r) => doesLeaveBelongToUser(r, matchedActiveUser));
+        const nextMap = new Map(myLeaves.map((r) => [String(r.id), r.status]));
+        const changedLeaves = [];
+
+        if (!resetBaseline && tracker.seeded && tracker.userKey === startUserKey) {
+          myLeaves.forEach((r) => {
+            const key = String(r.id);
+            if (tracker.statuses.has(key) && tracker.statuses.get(key) !== r.status) {
+              changedLeaves.push(r);
+            }
+          });
+        }
+
+        knownMyLeaveStatusesRef.current = {
+          userKey: startUserKey,
+          statuses: nextMap,
+          seeded: true,
+        };
+
+        if (changedLeaves.length > 0 && !silent) {
+          const firstChanged = changedLeaves[0];
+          showToast(
+            `สถานะคำขอ${firstChanged.type} (${firstChanged.dateRange}) เปลี่ยนเป็น "${firstChanged.status}"`,
+            firstChanged.status === 'ไม่อนุมัติ' ? 'info' : 'success'
+          );
+        }
       }
 
       // 3. ดึงประกาศสดจาก Cloudflare D1
       const annData = await api.getAnnouncements();
+      if (getUserStableKey(currentUserRef.current) !== startUserKey) return;
       if (Array.isArray(annData) && annData.length > 0) {
         setAnnouncements(annData);
       }
 
       // 4. ดึงการแจ้งเตือนสดจาก Cloudflare D1 เฉพาะของ user คนนั้น
-      if (currentUser) {
-        const notifData = await api.getNotifications(currentUser);
+      if (matchedActiveUser) {
+        const notifData = await api.getNotifications(matchedActiveUser);
+        if (getUserStableKey(currentUserRef.current) !== startUserKey) return;
         if (Array.isArray(notifData)) {
-          setNotifications(notifData);
+          setNotifications(notifData.map(normalizeNotificationItem));
         }
       }
     } catch (err) {
       console.log('[D1 Live Sync Note]: Running in local offline state');
+    } finally {
+      isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
-    fetchLiveDatabaseData();
-  }, [isAuthenticated, currentUser?.id, currentUser?.employeeId]);
+    knownMyLeaveStatusesRef.current = {
+      userKey: getUserStableKey(currentUser),
+      statuses: new Map(),
+      seeded: false,
+    };
+    fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+  }, [isAuthenticated, currentUser?.email, currentUser?.employeeId]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isPdpaAccepted) return;
+
+    const handleSyncOnFocus = () => {
+      if (!document.hidden) {
+        fetchLiveDatabaseData({ resetBaseline: false, silent: false });
+      }
+    };
+
+    const intervalId = setInterval(() => {
+      if (!document.hidden) {
+        fetchLiveDatabaseData({ resetBaseline: false, silent: false });
+      }
+    }, 5000);
+
+    window.addEventListener('focus', handleSyncOnFocus);
+    document.addEventListener('visibilitychange', handleSyncOnFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleSyncOnFocus);
+      document.removeEventListener('visibilitychange', handleSyncOnFocus);
+    };
+  }, [isAuthenticated, isPdpaAccepted]);
+
+  useEffect(() => {
+    if (isAuthenticated && isPdpaAccepted) {
+      fetchLiveDatabaseData({ resetBaseline: false, silent: false });
+    }
+  }, [activeTab]);
 
   // Recalculate quotas based on employee quota record or approved requests for current user
   const recalculateQuotas = (requests, employeeList = employees, preferEmpQuotas = false, targetUser = currentUser) => {
@@ -408,7 +643,7 @@ export function LeaveProvider({ children }) {
     }
 
     const userApprovedRequests = requests.filter(
-      (r) => (r.employeeId === targetUser?.id || r.employeeId === targetUser?.employeeId || r.employeeName === targetUser?.name) && r.status === 'อนุมัติ'
+      (r) => doesLeaveBelongToUser(r, targetUser) && r.status === 'อนุมัติ'
     );
     const vacationUsed = userApprovedRequests
       .filter((r) => r.typeKey === 'vacation')
@@ -441,7 +676,16 @@ export function LeaveProvider({ children }) {
 
   // Switch role between employee and approver
   const switchRole = (role) => {
-    const nextUser = role === 'approver' ? approverUser : initialUser;
+    const templateUser = role === 'approver' ? approverUser : initialUser;
+    const matchedLive = employees.find(
+      (e) =>
+        (templateUser.email && e.email?.toLowerCase() === templateUser.email.toLowerCase()) ||
+        (templateUser.employeeId && e.employeeId === templateUser.employeeId)
+    );
+    const nextUser = matchedLive
+      ? { ...templateUser, ...matchedLive, role: templateUser.role }
+      : templateUser;
+    syncLeaveBaselineForUser(leaveRequests, nextUser);
     setCurrentUser(nextUser);
     recalculateQuotas(leaveRequests, employees, true, nextUser);
   };
@@ -451,7 +695,10 @@ export function LeaveProvider({ children }) {
     const id = `req-${Date.now()}`;
     const newReq = {
       id,
+      userId: currentUser.raw_id || cleanNumericUserId(currentUser.id) || undefined,
+      user_id: currentUser.raw_id || cleanNumericUserId(currentUser.id) || undefined,
       employeeId: currentUser.employeeId || currentUser.id,
+      employeeEmail: currentUser.email,
       employeeName: currentUser.name,
       department: currentUser.department,
       status: 'ยังไม่ยื่นเอกสาร',
@@ -464,22 +711,30 @@ export function LeaveProvider({ children }) {
 
     const updated = [newReq, ...leaveRequests];
     setLeaveRequests(updated);
+    syncLeaveBaselineForUser(updated, currentUser);
     recalculateQuotas(updated, employees, true);
 
-    // Add notification
-    const newNotif = {
+    // Add notification tagged cleanly to submitting user
+    const newNotif = normalizeNotificationItem({
       id: `notif-${Date.now()}`,
+      userId: currentUser.raw_id ?? currentUser.id,
+      employeeId: currentUser.employeeId || currentUser.id,
+      email: currentUser.email,
+      employeeName: currentUser.name,
       title: `ยื่นคำขอ${newReq.type}สำเร็จ`,
       description: `คำขอลาวันที่ ${newReq.dateRange} (สถานะ: ยังไม่ยื่นเอกสาร)`,
       time: 'เมื่อสักครู่',
       read: false,
-      type: 'pending',
-    };
-    setNotifications([newNotif, ...notifications]);
+      isRead: 0,
+      type: 'warning',
+    });
+    setNotifications((prev) => [newNotif, ...prev]);
 
     setIsRequestModalOpen(false);
 
     // ส่งบันทึกลง D1 Database จริง
+    pendingMutationRef.current += 1;
+    let apiSynced = false;
     try {
       if (api && api.createLeaveRequest) {
         await api.createLeaveRequest({
@@ -488,18 +743,16 @@ export function LeaveProvider({ children }) {
           email: currentUser.email,
           userId: currentUser.id ? String(currentUser.id).replace('usr-', '') : null,
         });
-        const fresh = await api.getLeaveRequests();
-        if (Array.isArray(fresh) && fresh.length > 0) {
-          const normalizedFresh = fresh.map((r) => ({
-            ...r,
-            status: normalizeLeaveStatus(r.status),
-          }));
-          setLeaveRequests(normalizedFresh);
-          recalculateQuotas(normalizedFresh, employees, true);
-        }
+        apiSynced = true;
       }
     } catch (e) {
       console.log('[Leave submit to DB note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiSynced) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
     }
 
     return newReq;
@@ -511,8 +764,9 @@ export function LeaveProvider({ children }) {
     const normalizedStatus = normalizeLeaveStatus(nextStatus);
     const isFinalDecision = normalizedStatus === 'อนุมัติ' || normalizedStatus === 'ไม่อนุมัติ';
 
+    const target = leaveRequests.find((r) => String(r.id) === String(requestId));
     const updated = leaveRequests.map((r) => {
-      if (r.id === requestId) {
+      if (String(r.id) === String(requestId)) {
         return {
           ...r,
           status: normalizedStatus,
@@ -523,46 +777,22 @@ export function LeaveProvider({ children }) {
       return r;
     });
 
-    const target = leaveRequests.find((r) => r.id === requestId);
     const wasApproved = target?.status === 'อนุมัติ';
     const isNowApproved = normalizedStatus === 'อนุมัติ';
 
     setLeaveRequests(updated);
+    syncLeaveBaselineForUser(updated, currentUserRef.current);
 
     // ปรับวันลาที่ใช้ไปและคงเหลือในตารางพนักงานทันทีเมื่อเปลี่ยนสถานะเข้าหรือออกจากการอนุมัติ
     let nextEmployees = employees;
     if (target && wasApproved !== isNowApproved) {
-      const typeKey = ['vacation', 'personal', 'sick', 'maternity'].includes(target.typeKey)
-        ? target.typeKey
-        : null;
       const daysDelta = isNowApproved ? Number(target.days || 0) : -Number(target.days || 0);
-      if (typeKey && daysDelta !== 0) {
-        nextEmployees = employees.map((emp) => {
-          const isMatch =
-            (emp.raw_id && target.user_id && Number(emp.raw_id) === Number(target.user_id)) ||
-            (target.userId && emp.id && `usr-${target.userId}` === emp.id) ||
-            (target.employeeId && (emp.employeeId === target.employeeId || emp.id === target.employeeId)) ||
-            (target.employeeEmail && emp.email?.toLowerCase() === target.employeeEmail.toLowerCase()) ||
-            (target.employeeName && emp.name === target.employeeName);
-          if (!isMatch) return emp;
-
-          const limit = emp[`${typeKey}Limit`] ?? (typeKey === 'vacation' ? 10 : typeKey === 'personal' ? 15 : typeKey === 'sick' ? 30 : 90);
-          const prevUsed = emp[`${typeKey}Used`] ?? Math.max(0, limit - (emp[`${typeKey}Rem`] ?? limit));
-          const nextUsed = Math.max(0, prevUsed + daysDelta);
-          const nextRem = Math.max(0, limit - nextUsed);
-          return normalizeEmployeeQuotas({
-            ...emp,
-            [`${typeKey}Limit`]: limit,
-            [`${typeKey}Used`]: nextUsed,
-            [`${typeKey}Rem`]: nextRem,
-          });
-        });
-        setEmployees(nextEmployees);
-      }
+      nextEmployees = applyEmployeeQuotaDelta(employees, target, null, daysDelta);
+      setEmployees(nextEmployees);
     }
     recalculateQuotas(updated, nextEmployees, true);
 
-    if (selectedLeaveDetail?.id === requestId) {
+    if (selectedLeaveDetail && String(selectedLeaveDetail.id) === String(requestId)) {
       setSelectedLeaveDetail((prev) =>
         prev
           ? {
@@ -575,48 +805,59 @@ export function LeaveProvider({ children }) {
       );
     }
 
-    // ส่งอัปเดตสถานะไปยัง Database
-    try {
-      if (api && api.updateLeaveStatus) {
-        await api.updateLeaveStatus(requestId, normalizedStatus, remark);
-      } else if (normalizedStatus === 'อนุมัติ' && api?.approveLeave) {
-        await api.approveLeave(requestId, remark || 'อนุมัติเรียบร้อย');
-      } else if (normalizedStatus === 'ไม่อนุมัติ' && api?.rejectLeave) {
-        await api.rejectLeave(requestId, remark || 'ไม่อนุมัติ');
-      }
-    } catch (e) {
-      console.log('[Update Leave Status DB note]:', e.message);
-    }
-
+    // สร้างการแจ้งเตือนสำหรับ User เจ้าของคำขอลาคนนั้นทันทีทุกครั้งที่สถานะเปลี่ยน
     if (target) {
-      const isTargetMe =
-        (currentUser?.id && target.userId && (currentUser.id === target.userId || currentUser.id === `usr-${target.userId}`)) ||
-        (currentUser?.employeeId && target.employeeId === currentUser.employeeId) ||
-        (currentUser?.email && target.employeeEmail && target.employeeEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
-        (currentUser?.name && target.employeeName === currentUser.name);
-
       const notifType =
         normalizedStatus === 'อนุมัติ'
           ? 'approved'
           : normalizedStatus === 'ไม่อนุมัติ'
           ? 'rejected'
+          : normalizedStatus === 'ยังไม่ยื่นเอกสาร'
+          ? 'warning'
           : 'pending';
-      const newNotif = {
+      const newNotif = normalizeNotificationItem({
         id: `notif-${Date.now()}`,
-        userId: target.userId,
+        userId:
+          target.userId ??
+          target.user_id ??
+          (String(target.employeeId || '').startsWith('usr-') ? target.employeeId : undefined),
         employeeId: target.employeeId,
+        email: target.employeeEmail,
+        employeeName: target.employeeName,
         title: `อัปเดตสถานะคำขอ${target.type}: ${normalizedStatus}`,
         description: remark
           ? `คำขอวันที่ ${target.dateRange} • ${remark}`
           : `คำขอวันที่ ${target.dateRange} เปลี่ยนเป็น "${normalizedStatus}"`,
         time: 'เมื่อสักครู่',
         read: false,
+        isRead: 0,
         type: notifType,
-      };
+      });
+      setNotifications((prev) => [newNotif, ...prev]);
+    }
 
-      if (isTargetMe) {
-        setNotifications((prev) => [newNotif, ...prev]);
+    // ส่งอัปเดตสถานะไปยัง Database
+    pendingMutationRef.current += 1;
+    let apiSynced = false;
+    try {
+      if (api && api.updateLeaveStatus) {
+        await api.updateLeaveStatus(requestId, normalizedStatus, remark);
+        apiSynced = true;
+      } else if (normalizedStatus === 'อนุมัติ' && api?.approveLeave) {
+        await api.approveLeave(requestId, remark || 'อนุมัติเรียบร้อย');
+        apiSynced = true;
+      } else if (normalizedStatus === 'ไม่อนุมัติ' && api?.rejectLeave) {
+        await api.rejectLeave(requestId, remark || 'ไม่อนุมัติ');
+        apiSynced = true;
       }
+    } catch (e) {
+      console.log('[Update Leave Status DB note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiSynced) {
+      await fetchLiveDatabaseData({ silent: true });
     }
 
     showToast(`ปรับสถานะคำขอเป็น "${normalizedStatus}" เรียบร้อยแล้ว`, 'success');
@@ -624,50 +865,165 @@ export function LeaveProvider({ children }) {
 
   // Update Leave Request Details (User or Admin)
   const updateLeaveRequest = async (requestId, updatedData) => {
+    const prevReq = leaveRequests.find((r) => String(r.id) === String(requestId));
+    const hasStatusUpdate =
+      updatedData?.status !== undefined &&
+      updatedData?.status !== null &&
+      String(updatedData.status).trim() !== '';
+    const nextStatus = hasStatusUpdate
+      ? normalizeLeaveStatus(updatedData.status)
+      : prevReq?.status;
+    const normalizedPatch = hasStatusUpdate
+      ? { ...updatedData, status: nextStatus }
+      : { ...updatedData };
+    const isFinalDecision = nextStatus === 'อนุมัติ' || nextStatus === 'ไม่อนุมัติ';
+
     const updated = leaveRequests.map((r) => {
-      if (r.id === requestId) {
+      if (String(r.id) === String(requestId)) {
         return {
           ...r,
-          ...updatedData,
+          ...normalizedPatch,
+          ...(hasStatusUpdate
+            ? { approvedDate: isFinalDecision ? r.approvedDate || 'วันนี้' : null }
+            : {}),
         };
       }
       return r;
     });
 
     setLeaveRequests(updated);
-    recalculateQuotas(updated, employees, true);
+    syncLeaveBaselineForUser(updated, currentUserRef.current);
 
-    if (selectedLeaveDetail?.id === requestId) {
-      setSelectedLeaveDetail((prev) => (prev ? { ...prev, ...updatedData } : null));
+    let nextEmployees = employees;
+    if (prevReq) {
+      const wasApproved = prevReq.status === 'อนุมัติ';
+      const isNowApproved = nextStatus === 'อนุมัติ';
+      const prevDays = Number(prevReq.days || 0);
+      const nextDays = Number(normalizedPatch.days ?? prevDays);
+      const prevType = prevReq.typeKey;
+      const nextType = normalizedPatch.typeKey || prevType;
+
+      if (!wasApproved && isNowApproved) {
+        nextEmployees = applyEmployeeQuotaDelta(nextEmployees, prevReq, nextType, nextDays);
+      } else if (wasApproved && !isNowApproved) {
+        nextEmployees = applyEmployeeQuotaDelta(nextEmployees, prevReq, prevType, -prevDays);
+      } else if (wasApproved && isNowApproved) {
+        if (prevType !== nextType) {
+          nextEmployees = applyEmployeeQuotaDelta(nextEmployees, prevReq, prevType, -prevDays);
+          nextEmployees = applyEmployeeQuotaDelta(nextEmployees, prevReq, nextType, nextDays);
+        } else if (nextDays !== prevDays) {
+          nextEmployees = applyEmployeeQuotaDelta(nextEmployees, prevReq, nextType, nextDays - prevDays);
+        }
+      }
+
+      if (nextEmployees !== employees) {
+        setEmployees(nextEmployees);
+      }
+    }
+    recalculateQuotas(updated, nextEmployees, true);
+
+    if (selectedLeaveDetail && String(selectedLeaveDetail.id) === String(requestId)) {
+      setSelectedLeaveDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...normalizedPatch,
+              ...(hasStatusUpdate
+                ? { approvedDate: isFinalDecision ? prev.approvedDate || 'วันนี้' : null }
+                : {}),
+            }
+          : null
+      );
     }
 
+    if (prevReq && hasStatusUpdate && nextStatus !== prevReq.status) {
+      const notifType =
+        nextStatus === 'อนุมัติ'
+          ? 'approved'
+          : nextStatus === 'ไม่อนุมัติ'
+          ? 'rejected'
+          : nextStatus === 'ยังไม่ยื่นเอกสาร'
+          ? 'warning'
+          : 'pending';
+      const remarkText = normalizedPatch.note ?? prevReq.note ?? '';
+      const updatedTypeLabel = normalizedPatch.type || prevReq.type;
+      const updatedRangeLabel = normalizedPatch.dateRange || prevReq.dateRange;
+      const newNotif = normalizeNotificationItem({
+        id: `notif-${Date.now()}`,
+        userId:
+          prevReq.userId ??
+          prevReq.user_id ??
+          (String(prevReq.employeeId || '').startsWith('usr-') ? prevReq.employeeId : undefined),
+        employeeId: prevReq.employeeId,
+        email: prevReq.employeeEmail,
+        employeeName: prevReq.employeeName,
+        title: `อัปเดตสถานะคำขอ${updatedTypeLabel}: ${nextStatus}`,
+        description: remarkText
+          ? `คำขอวันที่ ${updatedRangeLabel} • ${remarkText}`
+          : `คำขอวันที่ ${updatedRangeLabel} เปลี่ยนเป็น "${nextStatus}"`,
+        time: 'เมื่อสักครู่',
+        read: false,
+        isRead: 0,
+        type: notifType,
+      });
+      setNotifications((prev) => [newNotif, ...prev]);
+    }
+
+    pendingMutationRef.current += 1;
+    let apiSynced = false;
     try {
       if (api && api.updateLeaveRequest) {
-        await api.updateLeaveRequest(requestId, updatedData);
+        await api.updateLeaveRequest(requestId, normalizedPatch);
+        apiSynced = true;
       }
     } catch (e) {
       console.log('[Update Leave API Note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
     }
+
+    if (apiSynced) {
+      await fetchLiveDatabaseData({ silent: true });
+    }
+
     showToast('แก้ไขรายละเอียดคำขอลางานเรียบร้อยแล้ว', 'success');
   };
 
   // Delete Leave Request (User or Admin)
   const deleteLeaveRequest = async (requestId) => {
-    const updated = leaveRequests.filter((r) => r.id !== requestId);
+    const target = leaveRequests.find((r) => String(r.id) === String(requestId));
+    const updated = leaveRequests.filter((r) => String(r.id) !== String(requestId));
     setLeaveRequests(updated);
-    recalculateQuotas(updated, employees, true);
+    syncLeaveBaselineForUser(updated, currentUserRef.current);
 
-    if (selectedLeaveDetail?.id === requestId) {
+    let nextEmployees = employees;
+    if (target && target.status === 'อนุมัติ') {
+      nextEmployees = applyEmployeeQuotaDelta(employees, target, null, -Number(target.days || 0));
+      setEmployees(nextEmployees);
+    }
+    recalculateQuotas(updated, nextEmployees, true);
+
+    if (selectedLeaveDetail && String(selectedLeaveDetail.id) === String(requestId)) {
       setSelectedLeaveDetail(null);
     }
 
+    pendingMutationRef.current += 1;
+    let apiSynced = false;
     try {
       if (api && api.deleteLeaveRequest) {
         await api.deleteLeaveRequest(requestId);
+        apiSynced = true;
       }
     } catch (e) {
       console.log('[Delete Leave API Note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
     }
+
+    if (apiSynced) {
+      await fetchLiveDatabaseData({ silent: true });
+    }
+
     showToast('ลบคำขอลางานเรียบร้อยแล้ว', 'success');
   };
 
@@ -716,18 +1072,23 @@ export function LeaveProvider({ children }) {
   const updateEmployee = async (empId, updatedData) => {
     const updated = employees.map((emp) => {
       if (emp.id === empId || emp.employeeId === empId) {
-        return {
+        return normalizeEmployeeQuotas({
           ...emp,
           ...updatedData,
-        };
+        });
       }
       return emp;
     });
     setEmployees(updated);
 
-    if (currentUser?.id === empId || currentUser?.employeeId === empId) {
-      const mergedUser = { ...currentUser, ...updatedData };
+    if (
+      currentUser?.id === empId ||
+      currentUser?.employeeId === empId ||
+      (updatedData?.email && currentUser?.email?.toLowerCase() === updatedData.email.toLowerCase())
+    ) {
+      const mergedUser = normalizeEmployeeQuotas({ ...currentUser, ...updatedData });
       setCurrentUser(mergedUser);
+      recalculateQuotas(leaveRequests, updated, true, mergedUser);
       sessionStorage.setItem('smartleave_user', JSON.stringify(mergedUser));
       localStorage.setItem('smartleave_user', JSON.stringify(mergedUser));
     }
@@ -769,7 +1130,11 @@ export function LeaveProvider({ children }) {
 
   // Mark all notifications read
   const markAllNotificationsRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true, isRead: 1 })));
+    setNotifications((prev) =>
+      prev.map((n) =>
+        doesNotificationBelongToUser(n, currentUser) ? { ...n, read: true, isRead: 1 } : n
+      )
+    );
     try {
       if (api && api.markAllNotificationsRead) {
         await api.markAllNotificationsRead(currentUser);
@@ -779,7 +1144,7 @@ export function LeaveProvider({ children }) {
 
   const markNotificationRead = async (id) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true, isRead: 1 } : n))
+      prev.map((n) => (String(n.id) === String(id) ? { ...n, read: true, isRead: 1 } : n))
     );
     try {
       if (api && api.markNotificationAsRead) {
@@ -1102,19 +1467,7 @@ export function LeaveProvider({ children }) {
   // กรองการแจ้งเตือนเฉพาะของ User แต่ละคน (Notifications Separation)
   const userNotifications = useMemo(() => {
     if (!currentUser) return [];
-    return notifications.filter((notif) => {
-      if (!notif) return false;
-      // ประกาศทั่วไปที่ไม่มีเจาะจงบุคคล (broadcast)
-      if (!notif.userId && !notif.employeeId && !notif.user_id) return true;
-
-      const currId = currentUser.id || currentUser.raw_id;
-      const cleanCurrId = String(currId || '').replace(/^usr-/, '');
-      const cleanNotifId = String(notif.userId || notif.user_id || '').replace(/^usr-/, '');
-      if (cleanNotifId && cleanCurrId && cleanNotifId === cleanCurrId) return true;
-      if (notif.employeeId && currentUser.employeeId && notif.employeeId === currentUser.employeeId) return true;
-      if (notif.email && currentUser.email && notif.email.toLowerCase() === currentUser.email.toLowerCase()) return true;
-      return false;
-    });
+    return notifications.filter((notif) => doesNotificationBelongToUser(notif, currentUser));
   }, [notifications, currentUser]);
 
   const unreadCount = useMemo(() => {

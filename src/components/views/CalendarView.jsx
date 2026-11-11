@@ -72,9 +72,14 @@ export default function CalendarView() {
       if (!inRange) return false;
 
       if (filterMode === 'my') {
+        const cleanCurrId = String(currentUser?.id || currentUser?.raw_id || '').replace(/^usr-/, '');
+        const cleanReqUserId = String(req.userId || req.user_id || '').replace(/^usr-/, '');
         return (
-          req.employeeId === currentUser?.id ||
-          (req.employeeName && currentUser?.name && req.employeeName.includes(currentUser.name.split(' ')[0]))
+          (cleanCurrId && cleanReqUserId && cleanCurrId === cleanReqUserId) ||
+          (currentUser?.id && req.employeeId === currentUser.id) ||
+          (currentUser?.employeeId && req.employeeId === currentUser.employeeId) ||
+          (currentUser?.email && req.employeeEmail && req.employeeEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (req.employeeName && currentUser?.name && req.employeeName.trim() === currentUser.name.trim())
         );
       }
       return true;

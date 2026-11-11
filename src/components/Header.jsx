@@ -175,12 +175,14 @@ export default function Header({ onMenuClick }) {
                     ไม่มีการแจ้งเตือนใหม่
                   </div>
                 ) : (
-                  notifications.map((notif) => (
+                  notifications.map((notif) => {
+                    const isRead = Boolean(notif.read || notif.isRead);
+                    return (
                     <div
                       key={notif.id}
                       onClick={() => markNotificationRead(notif.id)}
                       className={`p-3.5 flex items-start space-x-3 cursor-pointer transition-colors ${
-                        notif.read ? 'bg-white hover:bg-slate-50' : 'bg-emerald-50/50 hover:bg-emerald-50'
+                        isRead ? 'bg-white hover:bg-slate-50' : 'bg-emerald-50/50 hover:bg-emerald-50'
                       }`}
                     >
                       <div className="mt-0.5">
@@ -211,7 +213,7 @@ export default function Header({ onMenuClick }) {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs ${notif.read ? 'font-medium text-slate-700' : 'font-semibold text-slate-900'}`}>
+                        <p className={`text-xs ${isRead ? 'font-medium text-slate-700' : 'font-semibold text-slate-900'}`}>
                           {notif.title}
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
@@ -221,11 +223,12 @@ export default function Header({ onMenuClick }) {
                           {notif.time}
                         </span>
                       </div>
-                      {!notif.read && (
+                      {!isRead && (
                         <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5" />
                       )}
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

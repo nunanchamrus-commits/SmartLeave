@@ -10,10 +10,20 @@ import {
 import { useLeave } from '../context/LeaveContext';
 
 export default function RecentLeavesWidget() {
-  const { leaveRequests, setSelectedLeaveDetail, setActiveTab, searchQuery } = useLeave();
+  const { leaveRequests, setSelectedLeaveDetail, setActiveTab, searchQuery, currentUser } = useLeave();
 
-  // Filter requests for the current user (usr-101) or matching search
-  const userRequests = leaveRequests.filter((r) => r.employeeId === 'usr-101');
+  // Filter requests for the current user across both D1 and offline mock IDs
+  const userRequests = leaveRequests.filter((r) => {
+    if (!currentUser) return r.employeeId === 'usr-101';
+    const cleanCurrId = String(currentUser.id || currentUser.raw_id || '').replace(/^usr-/, '');
+    const cleanReqUserId = String(r.userId || r.user_id || '').replace(/^usr-/, '');
+    if (cleanCurrId && cleanReqUserId && cleanCurrId === cleanReqUserId) return true;
+    if (currentUser.id && r.employeeId === currentUser.id) return true;
+    if (currentUser.employeeId && r.employeeId === currentUser.employeeId) return true;
+    if (currentUser.email && r.employeeEmail && r.employeeEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    if (currentUser.name && r.employeeName && r.employeeName.trim() === currentUser.name.trim()) return true;
+    return false;
+  });
   const filtered = searchQuery
     ? userRequests.filter(
         (r) =>
