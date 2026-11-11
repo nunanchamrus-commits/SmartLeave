@@ -23,6 +23,9 @@ function jsonResponse(data, status = 200) {
 // -------------------------------------------------------------
 const SCHEMA_COLUMNS = {
   users: {
+    prefix_en: 'TEXT',
+    first_name_en: 'TEXT',
+    last_name_en: 'TEXT',
     english_name: 'TEXT',
     gender: "TEXT DEFAULT 'หญิง'",
     employment_type: "TEXT DEFAULT 'ข้าราชการ'",
@@ -41,6 +44,51 @@ const SCHEMA_COLUMNS = {
     pending_days: 'REAL DEFAULT 0.0',
   },
 };
+
+// ฟังก์ชันแยกชื่อภาษาอังกฤษเป็น คำนำหน้า, ชื่อ, นามสกุล
+function parseEnglishName(rawName, gender = '', prefixTh = '') {
+  let prefixEn = '';
+  let firstNameEn = '';
+  let lastNameEn = '';
+
+  if (!rawName || typeof rawName !== 'string') {
+    if (gender === 'ชาย' || prefixTh?.includes('นาย')) prefixEn = 'Mr.';
+    else if (prefixTh?.includes('นาง') && !prefixTh?.includes('นางสาว')) prefixEn = 'Mrs.';
+    else prefixEn = 'Ms.';
+    return { prefixEn, firstNameEn: '', lastNameEn: '', fullNameEn: '' };
+  }
+
+  const trimmed = rawName.trim();
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+
+  if (parts.length === 0) {
+    if (gender === 'ชาย' || prefixTh?.includes('นาย')) prefixEn = 'Mr.';
+    else if (prefixTh?.includes('นาง') && !prefixTh?.includes('นางสาว')) prefixEn = 'Mrs.';
+    else prefixEn = 'Ms.';
+    return { prefixEn, firstNameEn: '', lastNameEn: '', fullNameEn: '' };
+  }
+
+  const firstPartLower = parts[0].toLowerCase().replace(/\.$/, '');
+  if (['mr', 'mrs', 'ms', 'miss'].includes(firstPartLower)) {
+    if (firstPartLower === 'mr') prefixEn = 'Mr.';
+    else if (firstPartLower === 'mrs') prefixEn = 'Mrs.';
+    else if (firstPartLower === 'miss') prefixEn = 'Miss';
+    else prefixEn = 'Ms.';
+
+    firstNameEn = parts[1] || '';
+    lastNameEn = parts.slice(2).join(' ') || '';
+  } else {
+    if (gender === 'ชาย' || prefixTh?.includes('นาย')) prefixEn = 'Mr.';
+    else if (prefixTh?.includes('นาง') && !prefixTh?.includes('นางสาว')) prefixEn = 'Mrs.';
+    else prefixEn = 'Ms.';
+
+    firstNameEn = parts[0] || '';
+    lastNameEn = parts.slice(1).join(' ') || '';
+  }
+
+  const fullNameEn = `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn}`.trim();
+  return { prefixEn, firstNameEn, lastNameEn, fullNameEn };
+}
 
 async function ensureTableColumns(db, tableName, columnSpecs) {
   try {
@@ -63,14 +111,24 @@ async function autoMigrateDatabase(db) {
   for (const [table, specs] of Object.entries(SCHEMA_COLUMNS)) {
     await ensureTableColumns(db, table, specs);
   }
+
+  // แยกชื่อภาษาอังกฤษเป็น prefix_en, first_name_en, last_name_en อัตโนมัติสำหรับแถวเดิมที่ยังไม่ได้แยก
+  try {
+    const existingUsers = await db.prepare("SELECT user_id, english_name, gender, prefix FROM users WHERE (first_name_en IS NULL OR first_name_en = '') AND english_name IS NOT NULL AND english_name != ''").all();
+    for (const u of (existingUsers.results || [])) {
+      const parsed = parseEnglishName(u.english_name, u.gender, u.prefix);
+      await db.prepare("UPDATE users SET prefix_en = ?, first_name_en = ?, last_name_en = ? WHERE user_id = ?")
+        .bind(parsed.prefixEn, parsed.firstNameEn, parsed.lastNameEn, u.user_id).run().catch(() => {});
+    }
+  } catch (migErr) {}
 }
 
 // -------------------------------------------------------------
 // SEED DATA: ข้อมูลตั้งต้น 14 แผนกสหกรณ์ และบุคลากร 5 ท่านใน D1
 // -------------------------------------------------------------
 async function seedMasterData(db, force = false) {
-  const panika = await db.prepare("SELECT user_id, english_name FROM users WHERE first_name = 'พนิกา'").first().catch(() => null);
-  if (!panika || !panika.english_name || force) {
+  const panika = await db.prepare("SELECT user_id, first_name_en, english_name FROM users WHERE first_name = 'พนิกา'").first().catch(() => null);
+  if (!panika || !panika.first_name_en || force) {
     // 1. นำเข้า 14 แผนกสหกรณ์ครบถ้วน
     await db.batch([
       db.prepare("INSERT OR REPLACE INTO departments (department_id, code, name_th, name_en) VALUES (1, 'DEP-ADMIN', 'ฝ่ายบริหารทั่วไป', 'General Administration Division')"),
@@ -102,19 +160,19 @@ async function seedMasterData(db, force = false) {
       db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (5, 'ordination', 'ลาอุปสมบท / ประกอบพิธีทางศาสนา', 'Religious / Ordination Leave', 15.00, 1, 1, 30, '#8b5cf6')"),
       db.prepare("INSERT OR REPLACE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (6, 'military', 'ลารับราชการทหาร', 'Military Service Leave', 60.00, 1, 1, 15, '#64748b')"),
 
-      // บุคลากรสหกรณ์ 5 คน + ผู้ดูแลระบบ (พร้อม english_name, gender, employment_type ครบ 100%)
-      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-        VALUES (1, 'ADM-001', 'admin@smartleave.com', '123456', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-        VALUES (2, 'EMP-001', 'panika.t@smartleave.com', '123456', 'นางสาว', 'พนิกา', 'ธรรมเมือง', 'Panika Thammoeang', 'หญิง', 'ข้าราชการ', '081-234-5678', 6, 4, 'นักวิชาการสหกรณ์ปฏิบัติการ', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-        VALUES (3, 'MGR-002', 'somchai.m@smartleave.com', '123456', 'นาย', 'สมชาย', 'มั่นคง', 'Somchai Mankhong', 'ชาย', 'ข้าราชการ', '089-876-5432', 1, 3, 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-        VALUES (4, 'EMP-003', 'nichaphat.w@smartleave.com', '123456', 'นางสาว', 'ณิชาภัทร', 'วงศ์ษา', 'Nichaphat Wongsa', 'หญิง', 'ข้าราชการ', '086-111-2233', 4, 4, 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-        VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', '123456', 'นาย', 'อัครพล', 'เจริญผล', 'Akarapol Charoenphon', 'ชาย', 'พนักงานราชการ', '082-333-4455', 5, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-        VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '123456', 'นางสาว', 'สุดา', 'ใจดี', 'Suda Jaidee', 'หญิง', 'ลูกจ้างประจำ', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      // บุคลากรสหกรณ์ 5 คน + ผู้ดูแลระบบ (พร้อม prefix_en, first_name_en, last_name_en, english_name ครบถ้วน)
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (1, 'ADM-001', 'admin@smartleave.com', '123456', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'Mr.', 'System', 'Administrator', 'Mr. System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (2, 'EMP-001', 'panika.t@smartleave.com', '123456', 'นางสาว', 'พนิกา', 'ธรรมเมือง', 'Ms.', 'Panika', 'Thammoeang', 'Ms. Panika Thammoeang', 'หญิง', 'ข้าราชการ', '081-234-5678', 6, 4, 'นักวิชาการสหกรณ์ปฏิบัติการ', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (3, 'MGR-002', 'somchai.m@smartleave.com', '123456', 'นาย', 'สมชาย', 'มั่นคง', 'Mr.', 'Somchai', 'Mankhong', 'Mr. Somchai Mankhong', 'ชาย', 'ข้าราชการ', '089-876-5432', 1, 3, 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (4, 'EMP-003', 'nichaphat.w@smartleave.com', '123456', 'นางสาว', 'ณิชาภัทร', 'วงศ์ษา', 'Ms.', 'Nichaphat', 'Wongsa', 'Ms. Nichaphat Wongsa', 'หญิง', 'ข้าราชการ', '086-111-2233', 4, 4, 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', '123456', 'นาย', 'อัครพล', 'เจริญผล', 'Mr.', 'Akarapol', 'Charoenphon', 'Mr. Akarapol Charoenphon', 'ชาย', 'พนักงานราชการ', '082-333-4455', 5, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+      db.prepare(`INSERT OR REPLACE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '123456', 'นางสาว', 'สุดา', 'ใจดี', 'Ms.', 'Suda', 'Jaidee', 'Ms. Suda Jaidee', 'หญิง', 'ลูกจ้างประจำ', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
     ]);
 
     // โควตาวันลาประจำปี 2026 (10, 30, 15, 90)
@@ -229,7 +287,7 @@ export async function onRequest(context) {
       await autoMigrateDatabase(env.DB);
       await seedMasterData(env.DB, true);
 
-      const updated = await env.DB.prepare("SELECT user_id, employee_code, prefix, first_name, last_name, english_name, gender, employment_type, position, email FROM users WHERE employee_code LIKE 'EMP-%' OR employee_code LIKE 'MGR-%' OR employee_code LIKE 'ADM-%'").all();
+      const updated = await env.DB.prepare("SELECT user_id, employee_code, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, position, email FROM users WHERE employee_code LIKE 'EMP-%' OR employee_code LIKE 'MGR-%' OR employee_code LIKE 'ADM-%'").all();
       return jsonResponse({
         success: true,
         message: 'อัปเดตข้อมูลโครงสร้างและบุคลากรสหกรณ์เข้า Cloudflare D1 เรียบร้อย 100%!',
@@ -267,13 +325,23 @@ export async function onRequest(context) {
       const gender = user.gender || ((user.prefix?.includes('นาง') || user.first_name?.includes('พนิกา') || user.first_name?.includes('ณิชาภัทร') || user.first_name?.includes('สุดา')) ? 'หญิง' : 'ชาย');
       const prefix = user.prefix ? user.prefix : '';
       const displayName = `${prefix}${user.first_name} ${user.last_name}`.trim();
+      const prefixEn = user.prefix_en || (gender === 'ชาย' ? 'Mr.' : 'Ms.');
+      const firstNameEn = user.first_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).firstNameEn : '');
+      const lastNameEn = user.last_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).lastNameEn : '');
+      const fullEnglishName = user.english_name || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn}`.trim();
 
       return jsonResponse({
         success: true,
         user: {
           id: `usr-${user.user_id}`,
           name: displayName,
-          englishName: user.english_name || '',
+          prefix: user.prefix || '',
+          firstName: user.first_name || '',
+          lastName: user.last_name || '',
+          prefixEn,
+          firstNameEn,
+          lastNameEn,
+          englishName: fullEnglishName,
           gender,
           employmentType: user.employment_type || 'ข้าราชการ',
           email: user.email,
@@ -370,6 +438,10 @@ export async function onRequest(context) {
       const gender = user.gender || ((user.prefix?.includes('นาง') || user.first_name?.includes('พนิกา') || user.first_name?.includes('ณิชาภัทร') || user.first_name?.includes('สุดา')) ? 'หญิง' : 'ชาย');
       const prefix = user.prefix ? user.prefix : '';
       const displayName = `${prefix}${user.first_name} ${user.last_name}`.trim();
+      const prefixEn = user.prefix_en || (gender === 'ชาย' ? 'Mr.' : 'Ms.');
+      const firstNameEn = user.first_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).firstNameEn : '');
+      const lastNameEn = user.last_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).lastNameEn : '');
+      const fullEnglishName = user.english_name || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn}`.trim();
 
       return jsonResponse({
         success: true,
@@ -377,7 +449,13 @@ export async function onRequest(context) {
         user: {
           id: `usr-${user.user_id}`,
           name: displayName,
-          englishName: user.english_name || '',
+          prefix: user.prefix || '',
+          firstName: user.first_name || '',
+          lastName: user.last_name || '',
+          prefixEn,
+          firstNameEn,
+          lastNameEn,
+          englishName: fullEnglishName,
           gender,
           employmentType: user.employment_type || 'ข้าราชการ',
           email: user.email,
@@ -416,8 +494,13 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if (path === '/auth/register' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      let { firstName, lastName, fullName, englishName, prefix, employeeCode, email, department, position, title, gender, employmentType, phone, password } = body;
+      let { 
+        firstName, lastName, fullName, prefix, 
+        prefixEn, firstNameEn, lastNameEn, englishName,
+        employeeCode, email, department, position, title, gender, employmentType, phone, password 
+      } = body;
 
+      // จัดการแยกชื่อภาษาไทย
       if (!firstName && fullName) {
         const parts = fullName.trim().split(/\s+/);
         if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
@@ -433,6 +516,18 @@ export async function onRequest(context) {
       if (!prefix) {
         prefix = gender === 'ชาย' ? 'นาย' : 'นางสาว';
       }
+
+      // จัดการแยกชื่อภาษาอังกฤษ (prefix_en, first_name_en, last_name_en)
+      if ((!firstNameEn || !lastNameEn) && englishName) {
+        const parsedEn = parseEnglishName(englishName, gender, prefix);
+        prefixEn = prefixEn || parsedEn.prefixEn;
+        firstNameEn = firstNameEn || parsedEn.firstNameEn;
+        lastNameEn = lastNameEn || parsedEn.lastNameEn;
+      }
+      if (!prefixEn) {
+        prefixEn = (gender === 'ชาย' || prefix?.includes('นาย')) ? 'Mr.' : ((prefix?.includes('นาง') && !prefix?.includes('นางสาว')) ? 'Mrs.' : 'Ms.');
+      }
+      const fullEnglishName = englishName || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn || ''} ${lastNameEn || ''}`.trim();
 
       const empCode = employeeCode || `EMP-${Date.now().toString().slice(-4)}`;
       const jobPosition = position || title || 'เจ้าหน้าที่สหกรณ์';
@@ -465,8 +560,8 @@ export async function onRequest(context) {
       await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
       const insert = await env.DB.prepare(`
-        INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, 1)
+        INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, 1)
       `).bind(
         empCode,
         email,
@@ -474,7 +569,10 @@ export async function onRequest(context) {
         prefix,
         firstName || 'เจ้าหน้าที่',
         lastName || '',
-        englishName || '',
+        prefixEn || 'Mr.',
+        firstNameEn || '',
+        lastNameEn || '',
+        fullEnglishName || '',
         userGender,
         empType,
         phone || '081-999-8888',
@@ -499,7 +597,13 @@ export async function onRequest(context) {
         user: {
           id: `usr-${newUserId}`,
           name: `${prefix}${firstName} ${lastName}`.trim(),
-          englishName: englishName || '',
+          prefix,
+          firstName,
+          lastName,
+          prefixEn,
+          firstNameEn,
+          lastNameEn,
+          englishName: fullEnglishName,
           gender: userGender,
           employmentType: empType,
           title: jobPosition,
@@ -564,7 +668,13 @@ export async function onRequest(context) {
           u.user_id as raw_id,
           ('usr-' || u.user_id) as id,
           ((CASE WHEN u.prefix IS NOT NULL AND u.prefix != '' THEN u.prefix ELSE '' END) || u.first_name || ' ' || u.last_name) as name,
-          COALESCE(u.english_name, '') as englishName,
+          COALESCE(u.prefix, '') as prefix,
+          COALESCE(u.first_name, '') as firstName,
+          COALESCE(u.last_name, '') as lastName,
+          COALESCE(u.prefix_en, '') as prefixEn,
+          COALESCE(u.first_name_en, '') as firstNameEn,
+          COALESCE(u.last_name_en, '') as lastNameEn,
+          COALESCE(u.english_name, ((CASE WHEN u.prefix_en IS NOT NULL AND u.prefix_en != '' THEN u.prefix_en || ' ' ELSE '' END) || COALESCE(u.first_name_en, '') || ' ' || COALESCE(u.last_name_en, ''))) as englishName,
           COALESCE(u.gender, CASE WHEN u.prefix LIKE '%นาง%' THEN 'หญิง' ELSE 'ชาย' END) as gender,
           COALESCE(u.employment_type, 'ข้าราชการ') as employmentType,
           u.email,
@@ -818,23 +928,39 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if ((path === '/users/profile' || path === '/auth/profile') && (method === 'PUT' || method === 'POST')) {
       const body = await request.json().catch(() => ({}));
-      const { name, englishName, email, phone, title, department, avatar, employeeId, gender, employmentType } = body;
+      let { 
+        name, fullName, email, phone, title, department, avatar, employeeId, gender, employmentType,
+        prefix, firstName, lastName,
+        prefixEn, firstNameEn, lastNameEn, englishName
+      } = body;
 
-      let firstName = name;
-      let lastName = '';
-      let prefix = gender === 'หญิง' ? 'นางสาว' : (gender === 'ชาย' ? 'นาย' : null);
-
-      if (name && name.includes(' ')) {
-        const parts = name.trim().split(/\s+/);
+      const rawThaiName = name || fullName;
+      if (!firstName && rawThaiName) {
+        const parts = rawThaiName.trim().split(/\s+/);
         if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
-          prefix = parts[0];
-          firstName = parts[1];
-          lastName = parts.slice(2).join(' ');
+          prefix = prefix || parts[0];
+          firstName = parts[1] || '';
+          lastName = parts.slice(2).join(' ') || '';
         } else {
-          firstName = parts[0];
-          lastName = parts.slice(1).join(' ');
+          firstName = parts[0] || '';
+          lastName = parts.slice(1).join(' ') || '';
         }
       }
+      if (!prefix) {
+        prefix = gender === 'หญิง' ? 'นางสาว' : (gender === 'ชาย' ? 'นาย' : null);
+      }
+
+      // จัดการแยกชื่อภาษาอังกฤษ (prefix_en, first_name_en, last_name_en)
+      if ((!firstNameEn || !lastNameEn) && englishName) {
+        const parsedEn = parseEnglishName(englishName, gender, prefix);
+        prefixEn = prefixEn || parsedEn.prefixEn;
+        firstNameEn = firstNameEn || parsedEn.firstNameEn;
+        lastNameEn = lastNameEn || parsedEn.lastNameEn;
+      }
+      if (!prefixEn) {
+        prefixEn = (gender === 'ชาย' || prefix?.includes('นาย')) ? 'Mr.' : ((prefix?.includes('นาง') && !prefix?.includes('นางสาว')) ? 'Mrs.' : 'Ms.');
+      }
+      const fullEnglishName = englishName || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn || ''} ${lastNameEn || ''}`.trim();
 
       if (email || employeeId) {
         try {
@@ -845,6 +971,9 @@ export async function onRequest(context) {
             SET prefix = COALESCE(?, prefix),
                 first_name = COALESCE(?, first_name),
                 last_name = COALESCE(?, last_name),
+                prefix_en = COALESCE(?, prefix_en),
+                first_name_en = COALESCE(?, first_name_en),
+                last_name_en = COALESCE(?, last_name_en),
                 english_name = COALESCE(?, english_name),
                 gender = COALESCE(?, gender),
                 employment_type = COALESCE(?, employment_type),
@@ -853,7 +982,11 @@ export async function onRequest(context) {
                 avatar_url = COALESCE(?, avatar_url),
                 updated_at = datetime('now', 'localtime')
             WHERE email = ? OR employee_code = ?
-          `).bind(prefix, firstName, lastName, englishName, gender, employmentType, phone, title, avatar, email, employeeId).run();
+          `).bind(
+            prefix, firstName, lastName,
+            prefixEn, firstNameEn, lastNameEn, fullEnglishName,
+            gender, employmentType, phone, title, avatar, email, employeeId
+          ).run();
         } catch (dbErr) {
           console.log('[D1 Update Profile Note]:', dbErr.message);
         }
@@ -864,7 +997,13 @@ export async function onRequest(context) {
         message: 'บันทึกข้อมูลส่วนตัวลง Cloudflare D1 เรียบร้อยแล้ว',
         user: {
           ...body,
-          englishName: englishName || '',
+          prefix,
+          firstName,
+          lastName,
+          prefixEn,
+          firstNameEn,
+          lastNameEn,
+          englishName: fullEnglishName || '',
           gender: gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
           employmentType: employmentType || 'ข้าราชการ',
         },

@@ -496,6 +496,13 @@ export function LeaveProvider({ children }) {
     const updatedUser = {
       ...currentUser,
       ...updatedData,
+      prefix: updatedData.prefix ?? currentUser.prefix,
+      firstName: updatedData.firstName ?? currentUser.firstName,
+      lastName: updatedData.lastName ?? currentUser.lastName,
+      prefixEn: updatedData.prefixEn ?? currentUser.prefixEn,
+      firstNameEn: updatedData.firstNameEn ?? currentUser.firstNameEn,
+      lastNameEn: updatedData.lastNameEn ?? currentUser.lastNameEn,
+      englishName: updatedData.englishName ?? currentUser.englishName,
       gender: updatedData.gender || currentUser.gender || inferUserGender(updatedData),
     };
 
@@ -514,6 +521,12 @@ export function LeaveProvider({ children }) {
         return {
           ...emp,
           name: updatedUser.name || emp.name,
+          prefix: updatedUser.prefix ?? emp.prefix,
+          firstName: updatedUser.firstName ?? emp.firstName,
+          lastName: updatedUser.lastName ?? emp.lastName,
+          prefixEn: updatedUser.prefixEn ?? emp.prefixEn,
+          firstNameEn: updatedUser.firstNameEn ?? emp.firstNameEn,
+          lastNameEn: updatedUser.lastNameEn ?? emp.lastNameEn,
           englishName: updatedUser.englishName ?? emp.englishName,
           gender: updatedUser.gender || emp.gender,
           title: updatedUser.title || emp.title,
@@ -640,16 +653,38 @@ export function LeaveProvider({ children }) {
       }
     }
 
+    // จัดการแยกชื่อภาษาอังกฤษ (prefixEn, firstNameEn, lastNameEn)
+    let prefixEn = userData.prefixEn || '';
+    let firstNameEn = userData.firstNameEn || '';
+    let lastNameEn = userData.lastNameEn || '';
+    if ((!firstNameEn || !lastNameEn) && userData.englishName) {
+      const partsEn = userData.englishName.trim().split(/\s+/);
+      const firstLower = partsEn[0].toLowerCase().replace(/\.$/, '');
+      if (['mr', 'mrs', 'ms', 'miss'].includes(firstLower)) {
+        prefixEn = firstLower === 'mr' ? 'Mr.' : (firstLower === 'mrs' ? 'Mrs.' : (firstLower === 'miss' ? 'Miss' : 'Ms.'));
+        firstNameEn = partsEn[1] || '';
+        lastNameEn = partsEn.slice(2).join(' ') || '';
+      } else {
+        prefixEn = (userData.gender === 'ชาย' || prefix?.includes('นาย')) ? 'Mr.' : ((prefix?.includes('นาง') && !prefix?.includes('นางสาว')) ? 'Mrs.' : 'Ms.');
+        firstNameEn = partsEn[0] || '';
+        lastNameEn = partsEn.slice(1).join(' ') || '';
+      }
+    }
+    const fullEnglishName = userData.englishName || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn}`.trim();
+
     // 1. ส่งข้อมูลสมัครสมาชิกไปยัง Cloudflare D1 Backend ทันที!
     let dbUserId = newId;
     try {
       if (api && api.register) {
         const res = await api.register({
           fullName: userData.fullName,
-          englishName: userData.englishName || '',
+          englishName: fullEnglishName,
           firstName,
           lastName,
           prefix: prefix || (userData.gender === 'หญิง' ? 'นางสาว' : 'นาย'),
+          prefixEn,
+          firstNameEn,
+          lastNameEn,
           gender: userData.gender || 'หญิง',
           position: userData.title,
           title: userData.title,
@@ -671,7 +706,13 @@ export function LeaveProvider({ children }) {
     const newUser = {
       id: dbUserId,
       name: userData.fullName,
-      englishName: userData.englishName || '',
+      prefix: prefix || (userData.gender === 'หญิง' ? 'นางสาว' : 'นาย'),
+      firstName,
+      lastName,
+      prefixEn,
+      firstNameEn,
+      lastNameEn,
+      englishName: fullEnglishName,
       gender: userData.gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
       title: userData.title,
       department: userData.department,

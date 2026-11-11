@@ -12,6 +12,7 @@ import {
   Camera,
   Check,
   ChevronDown,
+  Globe,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 
@@ -79,12 +80,61 @@ const normalizeGender = (user) => {
   return /^นาย/.test((user?.name || '').trim()) ? 'ชาย' : 'หญิง';
 };
 
+function extractEnglishNameFields(user) {
+  if (user?.firstNameEn || user?.lastNameEn) {
+    return {
+      prefixEn: user.prefixEn || (user.gender === 'ชาย' ? 'Mr.' : 'Ms.'),
+      firstNameEn: user.firstNameEn || '',
+      lastNameEn: user.lastNameEn || '',
+      englishName: user.englishName || `${user.prefixEn || ''} ${user.firstNameEn || ''} ${user.lastNameEn || ''}`.trim(),
+    };
+  }
+  const raw = user?.englishName || '';
+  if (!raw.trim()) {
+    const isMale = user?.gender === 'ชาย' || user?.prefix?.includes('นาย');
+    return {
+      prefixEn: isMale ? 'Mr.' : 'Ms.',
+      firstNameEn: '',
+      lastNameEn: '',
+      englishName: '',
+    };
+  }
+  const parts = raw.trim().split(/\s+/);
+  const firstLower = parts[0].toLowerCase().replace(/\.$/, '');
+  let prefixEn = 'Mr.';
+  let firstNameEn = '';
+  let lastNameEn = '';
+  if (['mr', 'mrs', 'ms', 'miss'].includes(firstLower)) {
+    prefixEn = firstLower === 'mr' ? 'Mr.' : (firstLower === 'mrs' ? 'Mrs.' : (firstLower === 'miss' ? 'Miss' : 'Ms.'));
+    firstNameEn = parts[1] || '';
+    lastNameEn = parts.slice(2).join(' ') || '';
+  } else {
+    prefixEn = user?.gender === 'ชาย' || user?.prefix?.includes('นาย') ? 'Mr.' : ((user?.prefix?.includes('นาง') && !user?.prefix?.includes('นางสาว')) ? 'Mrs.' : 'Ms.');
+    firstNameEn = parts[0] || '';
+    lastNameEn = parts.slice(1).join(' ') || '';
+  }
+  return {
+    prefixEn,
+    firstNameEn,
+    lastNameEn,
+    englishName: raw,
+  };
+}
+
 export default function SettingsView() {
   const { currentUser, updateUserProfile, resetToDefault, showToast } = useLeave();
 
+  const initialEn = extractEnglishNameFields(currentUser);
+
   const [formData, setFormData] = useState({
     name: currentUser?.name || '',
-    englishName: currentUser?.englishName || '',
+    prefix: currentUser?.prefix || '',
+    firstName: currentUser?.firstName || '',
+    lastName: currentUser?.lastName || '',
+    prefixEn: initialEn.prefixEn,
+    firstNameEn: initialEn.firstNameEn,
+    lastNameEn: initialEn.lastNameEn,
+    englishName: initialEn.englishName,
     gender: normalizeGender(currentUser),
     employmentType: currentUser?.employmentType || 'ข้าราชการ',
     title: currentUser?.title || '',
@@ -101,9 +151,16 @@ export default function SettingsView() {
   // ซิงก์ข้อมูลในฟอร์มเมื่อ currentUser ในระบบเปลี่ยนแปลง
   useEffect(() => {
     if (currentUser) {
+      const en = extractEnglishNameFields(currentUser);
       setFormData({
         name: currentUser.name || '',
-        englishName: currentUser.englishName || '',
+        prefix: currentUser.prefix || '',
+        firstName: currentUser.firstName || '',
+        lastName: currentUser.lastName || '',
+        prefixEn: en.prefixEn,
+        firstNameEn: en.firstNameEn,
+        lastNameEn: en.lastNameEn,
+        englishName: en.englishName,
         gender: normalizeGender(currentUser),
         employmentType: currentUser.employmentType || 'ข้าราชการ',
         title: currentUser.title || '',
@@ -311,36 +368,89 @@ export default function SettingsView() {
             </div>
           </div>
 
-          {/* Row: ชื่อภาษาอังกฤษ และ ประเภทการจ้างงาน */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                ชื่อ - นามสกุล (ภาษาอังกฤษ)
-              </label>
-              <input
-                type="text"
-                value={formData.englishName}
-                onChange={(e) => setFormData({ ...formData, englishName: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                placeholder="เช่น Panika Thammoeang"
-              />
+          {/* Row: ชื่อภาษาอังกฤษ (แยก คำนำหน้า, ชื่อ, นามสกุล) */}
+          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+            <div className="flex items-center space-x-2 text-slate-700 font-semibold mb-1">
+              <Globe className="w-4 h-4 text-emerald-600" />
+              <span>ชื่อ - นามสกุล (ภาษาอังกฤษ)</span>
+              <span className="text-slate-400 font-normal text-xs">(แยก คำนำหน้า, ชื่อ, นามสกุล)</span>
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                ประเภทการจ้างงาน
-              </label>
-              <select
-                value={formData.employmentType}
-                onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all cursor-pointer"
-              >
-                <option value="ข้าราชการ">ข้าราชการ</option>
-                <option value="ลูกจ้างประจำ">ลูกจ้างประจำ</option>
-                <option value="พนักงานราชการ">พนักงานราชการ</option>
-                <option value="ลูกจ้างเหมาบริการ">ลูกจ้างเหมาบริการ</option>
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div className="sm:col-span-3">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">คำนำหน้า (Title)</label>
+                <select
+                  aria-label="คำนำหน้าภาษาอังกฤษ"
+                  value={formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Ms.')}
+                  onChange={(e) => {
+                    const newPrefixEn = e.target.value;
+                    const newFullNameEn = `${newPrefixEn} ${formData.firstNameEn || ''} ${formData.lastNameEn || ''}`.trim();
+                    setFormData({ ...formData, prefixEn: newPrefixEn, englishName: newFullNameEn });
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all cursor-pointer font-medium"
+                >
+                  <option value="Mr.">Mr. (นาย)</option>
+                  <option value="Mrs.">Mrs. (นาง)</option>
+                  <option value="Ms.">Ms. (นางสาว)</option>
+                  <option value="Miss">Miss (นางสาว)</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-4">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">ชื่อภาษาอังกฤษ (First Name)</label>
+                <input
+                  type="text"
+                  value={formData.firstNameEn}
+                  onChange={(e) => {
+                    const newFirst = e.target.value;
+                    const p = formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Ms.');
+                    setFormData({ 
+                      ...formData, 
+                      firstNameEn: newFirst, 
+                      englishName: `${p} ${newFirst} ${formData.lastNameEn || ''}`.trim() 
+                    });
+                  }}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                  placeholder="เช่น Panika"
+                />
+              </div>
+
+              <div className="sm:col-span-5">
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">นามสกุลภาษาอังกฤษ (Last Name)</label>
+                <input
+                  type="text"
+                  value={formData.lastNameEn}
+                  onChange={(e) => {
+                    const newLast = e.target.value;
+                    const p = formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Ms.');
+                    setFormData({ 
+                      ...formData, 
+                      lastNameEn: newLast, 
+                      englishName: `${p} ${formData.firstNameEn || ''} ${newLast}`.trim() 
+                    });
+                  }}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                  placeholder="เช่น Thammoeang"
+                />
+              </div>
             </div>
+          </div>
+
+          {/* Row: ประเภทการจ้างงาน */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              ประเภทการจ้างงาน
+            </label>
+            <select
+              value={formData.employmentType}
+              onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all cursor-pointer"
+            >
+              <option value="ข้าราชการ">ข้าราชการ</option>
+              <option value="ลูกจ้างประจำ">ลูกจ้างประจำ</option>
+              <option value="พนักงานราชการ">พนักงานราชการ</option>
+              <option value="ลูกจ้างเหมาบริการ">ลูกจ้างเหมาบริการ</option>
+            </select>
           </div>
 
           {/* Row 2: ตำแหน่งงาน และ ฝ่าย/กลุ่มงาน */}
