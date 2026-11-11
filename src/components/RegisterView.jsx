@@ -37,6 +37,23 @@ const JOB_TITLE_OPTIONS = [
   'เจ้าพนักงานการเงินและบัญชี',
 ];
 
+const DEPARTMENT_OPTIONS = [
+  'ฝ่ายบริหารทั่วไป',
+  'กลุ่มจัดตั้งและส่งเสริมสหกรณ์',
+  'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์',
+  'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์',
+  'กลุ่มตรวจการสหกรณ์',
+  'กลุ่มส่งเสริมสหกรณ์ 1',
+  'กลุ่มส่งเสริมสหกรณ์ 2',
+  'กลุ่มส่งเสริมสหกรณ์ 3',
+  'กลุ่มส่งเสริมสหกรณ์ 4',
+  'กลุ่มส่งเสริมสหกรณ์ 5',
+  'กลุ่มส่งเสริมสหกรณ์ 6',
+  'กลุ่มส่งเสริมสหกรณ์ 7',
+  'กลุ่มส่งเสริมสหกรณ์ 8',
+  'นิคมสหกรณ์ดงมูล',
+];
+
 export default function RegisterView({ onSwitchToLogin }) {
   const { register } = useLeave();
 
@@ -88,7 +105,7 @@ export default function RegisterView({ onSwitchToLogin }) {
       return;
     }
     if (!formData.department.trim()) {
-      setError('กรุณากรอกสังกัดกลุ่ม / ฝ่ายของคุณ');
+      setError('กรุณาเลือกสังกัดกลุ่ม / ฝ่าย');
       return;
     }
     if (!formData.password) {
@@ -328,7 +345,7 @@ export default function RegisterView({ onSwitchToLogin }) {
               {/* 2. ตำแหน่งงาน และ สังกัดกลุ่ม/ฝ่าย (2 columns) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* ตำแหน่งงาน */}
-                <div>
+                <div className="min-w-0">
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     ตำแหน่งงาน (Job Title) <span className="text-red-500">*</span>
                   </label>
@@ -343,7 +360,7 @@ export default function RegisterView({ onSwitchToLogin }) {
                         setFormData((prev) => ({ ...prev, title: e.target.value }));
                         setError('');
                       }}
-                      className={`w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer ${
+                      className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer ${
                         formData.title ? 'text-slate-800' : 'text-slate-400'
                       }`}
                     >
@@ -362,8 +379,8 @@ export default function RegisterView({ onSwitchToLogin }) {
                   </div>
                 </div>
 
-                {/* สังกัดกลุ่ม/ฝ่าย (User กรอกเอง) */}
-                <div>
+                {/* สังกัดกลุ่ม/ฝ่าย */}
+                <div className="min-w-0">
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     สังกัดกลุ่ม / ฝ่าย <span className="text-red-500">*</span>
                   </label>
@@ -371,16 +388,29 @@ export default function RegisterView({ onSwitchToLogin }) {
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                       <Building className="w-4 h-4" />
                     </div>
-                    <input
-                      type="text"
+                    <select
+                      aria-label="สังกัดกลุ่ม / ฝ่าย"
                       value={formData.department}
                       onChange={(e) => {
-                        setFormData({ ...formData, department: e.target.value });
+                        setFormData((prev) => ({ ...prev, department: e.target.value }));
                         setError('');
                       }}
-                      placeholder="เช่น ฝ่ายการเงิน"
-                      className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
-                    />
+                      className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer ${
+                        formData.department ? 'text-slate-800' : 'text-slate-400'
+                      }`}
+                    >
+                      <option value="" className="text-slate-400">
+                        -- เลือกสังกัดกลุ่ม / ฝ่าย --
+                      </option>
+                      {DEPARTMENT_OPTIONS.map((dept) => (
+                        <option key={dept} value={dept} className="text-slate-800">
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
                   </div>
                 </div>
               </div>
