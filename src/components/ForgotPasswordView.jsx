@@ -182,8 +182,8 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setError('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+    if (newPassword.length < 8) {
+      setError('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร');
       return;
     }
 
@@ -276,7 +276,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
               </div>
               <div className="text-xs">
                 <p className="font-semibold text-white">รหัสผ่านใหม่ที่ปลอดภัย</p>
-                <p className="text-emerald-200/70 text-[11px]">กำหนดความยาวอย่างน้อย 6 ตัวอักษร</p>
+                <p className="text-emerald-200/70 text-[11px]">กำหนดความยาวอย่างน้อย 8 ตัวอักษร</p>
               </div>
             </div>
 
@@ -519,7 +519,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                           setNewPassword(e.target.value);
                           setError('');
                         }}
-                        placeholder="ความยาวอย่างน้อย 6 ตัวอักษร"
+                        placeholder="ความยาวอย่างน้อย 8 ตัวอักษร"
                         className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
                       />
                       <button

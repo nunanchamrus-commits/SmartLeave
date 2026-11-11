@@ -19,7 +19,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
   const { login } = useLeave();
 
   const [email, setEmail] = useState('panika.t@smartleave.com');
-  const [password, setPassword] = useState('123456');
+  const [password, setPassword] = useState('12345678');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
@@ -48,7 +48,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
 
   const handleSelectDemoAccount = (acc) => {
     setEmail(acc.email);
-    setPassword('123456');
+    setPassword('12345678');
     setError('');
   };
 
@@ -60,6 +60,10 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
     }
     if (!password) {
       setError('กรุณากรอกรหัสผ่าน');
+      return;
+    }
+    if (password.length < 8) {
+      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร');
       return;
     }
 
@@ -302,7 +306,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
                       setPassword(e.target.value);
                       setError('');
                     }}
-                    placeholder="••••••••"
+                    placeholder="อย่างน้อย 8 ตัวอักษร"
                     className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
                   />
                   <button

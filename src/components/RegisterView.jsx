@@ -125,8 +125,8 @@ export default function RegisterView({ onSwitchToLogin }) {
       setError('กรุณากำหนดรหัสผ่าน');
       return;
     }
-    if (formData.password.length < 6) {
-      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+    if (formData.password.length < 8) {
+      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
@@ -501,7 +501,7 @@ export default function RegisterView({ onSwitchToLogin }) {
                         setFormData({ ...formData, password: e.target.value });
                         setError('');
                       }}
-                      placeholder="อย่างน้อย 6 ตัวอักษร"
+                      placeholder="อย่างน้อย 8 ตัวอักษร"
                       className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
                     />
                     <button
