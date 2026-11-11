@@ -14,9 +14,28 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowLeft,
+  ChevronDown,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
+
+const JOB_TITLE_OPTIONS = [
+  'นักวิชาการสหกรณ์ชำนาญการ',
+  'นักจัดการงานทั่วไป',
+  'นักวิชาการสหกรณ์ปฏิบัติการ',
+  'นักวิชาการสหกรณ์ชำนาญการพิเศษ',
+  'นิติกรปฏิบัติการ',
+  'นิติกรชำนาญการ',
+  'เจ้าพนักงานส่งเสริมสหกรณ์',
+  'เจ้าพนักงานส่งเสริมสหกรณ์อาวุโส',
+  'นายช่างโยธาอาวุโส',
+  'นักวิเคราะห์นโยบายและแผน',
+  'นิติกร',
+  'นักวิชาการสหกรณ์',
+  'นักวิชาการมาตราฐานสินค้า',
+  'เจ้าพนักงานธุรการ',
+  'เจ้าพนักงานการเงินและบัญชี',
+];
 
 export default function RegisterView({ onSwitchToLogin }) {
   const { register } = useLeave();
@@ -65,7 +84,7 @@ export default function RegisterView({ onSwitchToLogin }) {
       return;
     }
     if (!formData.title.trim()) {
-      setError('กรุณาระบุตำแหน่งงาน');
+      setError('กรุณาเลือกตำแหน่งงาน');
       return;
     }
     if (!formData.department.trim()) {
@@ -317,16 +336,29 @@ export default function RegisterView({ onSwitchToLogin }) {
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                       <Briefcase className="w-4 h-4" />
                     </div>
-                    <input
-                      type="text"
+                    <select
+                      aria-label="ตำแหน่งงาน"
                       value={formData.title}
                       onChange={(e) => {
-                        setFormData({ ...formData, title: e.target.value });
+                        setFormData((prev) => ({ ...prev, title: e.target.value }));
                         setError('');
                       }}
-                      placeholder="เช่น เจ้าหน้าที่การเงิน"
-                      className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
-                    />
+                      className={`w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer ${
+                        formData.title ? 'text-slate-800' : 'text-slate-400'
+                      }`}
+                    >
+                      <option value="" className="text-slate-400">
+                        -- เลือกตำแหน่งงาน --
+                      </option>
+                      {JOB_TITLE_OPTIONS.map((jobTitle) => (
+                        <option key={jobTitle} value={jobTitle} className="text-slate-800">
+                          {jobTitle}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
                   </div>
                 </div>
 
