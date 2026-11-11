@@ -91,6 +91,19 @@ class ApiService {
     });
   }
 
+  async updateLeaveRequest(requestId, leaveData) {
+    return this.request(`/leaves/${requestId}`, {
+      method: 'PUT',
+      body: JSON.stringify(leaveData),
+    });
+  }
+
+  async deleteLeaveRequest(requestId) {
+    return this.request(`/leaves/${requestId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getLeaveDetail(requestId) {
     return this.request(`/leaves/${requestId}`);
   }
@@ -127,6 +140,26 @@ class ApiService {
     });
   }
 
+  async createEmployee(employeeData) {
+    return this.request('/employees', {
+      method: 'POST',
+      body: JSON.stringify(employeeData),
+    });
+  }
+
+  async updateEmployee(employeeId, employeeData) {
+    return this.request(`/employees/${employeeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(employeeData),
+    });
+  }
+
+  async deleteEmployee(employeeId) {
+    return this.request(`/employees/${employeeId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ==========================================
   // 3. กฎหมาย PDPA และความยินยอม (Consent)
   // ==========================================
@@ -159,13 +192,35 @@ class ApiService {
     return this.request('/announcements');
   }
 
-  async getNotifications() {
-    return this.request('/notifications');
+  async getNotifications(userParam) {
+    let query = '';
+    if (userParam) {
+      if (typeof userParam === 'object') {
+        const id = userParam.id || userParam.raw_id;
+        const code = userParam.employeeId;
+        const email = userParam.email;
+        const params = new URLSearchParams();
+        if (id) params.set('userId', id);
+        if (code) params.set('employeeId', code);
+        if (email) params.set('email', email);
+        query = `?${params.toString()}`;
+      } else {
+        query = `?userId=${encodeURIComponent(userParam)}`;
+      }
+    }
+    return this.request(`/notifications${query}`);
   }
 
   async markNotificationAsRead(id) {
     return this.request(`/notifications/${id}/read`, {
       method: 'PUT',
+    });
+  }
+
+  async markAllNotificationsRead(userParam) {
+    return this.request('/notifications/read-all', {
+      method: 'POST',
+      body: JSON.stringify({ userId: userParam?.id || userParam?.raw_id || userParam }),
     });
   }
 }

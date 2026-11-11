@@ -219,6 +219,8 @@ export const announcementsData = [
 export const notificationsData = [
   {
     id: 'notif-1',
+    employeeId: 'EMP-001',
+    userId: 2,
     title: 'คำขอลาพักร้อนได้รับการอนุมัติแล้ว',
     description: 'คำขอลาพักร้อนวันที่ 20 พ.ย. 2569 – 21 พ.ย. 2569 ได้รับการอนุมัติจากคุณสมชาย มั่นคง',
     time: '10 นาทีที่แล้ว',
@@ -227,6 +229,8 @@ export const notificationsData = [
   },
   {
     id: 'notif-2',
+    employeeId: null,
+    userId: null,
     title: 'แจ้งเตือนวันหยุดนักขัตฤกษ์เดือนธันวาคม',
     description: 'หยุดวันที่ 5 ธ.ค. 2569 เนื่องในวันพ่อแห่งชาติ',
     time: '2 ชั่วโมงที่แล้ว',
@@ -235,6 +239,8 @@ export const notificationsData = [
   },
   {
     id: 'notif-3',
+    employeeId: 'EMP-001',
+    userId: 2,
     title: 'คำขอลากิจส่วนตัวอยู่ระหว่างการรอพิจารณา',
     description: 'คำขอลากิจวันที่ 5 พ.ย. 2569 ส่งต่อให้ผู้จัดการแผนกเรียบร้อยแล้ว',
     time: '1 วันที่แล้ว',
@@ -243,6 +249,8 @@ export const notificationsData = [
   },
   {
     id: 'notif-4',
+    employeeId: 'EMP-003',
+    userId: 4,
     title: 'คำขอลาป่วยได้รับการอนุมัติ',
     description: 'คำขอลาป่วยวันที่ 12 พ.ย. 2569 ได้รับการอนุมัติเรียบร้อย',
     time: '3 วันที่แล้ว',

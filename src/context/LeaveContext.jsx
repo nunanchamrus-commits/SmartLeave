@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import {
   initialUser,
   approverUser,
@@ -358,10 +358,12 @@ export function LeaveProvider({ children }) {
         setAnnouncements(annData);
       }
 
-      // 4. ดึงการแจ้งเตือนสดจาก Cloudflare D1
-      const notifData = await api.getNotifications();
-      if (Array.isArray(notifData) && notifData.length > 0) {
-        setNotifications(notifData);
+      // 4. ดึงการแจ้งเตือนสดจาก Cloudflare D1 เฉพาะของ user คนนั้น
+      if (currentUser) {
+        const notifData = await api.getNotifications(currentUser);
+        if (Array.isArray(notifData)) {
+          setNotifications(notifData);
+        }
       }
     } catch (err) {
       console.log('[D1 Live Sync Note]: Running in local offline state');
@@ -370,7 +372,7 @@ export function LeaveProvider({ children }) {
 
   useEffect(() => {
     fetchLiveDatabaseData();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentUser?.id, currentUser?.employeeId]);
 
   // Recalculate quotas based on employee quota record or approved requests for current user
   const recalculateQuotas = (requests, employeeList = employees, preferEmpQuotas = false, targetUser = currentUser) => {
@@ -587,6 +589,12 @@ export function LeaveProvider({ children }) {
     }
 
     if (target) {
+      const isTargetMe =
+        (currentUser?.id && target.userId && (currentUser.id === target.userId || currentUser.id === `usr-${target.userId}`)) ||
+        (currentUser?.employeeId && target.employeeId === currentUser.employeeId) ||
+        (currentUser?.email && target.employeeEmail && target.employeeEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+        (currentUser?.name && target.employeeName === currentUser.name);
+
       const notifType =
         normalizedStatus === 'อนุมัติ'
           ? 'approved'
@@ -595,6 +603,8 @@ export function LeaveProvider({ children }) {
           : 'pending';
       const newNotif = {
         id: `notif-${Date.now()}`,
+        userId: target.userId,
+        employeeId: target.employeeId,
         title: `อัปเดตสถานะคำขอ${target.type}: ${normalizedStatus}`,
         description: remark
           ? `คำขอวันที่ ${target.dateRange} • ${remark}`
@@ -603,10 +613,148 @@ export function LeaveProvider({ children }) {
         read: false,
         type: notifType,
       };
-      setNotifications((prev) => [newNotif, ...prev]);
+
+      if (isTargetMe) {
+        setNotifications((prev) => [newNotif, ...prev]);
+      }
     }
 
     showToast(`ปรับสถานะคำขอเป็น "${normalizedStatus}" เรียบร้อยแล้ว`, 'success');
+  };
+
+  // Update Leave Request Details (User or Admin)
+  const updateLeaveRequest = async (requestId, updatedData) => {
+    const updated = leaveRequests.map((r) => {
+      if (r.id === requestId) {
+        return {
+          ...r,
+          ...updatedData,
+        };
+      }
+      return r;
+    });
+
+    setLeaveRequests(updated);
+    recalculateQuotas(updated, employees, true);
+
+    if (selectedLeaveDetail?.id === requestId) {
+      setSelectedLeaveDetail((prev) => (prev ? { ...prev, ...updatedData } : null));
+    }
+
+    try {
+      if (api && api.updateLeaveRequest) {
+        await api.updateLeaveRequest(requestId, updatedData);
+      }
+    } catch (e) {
+      console.log('[Update Leave API Note]:', e.message);
+    }
+    showToast('แก้ไขรายละเอียดคำขอลางานเรียบร้อยแล้ว', 'success');
+  };
+
+  // Delete Leave Request (User or Admin)
+  const deleteLeaveRequest = async (requestId) => {
+    const updated = leaveRequests.filter((r) => r.id !== requestId);
+    setLeaveRequests(updated);
+    recalculateQuotas(updated, employees, true);
+
+    if (selectedLeaveDetail?.id === requestId) {
+      setSelectedLeaveDetail(null);
+    }
+
+    try {
+      if (api && api.deleteLeaveRequest) {
+        await api.deleteLeaveRequest(requestId);
+      }
+    } catch (e) {
+      console.log('[Delete Leave API Note]:', e.message);
+    }
+    showToast('ลบคำขอลางานเรียบร้อยแล้ว', 'success');
+  };
+
+  // Add Employee (Admin)
+  const addEmployee = async (newEmpData) => {
+    let createdEmp = {
+      id: `usr-${Date.now()}`,
+      employeeId: newEmpData.employeeCode || `EMP-${Date.now().toString().slice(-4)}`,
+      name: newEmpData.name || `${newEmpData.prefix || ''}${newEmpData.firstName || ''} ${newEmpData.lastName || ''}`.trim(),
+      ...newEmpData,
+      vacationRem: Number(newEmpData.vacationLimit ?? 10),
+      vacationLimit: Number(newEmpData.vacationLimit ?? 10),
+      vacationUsed: 0,
+      personalRem: Number(newEmpData.personalLimit ?? 15),
+      personalLimit: Number(newEmpData.personalLimit ?? 15),
+      personalUsed: 0,
+      sickRem: Number(newEmpData.sickLimit ?? 30),
+      sickLimit: Number(newEmpData.sickLimit ?? 30),
+      sickUsed: 0,
+      maternityRem: Number(newEmpData.maternityLimit ?? (newEmpData.gender === 'ชาย' ? 0 : 90)),
+      maternityLimit: Number(newEmpData.maternityLimit ?? (newEmpData.gender === 'ชาย' ? 0 : 90)),
+      maternityUsed: 0,
+      avatar: newEmpData.avatar || (newEmpData.gender === 'ชาย'
+        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
+        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'),
+    };
+
+    try {
+      if (api && api.createEmployee) {
+        const res = await api.createEmployee(newEmpData);
+        if (res && res.employee) {
+          createdEmp = { ...createdEmp, ...res.employee };
+        }
+      }
+    } catch (e) {
+      console.log('[Create Employee API Note]:', e.message);
+    }
+
+    const updated = [createdEmp, ...employees];
+    setEmployees(updated);
+    showToast(`เพิ่มพนักงาน ${createdEmp.name} เรียบร้อยแล้ว`, 'success');
+    return createdEmp;
+  };
+
+  // Update Employee (Admin)
+  const updateEmployee = async (empId, updatedData) => {
+    const updated = employees.map((emp) => {
+      if (emp.id === empId || emp.employeeId === empId) {
+        return {
+          ...emp,
+          ...updatedData,
+        };
+      }
+      return emp;
+    });
+    setEmployees(updated);
+
+    if (currentUser?.id === empId || currentUser?.employeeId === empId) {
+      const mergedUser = { ...currentUser, ...updatedData };
+      setCurrentUser(mergedUser);
+      sessionStorage.setItem('smartleave_user', JSON.stringify(mergedUser));
+      localStorage.setItem('smartleave_user', JSON.stringify(mergedUser));
+    }
+
+    try {
+      if (api && api.updateEmployee) {
+        await api.updateEmployee(empId, updatedData);
+      }
+    } catch (e) {
+      console.log('[Update Employee API Note]:', e.message);
+    }
+    showToast('บันทึกข้อมูลพนักงานเรียบร้อยแล้ว', 'success');
+  };
+
+  // Delete Employee (Admin)
+  const deleteEmployee = async (empId) => {
+    const updated = employees.filter((emp) => emp.id !== empId && emp.employeeId !== empId);
+    setEmployees(updated);
+
+    try {
+      if (api && api.deleteEmployee) {
+        await api.deleteEmployee(empId);
+      }
+    } catch (e) {
+      console.log('[Delete Employee API Note]:', e.message);
+    }
+    showToast('ลบพนักงานออกจากระบบเรียบร้อยแล้ว', 'success');
   };
 
   // Approve a request
@@ -620,14 +768,24 @@ export function LeaveProvider({ children }) {
   };
 
   // Mark all notifications read
-  const markAllNotificationsRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, read: true })));
+  const markAllNotificationsRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true, isRead: 1 })));
+    try {
+      if (api && api.markAllNotificationsRead) {
+        await api.markAllNotificationsRead(currentUser);
+      }
+    } catch (e) {}
   };
 
-  const markNotificationRead = (id) => {
-    setNotifications(
-      notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
+  const markNotificationRead = async (id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true, isRead: 1 } : n))
     );
+    try {
+      if (api && api.markNotificationAsRead) {
+        await api.markNotificationAsRead(id);
+      }
+    } catch (e) {}
   };
 
   // Update User Profile (Settings) - บันทึกลง Cloudflare D1 100%
@@ -941,7 +1099,27 @@ export function LeaveProvider({ children }) {
     showToast('รีเซ็ตข้อมูลระบบและซิงก์ Cloudflare D1 เรียบร้อยแล้ว', 'info');
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // กรองการแจ้งเตือนเฉพาะของ User แต่ละคน (Notifications Separation)
+  const userNotifications = useMemo(() => {
+    if (!currentUser) return [];
+    return notifications.filter((notif) => {
+      if (!notif) return false;
+      // ประกาศทั่วไปที่ไม่มีเจาะจงบุคคล (broadcast)
+      if (!notif.userId && !notif.employeeId && !notif.user_id) return true;
+
+      const currId = currentUser.id || currentUser.raw_id;
+      const cleanCurrId = String(currId || '').replace(/^usr-/, '');
+      const cleanNotifId = String(notif.userId || notif.user_id || '').replace(/^usr-/, '');
+      if (cleanNotifId && cleanCurrId && cleanNotifId === cleanCurrId) return true;
+      if (notif.employeeId && currentUser.employeeId && notif.employeeId === currentUser.employeeId) return true;
+      if (notif.email && currentUser.email && notif.email.toLowerCase() === currentUser.email.toLowerCase()) return true;
+      return false;
+    });
+  }, [notifications, currentUser]);
+
+  const unreadCount = useMemo(() => {
+    return userNotifications.filter((n) => !n.read && !n.isRead).length;
+  }, [userNotifications]);
 
   return (
     <LeaveContext.Provider
@@ -963,7 +1141,7 @@ export function LeaveProvider({ children }) {
         setSearchQuery,
         quotas,
         leaveRequests,
-        notifications,
+        notifications: userNotifications,
         unreadCount,
         announcements,
         isRequestModalOpen,
@@ -975,6 +1153,8 @@ export function LeaveProvider({ children }) {
         isNotificationsOpen,
         setIsNotificationsOpen,
         submitLeaveRequest,
+        updateLeaveRequest,
+        deleteLeaveRequest,
         updateLeaveStatus,
         approveLeaveRequest,
         rejectLeaveRequest,
@@ -983,6 +1163,9 @@ export function LeaveProvider({ children }) {
         resetToDefault,
         isAdmin,
         employees,
+        addEmployee,
+        updateEmployee,
+        deleteEmployee,
         updateEmployeeQuota,
         isDbConnected,
         fetchLiveDatabaseData,

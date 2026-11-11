@@ -43,6 +43,13 @@ const SCHEMA_COLUMNS = {
     used_days: 'REAL DEFAULT 0.0',
     pending_days: 'REAL DEFAULT 0.0',
   },
+  notifications: {
+    user_id: 'INTEGER',
+    title: 'TEXT',
+    description: 'TEXT',
+    type: "TEXT DEFAULT 'info'",
+    is_read: 'INTEGER DEFAULT 0',
+  },
 };
 
 // ฟังก์ชันแยกชื่อภาษาอังกฤษเป็น คำนำหน้า, ชื่อ, นามสกุล
@@ -703,6 +710,269 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
+    // 3.0.1 เพิ่มพนักงานใหม่โดย Admin (Create Employee)
+    // POST /api/employees
+    // -------------------------------------------------------------
+    if (path === '/employees' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      let {
+        prefix, firstName, lastName, fullName,
+        prefixEn, firstNameEn, lastNameEn, englishName,
+        employeeCode, email, phone, title, position, department,
+        gender, employmentType, role, password,
+        vacationLimit, personalLimit, sickLimit, maternityLimit
+      } = body;
+
+      if (!firstName && fullName) {
+        const parts = fullName.trim().split(/\s+/);
+        if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
+          prefix = prefix || parts[0];
+          firstName = parts[1] || '';
+          lastName = parts.slice(2).join(' ') || '';
+        } else {
+          firstName = parts[0] || '';
+          lastName = parts.slice(1).join(' ') || '';
+        }
+      }
+      if (!prefix) {
+        prefix = gender === 'หญิง' ? 'นางสาว' : 'นาย';
+      }
+
+      if ((!firstNameEn || !lastNameEn) && englishName) {
+        const parsedEn = parseEnglishName(englishName, gender, prefix);
+        prefixEn = prefixEn || parsedEn.prefixEn;
+        firstNameEn = firstNameEn || parsedEn.firstNameEn;
+        lastNameEn = lastNameEn || parsedEn.lastNameEn;
+      }
+      if (!prefixEn) {
+        prefixEn = (gender === 'ชาย' || prefix?.includes('นาย')) ? 'Mr.' : ((prefix?.includes('นาง') && !prefix?.includes('นางสาว')) ? 'Mrs.' : 'Ms.');
+      }
+      const fullEnglishName = englishName || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn || ''} ${lastNameEn || ''}`.trim();
+
+      const empCode = employeeCode || `EMP-${Date.now().toString().slice(-4)}`;
+      const jobPosition = position || title || 'เจ้าหน้าที่สหกรณ์';
+      const userGender = gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย');
+      const empType = employmentType || 'ข้าราชการ';
+      const roleId = (role === 'admin' || role === 'SYSTEM_ADMIN') ? 1 : ((role === 'approver' || role === 'APPROVER') ? 3 : 4);
+      const userEmail = email || `${empCode.toLowerCase()}@smartleave.com`;
+      const userPhone = phone || '081-234-5678';
+      const avatarUrl = userGender === 'ชาย'
+        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
+        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80';
+
+      let deptId = 6;
+      if (department) {
+        const dept = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
+          .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
+        if (dept) deptId = dept.department_id;
+      }
+
+      await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
+
+      const insertRes = await env.DB.prepare(`
+        INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `).bind(
+        empCode, userEmail, password || '123456',
+        prefix, firstName, lastName,
+        prefixEn, firstNameEn, lastNameEn, fullEnglishName,
+        userGender, empType, userPhone, roleId, deptId, jobPosition, avatarUrl
+      ).run();
+
+      const newUserId = insertRes.meta?.last_row_id;
+      if (newUserId) {
+        const curYear = new Date().getFullYear();
+        await env.DB.batch([
+          env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 1, ?, ?, ?, 0.0)")
+            .bind(newUserId, curYear, vacationLimit !== undefined ? Number(vacationLimit) : 10.0, vacationLimit !== undefined ? Number(vacationLimit) : 10.0),
+          env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 2, ?, ?, ?, 0.0)")
+            .bind(newUserId, curYear, sickLimit !== undefined ? Number(sickLimit) : 30.0, sickLimit !== undefined ? Number(sickLimit) : 30.0),
+          env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 3, ?, ?, ?, 0.0)")
+            .bind(newUserId, curYear, personalLimit !== undefined ? Number(personalLimit) : 15.0, personalLimit !== undefined ? Number(personalLimit) : 15.0),
+          env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 4, ?, ?, ?, 0.0)")
+            .bind(newUserId, curYear, maternityLimit !== undefined ? Number(maternityLimit) : (userGender === 'ชาย' ? 0.0 : 90.0), maternityLimit !== undefined ? Number(maternityLimit) : (userGender === 'ชาย' ? 0.0 : 90.0)),
+        ]).catch(() => {});
+      }
+
+      return jsonResponse({
+        success: true,
+        message: 'เพิ่มพนักงานใหม่ลง Cloudflare D1 เรียบร้อยแล้ว',
+        employee: {
+          id: `usr-${newUserId}`,
+          raw_id: newUserId,
+          employeeId: empCode,
+          name: `${prefix || ''}${firstName} ${lastName}`.trim(),
+          prefix, firstName, lastName,
+          prefixEn, firstNameEn, lastNameEn,
+          englishName: fullEnglishName,
+          email: userEmail,
+          phone: userPhone,
+          title: jobPosition,
+          department: department || 'กลุ่มส่งเสริมสหกรณ์ 1',
+          gender: userGender,
+          employmentType: empType,
+          role: roleId === 1 ? 'admin' : (roleId === 3 ? 'approver' : 'employee'),
+          vacationRem: vacationLimit !== undefined ? Number(vacationLimit) : 10.0,
+          personalRem: personalLimit !== undefined ? Number(personalLimit) : 15.0,
+          sickRem: sickLimit !== undefined ? Number(sickLimit) : 30.0,
+          maternityRem: maternityLimit !== undefined ? Number(maternityLimit) : (userGender === 'ชาย' ? 0.0 : 90.0),
+          avatar: avatarUrl
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 3.0.2 แก้ไขข้อมูลพนักงานโดย Admin (Update Employee Profile & Quota)
+    // PUT or POST /api/employees/:id
+    // -------------------------------------------------------------
+    if (path.match(/^\/employees\/([^/]+)$/) && (method === 'PUT' || method === 'POST') && !path.endsWith('/quotas')) {
+      const idMatch = path.match(/^\/employees\/([^/]+)$/);
+      const empIdStr = idMatch[1];
+      const body = await request.json().catch(() => ({}));
+
+      const cleanId = empIdStr.replace(/^usr-/, '');
+      let user = null;
+      if (/^\d+$/.test(cleanId)) {
+        user = await env.DB.prepare('SELECT user_id, employee_code, email FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
+      }
+      if (!user) {
+        user = await env.DB.prepare('SELECT user_id, employee_code, email FROM users WHERE employee_code = ? OR email = ?')
+          .bind(empIdStr, empIdStr).first().catch(() => null);
+      }
+
+      if (!user) {
+        return jsonResponse({ error: 'ไม่พบพนักงานที่ต้องการแก้ไข' }, 404);
+      }
+
+      const uId = user.user_id;
+      let {
+        prefix, firstName, lastName, name, fullName,
+        prefixEn, firstNameEn, lastNameEn, englishName,
+        phone, title, position, department, gender, employmentType, role, avatar
+      } = body;
+
+      const rawThai = name || fullName;
+      if (!firstName && rawThai) {
+        const parts = rawThai.trim().split(/\s+/);
+        if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
+          prefix = prefix || parts[0];
+          firstName = parts[1] || '';
+          lastName = parts.slice(2).join(' ') || '';
+        } else {
+          firstName = parts[0] || '';
+          lastName = parts.slice(1).join(' ') || '';
+        }
+      }
+
+      if ((!firstNameEn || !lastNameEn) && englishName) {
+        const parsedEn = parseEnglishName(englishName, gender, prefix);
+        prefixEn = prefixEn || parsedEn.prefixEn;
+        firstNameEn = firstNameEn || parsedEn.firstNameEn;
+        lastNameEn = lastNameEn || parsedEn.lastNameEn;
+      }
+      const fullEn = englishName || (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
+
+      let roleId = null;
+      if (role) {
+        roleId = (role === 'admin' || role === 'SYSTEM_ADMIN') ? 1 : ((role === 'approver' || role === 'APPROVER') ? 3 : 4);
+      }
+
+      let deptId = null;
+      if (department) {
+        const d = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
+          .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
+        if (d) deptId = d.department_id;
+      }
+
+      await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
+
+      await env.DB.prepare(`
+        UPDATE users
+        SET prefix = COALESCE(?, prefix),
+            first_name = COALESCE(?, first_name),
+            last_name = COALESCE(?, last_name),
+            prefix_en = COALESCE(?, prefix_en),
+            first_name_en = COALESCE(?, first_name_en),
+            last_name_en = COALESCE(?, last_name_en),
+            english_name = COALESCE(?, english_name),
+            gender = COALESCE(?, gender),
+            employment_type = COALESCE(?, employment_type),
+            phone = COALESCE(?, phone),
+            position = COALESCE(?, position),
+            department_id = COALESCE(?, department_id),
+            role_id = COALESCE(?, role_id),
+            avatar_url = COALESCE(?, avatar_url),
+            updated_at = datetime('now', 'localtime')
+        WHERE user_id = ?
+      `).bind(
+        prefix, firstName, lastName,
+        prefixEn, firstNameEn, lastNameEn, fullEn,
+        gender, employmentType, phone, position || title, deptId, roleId, avatar, uId
+      ).run();
+
+      // หากมีการส่งโควตาวันลามาด้วย ให้ปรับปรุงพร้อมกัน
+      const curYear = new Date().getFullYear();
+      if (body.vacationLimit !== undefined || body.vacationRem !== undefined || body.vacationUsed !== undefined) {
+        const limit = Number(body.vacationLimit ?? 10);
+        const used = Number(body.vacationUsed ?? 0);
+        const rem = Number(body.vacationRem ?? Math.max(0, limit - used));
+        await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, ?, ?, ?, ?)')
+          .bind(uId, curYear, limit, used, rem).run().catch(() => {});
+      }
+      if (body.sickLimit !== undefined || body.sickRem !== undefined || body.sickUsed !== undefined) {
+        const limit = Number(body.sickLimit ?? 30);
+        const used = Number(body.sickUsed ?? 0);
+        const rem = Number(body.sickRem ?? Math.max(0, limit - used));
+        await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, ?, ?, ?, ?)')
+          .bind(uId, curYear, limit, used, rem).run().catch(() => {});
+      }
+      if (body.personalLimit !== undefined || body.personalRem !== undefined || body.personalUsed !== undefined) {
+        const limit = Number(body.personalLimit ?? 15);
+        const used = Number(body.personalUsed ?? 0);
+        const rem = Number(body.personalRem ?? Math.max(0, limit - used));
+        await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, ?, ?, ?, ?)')
+          .bind(uId, curYear, limit, used, rem).run().catch(() => {});
+      }
+      if (body.maternityLimit !== undefined || body.maternityRem !== undefined || body.maternityUsed !== undefined) {
+        const limit = Number(body.maternityLimit ?? 90);
+        const used = Number(body.maternityUsed ?? 0);
+        const rem = Number(body.maternityRem ?? Math.max(0, limit - used));
+        await env.DB.prepare('INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, ?, ?, ?, ?)')
+          .bind(uId, curYear, limit, used, rem).run().catch(() => {});
+      }
+
+      return jsonResponse({
+        success: true,
+        message: 'อัปเดตข้อมูลพนักงานใน Cloudflare D1 เรียบร้อยแล้ว'
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 3.0.3 ลบ / ระงับการใช้งานพนักงานโดย Admin (Delete Employee)
+    // DELETE /api/employees/:id
+    // -------------------------------------------------------------
+    if (path.match(/^\/employees\/([^/]+)$/) && method === 'DELETE') {
+      const idMatch = path.match(/^\/employees\/([^/]+)$/);
+      const empIdStr = idMatch[1];
+      const cleanId = empIdStr.replace(/^usr-/, '');
+
+      let user = null;
+      if (/^\d+$/.test(cleanId)) {
+        user = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
+      }
+      if (!user) {
+        user = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ?').bind(empIdStr).first().catch(() => null);
+      }
+
+      if (user) {
+        await env.DB.prepare('UPDATE users SET is_active = 0, updated_at = datetime("now", "localtime") WHERE user_id = ?')
+          .bind(user.user_id).run();
+      }
+
+      return jsonResponse({ success: true, message: 'ลบ/ระงับการใช้งานพนักงานใน Cloudflare D1 เรียบร้อยแล้ว' });
+    }
+
+    // -------------------------------------------------------------
     // 3.1 ดึงโควตาวันลา (Get Quotas)
     // GET /api/quotas
     // -------------------------------------------------------------
@@ -776,17 +1046,67 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
-    // 3.4 ดึงการแจ้งเตือน (Get Notifications)
+    // 3.4 ดึงการแจ้งเตือน (Get Notifications) - แยกตามผู้ใช้แต่ละบุคคล
     // GET /api/notifications
     // -------------------------------------------------------------
     if (path === '/notifications' && method === 'GET') {
-      const { results } = await env.DB.prepare(`
-        SELECT notification_id as id, title, description, type, is_read as isRead, created_at as time
-        FROM notifications
-        ORDER BY created_at DESC
-      `).all();
+      const url = new URL(request.url);
+      const queryUserId = url.searchParams.get('userId');
+      const queryEmpCode = url.searchParams.get('employeeId');
+      const queryEmail = url.searchParams.get('email');
+
+      let targetUserId = null;
+      if (queryUserId) {
+        const cleanId = String(queryUserId).replace(/^usr-/, '');
+        if (/^\d+$/.test(cleanId)) targetUserId = Number(cleanId);
+      }
+      if (!targetUserId && (queryEmpCode || queryEmail)) {
+        const u = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ? OR email = ?')
+          .bind(queryEmpCode || '', queryEmail || '').first().catch(() => null);
+        if (u) targetUserId = u.user_id;
+      }
+
+      let results = [];
+      if (targetUserId) {
+        const q = await env.DB.prepare(`
+          SELECT notification_id as id, user_id as userId, title, description, type, is_read as isRead, created_at as time
+          FROM notifications
+          WHERE user_id = ? OR user_id IS NULL
+          ORDER BY created_at DESC
+        `).bind(targetUserId).all();
+        results = q.results || [];
+      } else {
+        const q = await env.DB.prepare(`
+          SELECT notification_id as id, user_id as userId, title, description, type, is_read as isRead, created_at as time
+          FROM notifications
+          ORDER BY created_at DESC
+          LIMIT 50
+        `).all();
+        results = q.results || [];
+      }
 
       return jsonResponse(results || []);
+    }
+
+    // -------------------------------------------------------------
+    // 3.5 ทำเครื่องหมายอ่านการแจ้งเตือน (Mark Read)
+    // -------------------------------------------------------------
+    if (path === '/notifications/read-all' && (method === 'PUT' || method === 'POST')) {
+      const body = await request.json().catch(() => ({}));
+      const cleanId = body.userId ? String(body.userId).replace(/^usr-/, '') : null;
+      if (cleanId && /^\d+$/.test(cleanId)) {
+        await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').bind(Number(cleanId)).run().catch(() => {});
+      } else {
+        await env.DB.prepare('UPDATE notifications SET is_read = 1').run().catch(() => {});
+      }
+      return jsonResponse({ success: true });
+    }
+
+    if (path.match(/^\/notifications\/([^/]+)\/read$/) && (method === 'PUT' || method === 'POST')) {
+      const idMatch = path.match(/^\/notifications\/([^/]+)\/read$/);
+      const notifId = idMatch[1];
+      await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ?').bind(notifId).run().catch(() => {});
+      return jsonResponse({ success: true });
     }
 
     // -------------------------------------------------------------
@@ -819,11 +1139,173 @@ export async function onRequest(context) {
         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
       `).bind(reqNo, userId, typeId, startDate, endDate, days || 1.0, reason).run();
 
+      // สร้างการแจ้งเตือนสำหรับผู้ยื่นคำขอคนนั้น
+      await env.DB.prepare(`
+        INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
+        VALUES (?, ?, ?, 'pending', 0, datetime('now', 'localtime'))
+      `).bind(
+        userId,
+        `ยื่นคำขอลาสำเร็จ`,
+        `คำขอลา ${reqNo} (${startDate} ถึง ${endDate}) บันทึกลงระบบแล้ว`
+      ).run().catch(() => {});
+
       return jsonResponse({ success: true, request_no: reqNo });
     }
 
     // -------------------------------------------------------------
-    // 5. อนุมัติคำขอลา (Approve Leave)
+    // 4.1 แก้ไขรายละเอียดคำขอลา (Edit Leave Request Details)
+    // PUT or PATCH /api/leaves/:id
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)$/) && (method === 'PUT' || method === 'PATCH') && !path.includes('/status') && !path.includes('/approve') && !path.includes('/reject') && !path.includes('/cancel')) {
+      const idMatch = path.match(/^\/leaves\/([^/]+)$/);
+      const leaveId = idMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const { typeKey, startDate, endDate, days, reason, substitute, status, note } = body;
+
+      const reqInfo = await env.DB.prepare('SELECT request_id, user_id, leave_type_id, total_days, start_date, end_date, status FROM leave_requests WHERE request_id = ? OR request_no = ?')
+        .bind(leaveId, leaveId).first().catch(() => null);
+
+      if (!reqInfo) {
+        return jsonResponse({ error: 'ไม่พบคำขอลางานที่ต้องการแก้ไข' }, 404);
+      }
+
+      let typeId = reqInfo.leave_type_id;
+      if (typeKey) {
+        const lt = await env.DB.prepare('SELECT leave_type_id FROM leave_types WHERE code = ?').bind(typeKey).first().catch(() => null);
+        if (lt) typeId = lt.leave_type_id;
+      }
+
+      const newDays = days !== undefined ? parseFloat(days) : reqInfo.total_days;
+      const newStatus = status || reqInfo.status;
+
+      await env.DB.prepare(`
+        UPDATE leave_requests
+        SET leave_type_id = COALESCE(?, leave_type_id),
+            start_date = COALESCE(?, start_date),
+            end_date = COALESCE(?, end_date),
+            total_days = COALESCE(?, total_days),
+            reason = COALESCE(?, reason),
+            rejection_reason = COALESCE(?, rejection_reason),
+            status = COALESCE(?, status),
+            updated_at = datetime('now', 'localtime')
+        WHERE request_id = ? OR request_no = ?
+      `).bind(typeId, startDate, endDate, newDays, reason, note, newStatus, leaveId, leaveId).run();
+
+      return jsonResponse({
+        success: true,
+        message: 'อัปเดตรายละเอียดคำขอลางานใน Cloudflare D1 เรียบร้อยแล้ว'
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 4.2 ลบคำขอลางาน (Delete Leave Request)
+    // DELETE /api/leaves/:id
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)$/) && method === 'DELETE') {
+      const idMatch = path.match(/^\/leaves\/([^/]+)$/);
+      const leaveId = idMatch[1];
+
+      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date, status FROM leave_requests WHERE request_id = ? OR request_no = ?')
+        .bind(leaveId, leaveId).first().catch(() => null);
+
+      if (reqInfo) {
+        if (reqInfo.status === 'approved' || reqInfo.status === 'อนุมัติ') {
+          const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
+          await env.DB.prepare(`
+            UPDATE employee_leave_quotas 
+            SET used_days = MAX(0, used_days - ?),
+                remaining_days = MIN(total_quota, remaining_days + ?),
+                updated_at = datetime('now', 'localtime')
+            WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
+          `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
+        }
+
+        await env.DB.prepare('DELETE FROM leave_requests WHERE request_id = ? OR request_no = ?')
+          .bind(leaveId, leaveId).run();
+      }
+
+      return jsonResponse({ success: true, message: 'ลบคำขอลางานออกจาก Cloudflare D1 เรียบร้อยแล้ว' });
+    }
+
+    // -------------------------------------------------------------
+    // 5. ปรับสถานะคำขอลา พร้อมบันทึกแจ้งเตือนไปยังผู้ใช้เฉพาะคน
+    // POST /api/leaves/:id/status
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)\/status$/) && method === 'POST') {
+      const idMatch = path.match(/^\/leaves\/([^/]+)\/status$/);
+      const leaveId = idMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const { status, remark } = body;
+
+      const reqInfo = await env.DB.prepare(`
+        SELECT lr.request_id, lr.request_no, lr.user_id, lr.leave_type_id, lr.start_date, lr.end_date, lr.total_days, lr.status, lt.name_th as type_name
+        FROM leave_requests lr
+        JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+        WHERE lr.request_id = ? OR lr.request_no = ?
+      `).bind(leaveId, leaveId).first().catch(() => null);
+
+      if (!reqInfo) {
+        return jsonResponse({ error: 'ไม่พบคำขอลางานที่ระบุ' }, 404);
+      }
+
+      const prevStatus = reqInfo.status;
+      const normalizedStatus = status || 'อยู่ระหว่างตรวจสอบ';
+
+      await env.DB.prepare(`
+        UPDATE leave_requests 
+        SET status = ?, 
+            rejection_reason = ?,
+            approved_at = CASE WHEN ? = 'อนุมัติ' THEN datetime('now', 'localtime') ELSE approved_at END,
+            updated_at = datetime('now', 'localtime')
+        WHERE request_id = ? OR request_no = ?
+      `).bind(normalizedStatus, remark || null, normalizedStatus, leaveId, leaveId).run();
+
+      // จัดการตัด/คืนโควตาวันลา
+      const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
+      if ((normalizedStatus === 'อนุมัติ' || normalizedStatus === 'approved') && prevStatus !== 'อนุมัติ' && prevStatus !== 'approved') {
+        await env.DB.prepare(`
+          UPDATE employee_leave_quotas 
+          SET used_days = used_days + ?,
+              remaining_days = MAX(0, total_quota - (used_days + ?)),
+              updated_at = datetime('now', 'localtime')
+          WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
+        `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
+      } else if (prevStatus === 'อนุมัติ' || prevStatus === 'approved') {
+        if (normalizedStatus !== 'อนุมัติ' && normalizedStatus !== 'approved') {
+          await env.DB.prepare(`
+            UPDATE employee_leave_quotas 
+            SET used_days = MAX(0, used_days - ?),
+                remaining_days = MIN(total_quota, remaining_days + ?),
+                updated_at = datetime('now', 'localtime')
+            WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
+          `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
+        }
+      }
+
+      // สร้างการแจ้งเตือนใน D1 สำหรับ User เจ้าของคำขอลาคนนั้นๆ โดยเฉพาะ
+      const notifType = normalizedStatus === 'อนุมัติ' ? 'approved' : (normalizedStatus === 'ไม่อนุมัติ' ? 'rejected' : 'pending');
+      const notifTitle = `อัปเดตสถานะคำขอลา: ${normalizedStatus}`;
+      const notifDesc = `คำขอลา ${reqInfo.request_no} (${reqInfo.type_name}) วันที่ ${reqInfo.start_date} ถึง ${reqInfo.end_date} เปลี่ยนสถานะเป็น "${normalizedStatus}"${remark ? ' • หมายเหตุ: ' + remark : ''}`;
+      
+      try {
+        await env.DB.prepare(`
+          INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
+          VALUES (?, ?, ?, ?, 0, datetime('now', 'localtime'))
+        `).bind(reqInfo.user_id, notifTitle, notifDesc, notifType).run();
+      } catch (notifErr) {
+        console.log('[Notification Insert Note]:', notifErr.message);
+      }
+
+      return jsonResponse({
+        success: true,
+        message: `ปรับสถานะคำขอเป็น "${normalizedStatus}" และแจ้งเตือนให้ผู้ใช้งานทราบเรียบร้อยแล้ว`,
+        requestId: reqInfo.request_id,
+        status: normalizedStatus
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 5.3 อนุมัติคำขอลา (Approve Leave)
     // POST /api/leaves/:id/approve
     // -------------------------------------------------------------
     if (path.match(/^\/leaves\/([^/]+)\/approve$/) && method === 'POST') {
@@ -837,8 +1319,7 @@ export async function onRequest(context) {
         WHERE request_id = ? OR request_no = ?
       `).bind(body.remark || 'อนุมัติเรียบร้อย', leaveId, leaveId).run();
 
-      // ปรับปรุงโควตาวันลาใน Cloudflare D1 อัตโนมัติ
-      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date FROM leave_requests WHERE request_id = ? OR request_no = ?')
+      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date, request_no FROM leave_requests WHERE request_id = ? OR request_no = ?')
         .bind(leaveId, leaveId).first().catch(() => null);
       if (reqInfo) {
         const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
@@ -849,6 +1330,11 @@ export async function onRequest(context) {
               updated_at = datetime('now', 'localtime')
           WHERE user_id = ? AND leave_type_id = ? AND fiscal_year = ?
         `).bind(reqInfo.total_days, reqInfo.total_days, reqInfo.user_id, reqInfo.leave_type_id, year).run().catch(() => {});
+
+        await env.DB.prepare(`
+          INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
+          VALUES (?, 'คำขอลาได้รับการอนุมัติแล้ว', ?, 'approved', 0, datetime('now', 'localtime'))
+        `).bind(reqInfo.user_id, `คำขอลา ${reqInfo.request_no} ได้รับการอนุมัติแล้ว (${body.remark || 'อนุมัติเรียบร้อย'})`).run().catch(() => {});
       }
 
       return jsonResponse({ success: true, message: 'อนุมัติคำขอลางานและตัดโควตาใน Cloudflare D1 สำเร็จ' });
@@ -869,6 +1355,15 @@ export async function onRequest(context) {
         WHERE request_id = ? OR request_no = ?
       `).bind(body.remark || 'ไม่อนุมัติ', leaveId, leaveId).run();
 
+      const reqInfo = await env.DB.prepare('SELECT user_id, request_no FROM leave_requests WHERE request_id = ? OR request_no = ?')
+        .bind(leaveId, leaveId).first().catch(() => null);
+      if (reqInfo) {
+        await env.DB.prepare(`
+          INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
+          VALUES (?, 'คำขอลาไม่ได้รับการอนุมัติ', ?, 'rejected', 0, datetime('now', 'localtime'))
+        `).bind(reqInfo.user_id, `คำขอลา ${reqInfo.request_no} ไม่ได้รับการอนุมัติ: ${body.remark || 'เนื่องจากมีภารกิจจำเป็น'}`).run().catch(() => {});
+      }
+
       return jsonResponse({ success: true, message: 'ปฏิเสธคำขอลางานใน Cloudflare D1 เรียบร้อย' });
     }
 
@@ -879,7 +1374,7 @@ export async function onRequest(context) {
     if (path.match(/^\/leaves\/([^/]+)\/cancel$/) && method === 'POST') {
       const idMatch = path.match(/^\/leaves\/([^/]+)\/cancel$/);
       const leaveId = idMatch[1];
-      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date, status FROM leave_requests WHERE request_id = ? OR request_no = ?')
+      const reqInfo = await env.DB.prepare('SELECT user_id, leave_type_id, total_days, start_date, status, request_no FROM leave_requests WHERE request_id = ? OR request_no = ?')
         .bind(leaveId, leaveId).first().catch(() => null);
 
       await env.DB.prepare(`
@@ -888,8 +1383,7 @@ export async function onRequest(context) {
         WHERE request_id = ? OR request_no = ?
       `).bind(leaveId, leaveId).run();
 
-      // คืนโควตาหากเคยอนุมัติไปแล้ว
-      if (reqInfo && reqInfo.status === 'approved') {
+      if (reqInfo && (reqInfo.status === 'approved' || reqInfo.status === 'อนุมัติ')) {
         const year = reqInfo.start_date ? new Date(reqInfo.start_date).getFullYear() : new Date().getFullYear();
         await env.DB.prepare(`
           UPDATE employee_leave_quotas 

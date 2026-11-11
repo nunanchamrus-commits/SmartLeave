@@ -11,6 +11,8 @@ import {
   CheckCircle,
   Clock,
   Info,
+  XCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 
@@ -187,12 +189,22 @@ export default function Header({ onMenuClick }) {
                             <CheckCircle className="w-4 h-4" />
                           </div>
                         )}
-                        {notif.type === 'pending' && (
+                        {(notif.type === 'pending' || notif.type === 'status') && (
                           <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
                             <Clock className="w-4 h-4" />
                           </div>
                         )}
-                        {notif.type === 'info' && (
+                        {notif.type === 'rejected' && (
+                          <div className="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+                            <XCircle className="w-4 h-4" />
+                          </div>
+                        )}
+                        {notif.type === 'warning' && (
+                          <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                            <AlertCircle className="w-4 h-4" />
+                          </div>
+                        )}
+                        {notif.type !== 'approved' && notif.type !== 'pending' && notif.type !== 'status' && notif.type !== 'rejected' && notif.type !== 'warning' && (
                           <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
                             <Info className="w-4 h-4" />
                           </div>

@@ -9,6 +9,16 @@ import {
   Save,
   CalendarCheck,
   Clock,
+  Plus,
+  Trash2,
+  UserPlus,
+  Globe,
+  Briefcase,
+  Building,
+  Mail,
+  Phone,
+  User,
+  CheckCircle2,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 
@@ -31,13 +41,31 @@ function matchesEmployee(req, emp) {
 }
 
 export default function AdminEmployeesView() {
-  const { employees, leaveRequests, updateEmployeeQuota, showToast } = useLeave();
+  const { employees, leaveRequests, updateEmployeeQuota, addEmployee, updateEmployee, deleteEmployee, showToast } = useLeave();
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [editingEmp, setEditingEmp] = useState(null);
+  const [activeEditTab, setActiveEditTab] = useState('profile'); // 'profile' | 'quotas'
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [deletingEmp, setDeletingEmp] = useState(null);
 
-  // Modal edit form state (Limit, Used, Rem per leave type)
+  // Modal edit form state (Profile + Quotas)
   const [editForm, setEditForm] = useState({
+    prefix: '',
+    firstName: '',
+    lastName: '',
+    name: '',
+    prefixEn: 'Mr.',
+    firstNameEn: '',
+    lastNameEn: '',
+    englishName: '',
+    gender: 'หญิง',
+    employmentType: 'ข้าราชการ',
+    title: '',
+    department: '',
+    role: 'employee',
+    email: '',
+    phone: '',
     vacationLimit: 10,
     vacationUsed: 0,
     vacationRem: 10,
@@ -50,6 +78,27 @@ export default function AdminEmployeesView() {
     maternityLimit: 90,
     maternityUsed: 0,
     maternityRem: 90,
+  });
+
+  const [addForm, setAddForm] = useState({
+    prefix: 'นางสาว',
+    firstName: '',
+    lastName: '',
+    prefixEn: 'Ms.',
+    firstNameEn: '',
+    lastNameEn: '',
+    gender: 'หญิง',
+    employmentType: 'ข้าราชการ',
+    title: 'นักวิชาการสหกรณ์ปฏิบัติการ',
+    department: 'กลุ่มส่งเสริมสหกรณ์ 1',
+    role: 'employee',
+    email: '',
+    phone: '081-234-5678',
+    password: 'password123',
+    vacationLimit: 10,
+    personalLimit: 15,
+    sickLimit: 30,
+    maternityLimit: 90,
   });
 
   const getEmployeeLeaveStats = (emp) => {
@@ -120,7 +169,55 @@ export default function AdminEmployeesView() {
   const handleOpenEdit = (emp) => {
     const stats = getEmployeeLeaveStats(emp);
     setEditingEmp(emp);
+    setActiveEditTab('profile');
+
+    let prefix = emp.prefix || '';
+    let firstName = emp.firstName || '';
+    let lastName = emp.lastName || '';
+    if (!firstName && emp.name) {
+      const parts = emp.name.trim().split(/\s+/);
+      if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
+        prefix = parts[0];
+        firstName = parts[1] || '';
+        lastName = parts.slice(2).join(' ') || '';
+      } else {
+        firstName = parts[0] || '';
+        lastName = parts.slice(1).join(' ') || '';
+      }
+    }
+
+    let prefixEn = emp.prefixEn || (emp.gender === 'ชาย' ? 'Mr.' : 'Ms.');
+    let firstNameEn = emp.firstNameEn || '';
+    let lastNameEn = emp.lastNameEn || '';
+    if (!firstNameEn && emp.englishName) {
+      const parts = emp.englishName.trim().split(/\s+/);
+      const firstLower = parts[0].toLowerCase().replace(/\.$/, '');
+      if (['mr', 'mrs', 'ms', 'miss'].includes(firstLower)) {
+        prefixEn = firstLower === 'mr' ? 'Mr.' : (firstLower === 'mrs' ? 'Mrs.' : (firstLower === 'miss' ? 'Miss' : 'Ms.'));
+        firstNameEn = parts[1] || '';
+        lastNameEn = parts.slice(2).join(' ') || '';
+      } else {
+        firstNameEn = parts[0] || '';
+        lastNameEn = parts.slice(1).join(' ') || '';
+      }
+    }
+
     setEditForm({
+      prefix,
+      firstName,
+      lastName,
+      name: emp.name || '',
+      prefixEn,
+      firstNameEn,
+      lastNameEn,
+      englishName: emp.englishName || `${prefixEn} ${firstNameEn} ${lastNameEn}`.trim(),
+      gender: emp.gender || 'หญิง',
+      employmentType: emp.employmentType || 'ข้าราชการ',
+      title: emp.title || '',
+      department: emp.department || '',
+      role: emp.role || 'employee',
+      email: emp.email || '',
+      phone: emp.phone || '',
       vacationLimit: stats.vacationLimit,
       vacationUsed: stats.vacationUsed,
       vacationRem: stats.vacationRem,
@@ -163,7 +260,6 @@ export default function AdminEmployeesView() {
         };
       }
 
-      // part === 'Rem'
       if (numVal > curLimit) {
         return {
           ...prev,
@@ -193,7 +289,18 @@ export default function AdminEmployeesView() {
     e.preventDefault();
     if (!editingEmp) return;
 
+    const fullThaiName = editForm.firstName
+      ? `${editForm.prefix || ''}${editForm.firstName} ${editForm.lastName || ''}`.trim()
+      : editForm.name;
+    const fullEnglishName = editForm.firstNameEn
+      ? `${editForm.prefixEn ? editForm.prefixEn + ' ' : ''}${editForm.firstNameEn} ${editForm.lastNameEn || ''}`.trim()
+      : editForm.englishName;
+
     const payload = {
+      ...editingEmp,
+      ...editForm,
+      name: fullThaiName,
+      englishName: fullEnglishName,
       vacationLimit: Math.max(0, Number(editForm.vacationLimit || 0)),
       vacationUsed: Math.max(0, Number(editForm.vacationUsed || 0)),
       vacationRem: Math.max(0, Number(editForm.vacationRem || 0)),
@@ -208,8 +315,44 @@ export default function AdminEmployeesView() {
       maternityRem: Math.max(0, Number(editForm.maternityRem || 0)),
     };
 
-    await updateEmployeeQuota(editingEmp.id, payload);
+    if (updateEmployee) {
+      await updateEmployee(editingEmp.id, payload);
+    } else {
+      await updateEmployeeQuota(editingEmp.id, payload);
+    }
     setEditingEmp(null);
+  };
+
+  const handleSaveAdd = async (e) => {
+    e.preventDefault();
+    if (!addForm.firstName.trim()) {
+      if (showToast) showToast('กรุณาระบุชื่อพนักงาน', 'error');
+      return;
+    }
+
+    const fullThaiName = `${addForm.prefix || ''}${addForm.firstName} ${addForm.lastName || ''}`.trim();
+    const fullEnglishName = addForm.firstNameEn
+      ? `${addForm.prefixEn ? addForm.prefixEn + ' ' : ''}${addForm.firstNameEn} ${addForm.lastNameEn || ''}`.trim()
+      : '';
+
+    const payload = {
+      ...addForm,
+      name: fullThaiName,
+      englishName: fullEnglishName,
+    };
+
+    if (addEmployee) {
+      await addEmployee(payload);
+    }
+    setShowAddModal(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingEmp) return;
+    if (deleteEmployee) {
+      await deleteEmployee(deletingEmp.id);
+    }
+    setDeletingEmp(null);
   };
 
   const handleExportCsv = () => {
@@ -297,7 +440,16 @@ export default function AdminEmployeesView() {
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs"
+          >
+            <UserPlus className="w-4 h-4 text-emerald-200" />
+            <span>เพิ่มพนักงานใหม่</span>
+          </button>
+
           <button
             onClick={handleExportCsv}
             className="flex items-center space-x-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs sm:text-sm font-medium transition-all shadow-xs"
@@ -492,14 +644,25 @@ export default function AdminEmployeesView() {
 
                       {/* Action */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(emp)}
-                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center space-x-1"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                          <span>แก้ไขวันลา</span>
-                        </button>
+                        <div className="flex items-center justify-end space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(emp)}
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center space-x-1"
+                            title="แก้ไขข้อมูลและสิทธิ์วันลา"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>แก้ไข</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingEmp(emp)}
+                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-400 font-semibold text-xs transition-colors inline-flex items-center"
+                            title="ลบพนักงานออกจากระบบ"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -510,7 +673,7 @@ export default function AdminEmployeesView() {
         </div>
       </div>
 
-      {/* Edit Leave Days & Quota Modal */}
+      {/* Edit Employee & Quota Modal */}
       {editingEmp && editingStats && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
@@ -518,7 +681,7 @@ export default function AdminEmployeesView() {
               <div className="flex items-center space-x-2.5">
                 <Shield className="w-5 h-5 text-amber-400" />
                 <h3 className="font-bold text-base font-prompt">
-                  แก้ไขจำนวนวันลาและสิทธิ์ลา: {editingEmp.name}
+                  แก้ไขข้อมูลและสิทธิ์: {editingEmp.name}
                 </h3>
               </div>
               <button
@@ -527,6 +690,34 @@ export default function AdminEmployeesView() {
                 className="p-1 rounded-full hover:bg-white/15 text-emerald-100"
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="flex border-b border-slate-200 px-6 pt-3 bg-slate-50 gap-4">
+              <button
+                type="button"
+                onClick={() => setActiveEditTab('profile')}
+                className={`pb-3 font-semibold text-xs sm:text-sm border-b-2 transition-colors flex items-center space-x-1.5 ${
+                  activeEditTab === 'profile'
+                    ? 'border-emerald-600 text-emerald-800'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <User className="w-4 h-4" />
+                <span>ข้อมูลส่วนตัวและสิทธิ์</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveEditTab('quotas')}
+                className={`pb-3 font-semibold text-xs sm:text-sm border-b-2 transition-colors flex items-center space-x-1.5 ${
+                  activeEditTab === 'quotas'
+                    ? 'border-emerald-600 text-emerald-800'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <CalendarCheck className="w-4 h-4" />
+                <span>สิทธิ์และโควตาวันลา</span>
               </button>
             </div>
 
@@ -557,111 +748,300 @@ export default function AdminEmployeesView() {
                 </div>
               </div>
 
-              {/* Approved Leave History Snapshot for this Employee */}
-              {editingStats.approvedLeaves.length > 0 && (
-                <div className="p-3 rounded-2xl bg-amber-50/50 border border-amber-100 space-y-2">
-                  <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-900">
-                    <Clock className="w-3.5 h-3.5 text-amber-600" />
-                    <span>รายการที่อนุมัติแล้ว ({editingStats.approvedCount} ครั้ง)</span>
+              {activeEditTab === 'profile' ? (
+                /* Profile & Role Tab */
+                <div className="space-y-4">
+                  {/* ชื่อภาษาไทย */}
+                  <div className="space-y-2">
+                    <label className="font-bold text-slate-700 flex items-center space-x-1.5">
+                      <span>ชื่อ - นามสกุล (ภาษาไทย)</span>
+                    </label>
+                    <div className="grid grid-cols-12 gap-2">
+                      <div className="col-span-4 sm:col-span-3">
+                        <select
+                          value={editForm.prefix}
+                          onChange={(e) => setEditForm((p) => ({ ...p, prefix: e.target.value }))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                        >
+                          <option value="นาย">นาย</option>
+                          <option value="นาง">นาง</option>
+                          <option value="นางสาว">นางสาว</option>
+                          <option value="ดร.">ดร.</option>
+                          <option value="">(ไม่มี)</option>
+                        </select>
+                      </div>
+                      <div className="col-span-4 sm:col-span-5">
+                        <input
+                          type="text"
+                          placeholder="ชื่อจริง (ภาษาไทย)"
+                          value={editForm.firstName}
+                          onChange={(e) => setEditForm((p) => ({ ...p, firstName: e.target.value }))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                        />
+                      </div>
+                      <div className="col-span-4 sm:col-span-4">
+                        <input
+                          type="text"
+                          placeholder="นามสกุล"
+                          value={editForm.lastName}
+                          onChange={(e) => setEditForm((p) => ({ ...p, lastName: e.target.value }))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
-                    {editingStats.approvedLeaves.map((lr) => (
-                      <div
-                        key={lr.id}
-                        className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-amber-100/80 text-slate-700"
+
+                  {/* ชื่อภาษาอังกฤษ */}
+                  <div className="space-y-2">
+                    <label className="font-bold text-slate-700 flex items-center space-x-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-500" />
+                      <span>ชื่อ - นามสกุล (ภาษาอังกฤษ)</span>
+                    </label>
+                    <div className="grid grid-cols-12 gap-2">
+                      <div className="col-span-4 sm:col-span-3">
+                        <select
+                          value={editForm.prefixEn}
+                          onChange={(e) => setEditForm((p) => ({ ...p, prefixEn: e.target.value }))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                        >
+                          <option value="Mr.">Mr.</option>
+                          <option value="Mrs.">Mrs.</option>
+                          <option value="Ms.">Ms.</option>
+                          <option value="Miss">Miss</option>
+                          <option value="Dr.">Dr.</option>
+                          <option value="">(None)</option>
+                        </select>
+                      </div>
+                      <div className="col-span-4 sm:col-span-5">
+                        <input
+                          type="text"
+                          placeholder="First Name (EN)"
+                          value={editForm.firstNameEn}
+                          onChange={(e) => setEditForm((p) => ({ ...p, firstNameEn: e.target.value }))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                        />
+                      </div>
+                      <div className="col-span-4 sm:col-span-4">
+                        <input
+                          type="text"
+                          placeholder="Last Name (EN)"
+                          value={editForm.lastNameEn}
+                          onChange={(e) => setEditForm((p) => ({ ...p, lastNameEn: e.target.value }))}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* เพศ & ประเภทบุคลากร */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">เพศ</label>
+                      <select
+                        value={editForm.gender}
+                        onChange={(e) => setEditForm((p) => ({ ...p, gender: e.target.value }))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
                       >
-                        <span className="font-semibold">{lr.type}</span>
-                        <span className="text-slate-500">{lr.dateRange}</span>
-                        <span className="font-bold text-emerald-700">{lr.days} วัน</span>
+                        <option value="หญิง">หญิง</option>
+                        <option value="ชาย">ชาย</option>
+                        <option value="อื่นๆ">อื่นๆ</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">ประเภทบุคลากร</label>
+                      <select
+                        value={editForm.employmentType}
+                        onChange={(e) => setEditForm((p) => ({ ...p, employmentType: e.target.value }))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                      >
+                        <option value="ข้าราชการ">ข้าราชการ</option>
+                        <option value="พนักงานราชการ">พนักงานราชการ</option>
+                        <option value="ลูกจ้างประจำ">ลูกจ้างประจำ</option>
+                        <option value="ลูกจ้างชั่วคราว">ลูกจ้างชั่วคราว</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* ตำแหน่ง & แผนก */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                        <span>ตำแหน่ง</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.title}
+                        onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                        <Building className="w-3.5 h-3.5 text-slate-400" />
+                        <span>กลุ่ม / ฝ่าย / แผนก</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.department}
+                        onChange={(e) => setEditForm((p) => ({ ...p, department: e.target.value }))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* สิทธิ์เข้าใช้งาน & ข้อมูลติดต่อ */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                        <Shield className="w-3.5 h-3.5 text-amber-500" />
+                        <span>สิทธิ์การใช้งาน</span>
+                      </label>
+                      <select
+                        value={editForm.role}
+                        onChange={(e) => setEditForm((p) => ({ ...p, role: e.target.value }))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                      >
+                        <option value="employee">ผู้ใช้งานทั่วไป (User)</option>
+                        <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
+                        <span>อีเมล</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>เบอร์โทรศัพท์</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.phone}
+                        onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Quota Management Tab */
+                <div className="space-y-4">
+                  {/* Approved Leave History Snapshot for this Employee */}
+                  {editingStats.approvedLeaves.length > 0 && (
+                    <div className="p-3 rounded-2xl bg-amber-50/50 border border-amber-100 space-y-2">
+                      <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-900">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>รายการที่อนุมัติแล้ว ({editingStats.approvedCount} ครั้ง)</span>
+                      </div>
+                      <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
+                        {editingStats.approvedLeaves.map((lr) => (
+                          <div
+                            key={lr.id}
+                            className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-amber-100/80 text-slate-700"
+                          >
+                            <span className="font-semibold">{lr.type}</span>
+                            <span className="text-slate-500">{lr.dateRange}</span>
+                            <span className="font-bold text-emerald-700">{lr.days} วัน</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4 Leave-Type Editable Grid */}
+                  <div className="space-y-2.5">
+                    <div className="hidden sm:grid grid-cols-12 gap-2 px-3 text-[11px] font-bold text-slate-500">
+                      <div className="col-span-4">ประเภทการลา</div>
+                      <div className="col-span-3 text-center">สิทธิ์รวมต่อปี (วัน)</div>
+                      <div className="col-span-2 text-center">ใช้ไปแล้ว (วัน)</div>
+                      <div className="col-span-3 text-center">คงเหลือ (วัน)</div>
+                    </div>
+
+                    {LEAVE_QUOTA_TYPES.map((lt) => (
+                      <div
+                        key={lt.key}
+                        className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center p-3 rounded-2xl bg-slate-50/70 border border-slate-200/70"
+                      >
+                        <div className="sm:col-span-4 flex items-center justify-between sm:justify-start sm:space-x-2">
+                          <div className="flex items-center space-x-2">
+                            <span className={`w-2.5 h-2.5 rounded-full ${lt.dotColor}`} />
+                            <div>
+                              <p className={`font-bold text-xs sm:text-sm ${lt.textColor}`}>{lt.label}</p>
+                              <p className="text-[11px] text-slate-400">
+                                อนุมัติแล้ว {editingStats.byTypeCount[lt.key]} ครั้ง
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="sm:hidden block text-[11px] text-slate-500 mb-1">
+                            สิทธิ์รวมต่อปี (วัน)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={editForm[`${lt.key}Limit`]}
+                            onChange={(e) => handleQuotaFieldChange(lt.key, 'Limit', e.target.value)}
+                            onBlur={() => handleQuotaFieldBlur(lt.key, 'Limit')}
+                            className="w-full px-3 py-1.5 text-center bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="sm:hidden block text-[11px] text-slate-500 mb-1">
+                            ใช้ไปแล้ว (วัน)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={editForm[`${lt.key}Used`]}
+                            onChange={(e) => handleQuotaFieldChange(lt.key, 'Used', e.target.value)}
+                            onBlur={() => handleQuotaFieldBlur(lt.key, 'Used')}
+                            className="w-full px-3 py-1.5 text-center bg-white border border-slate-200 rounded-xl font-semibold text-amber-700 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <label className="sm:hidden block text-[11px] text-slate-500 mb-1">
+                            คงเหลือ (วัน)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={editForm[`${lt.key}Rem`]}
+                            onChange={(e) => handleQuotaFieldChange(lt.key, 'Rem', e.target.value)}
+                            onBlur={() => handleQuotaFieldBlur(lt.key, 'Rem')}
+                            className="w-full px-3 py-1.5 text-center bg-white border border-emerald-200 rounded-xl font-bold text-[#155A32] outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
+
+                  <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      <strong>สรุปสิทธิ์ลาทั่วไป (พักร้อน + ลากิจ + ลาป่วย):</strong> ใช้ไปแล้ว{' '}
+                      <strong>{previewGeneralUsed}</strong> วัน
+                    </span>
+                    <span className="font-bold text-[#155A32]">
+                      คงเหลือ {previewGeneralRem} จาก {previewGeneralLimit} วัน
+                    </span>
+                  </div>
                 </div>
               )}
-
-              {/* 4 Leave-Type Editable Grid */}
-              <div className="space-y-2.5">
-                <div className="hidden sm:grid grid-cols-12 gap-2 px-3 text-[11px] font-bold text-slate-500">
-                  <div className="col-span-4">ประเภทการลา</div>
-                  <div className="col-span-3 text-center">สิทธิ์รวมต่อปี (วัน)</div>
-                  <div className="col-span-2 text-center">ใช้ไปแล้ว (วัน)</div>
-                  <div className="col-span-3 text-center">คงเหลือ (วัน)</div>
-                </div>
-
-                {LEAVE_QUOTA_TYPES.map((lt) => (
-                  <div
-                    key={lt.key}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center p-3 rounded-2xl bg-slate-50/70 border border-slate-200/70"
-                  >
-                    <div className="sm:col-span-4 flex items-center justify-between sm:justify-start sm:space-x-2">
-                      <div className="flex items-center space-x-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${lt.dotColor}`} />
-                        <div>
-                          <p className={`font-bold text-xs sm:text-sm ${lt.textColor}`}>{lt.label}</p>
-                          <p className="text-[11px] text-slate-400">
-                            อนุมัติแล้ว {editingStats.byTypeCount[lt.key]} ครั้ง
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="sm:col-span-3">
-                      <label className="sm:hidden block text-[11px] text-slate-500 mb-1">
-                        สิทธิ์รวมต่อปี (วัน)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={editForm[`${lt.key}Limit`]}
-                        onChange={(e) => handleQuotaFieldChange(lt.key, 'Limit', e.target.value)}
-                        onBlur={() => handleQuotaFieldBlur(lt.key, 'Limit')}
-                        className="w-full px-3 py-1.5 text-center bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="sm:hidden block text-[11px] text-slate-500 mb-1">
-                        ใช้ไปแล้ว (วัน)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={editForm[`${lt.key}Used`]}
-                        onChange={(e) => handleQuotaFieldChange(lt.key, 'Used', e.target.value)}
-                        onBlur={() => handleQuotaFieldBlur(lt.key, 'Used')}
-                        className="w-full px-3 py-1.5 text-center bg-white border border-slate-200 rounded-xl font-semibold text-amber-700 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-3">
-                      <label className="sm:hidden block text-[11px] text-slate-500 mb-1">
-                        คงเหลือ (วัน)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={editForm[`${lt.key}Rem`]}
-                        onChange={(e) => handleQuotaFieldChange(lt.key, 'Rem', e.target.value)}
-                        onBlur={() => handleQuotaFieldBlur(lt.key, 'Rem')}
-                        className="w-full px-3 py-1.5 text-center bg-white border border-emerald-200 rounded-xl font-bold text-[#155A32] outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
-                <span>
-                  <strong>สรุปสิทธิ์ลาทั่วไป (พักร้อน + ลากิจ + ลาป่วย):</strong> ใช้ไปแล้ว{' '}
-                  <strong>{previewGeneralUsed}</strong> วัน
-                </span>
-                <span className="font-bold text-[#155A32]">
-                  คงเหลือ {previewGeneralRem} จาก {previewGeneralLimit} วัน
-                </span>
-              </div>
 
               <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
@@ -676,10 +1056,343 @@ export default function AdminEmployeesView() {
                   className="flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs shadow-sm transition-all"
                 >
                   <Save className="w-4 h-4" />
-                  <span>บันทึกจำนวนวันลา</span>
+                  <span>บันทึกการแก้ไข</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Employee Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 bg-[#123E24] text-white">
+              <div className="flex items-center space-x-2.5">
+                <UserPlus className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-base font-prompt">เพิ่มพนักงานใหม่เข้าสู่ระบบ</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="p-1 rounded-full hover:bg-white/15 text-emerald-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdd} className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
+              {/* ชื่อภาษาไทย */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-700 flex items-center space-x-1.5">
+                  <span>ชื่อ - นามสกุล (ภาษาไทย) *</span>
+                </label>
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-4 sm:col-span-3">
+                    <select
+                      value={addForm.prefix}
+                      onChange={(e) => setAddForm((p) => ({ ...p, prefix: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                    >
+                      <option value="นาย">นาย</option>
+                      <option value="นาง">นาง</option>
+                      <option value="นางสาว">นางสาว</option>
+                      <option value="ดร.">ดร.</option>
+                    </select>
+                  </div>
+                  <div className="col-span-4 sm:col-span-5">
+                    <input
+                      type="text"
+                      required
+                      placeholder="ชื่อจริง (ภาษาไทย)"
+                      value={addForm.firstName}
+                      onChange={(e) => setAddForm((p) => ({ ...p, firstName: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                    />
+                  </div>
+                  <div className="col-span-4 sm:col-span-4">
+                    <input
+                      type="text"
+                      placeholder="นามสกุล"
+                      value={addForm.lastName}
+                      onChange={(e) => setAddForm((p) => ({ ...p, lastName: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ชื่อภาษาอังกฤษ */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-700 flex items-center space-x-1.5">
+                  <Globe className="w-3.5 h-3.5 text-blue-500" />
+                  <span>ชื่อ - นามสกุล (ภาษาอังกฤษ)</span>
+                </label>
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-4 sm:col-span-3">
+                    <select
+                      value={addForm.prefixEn}
+                      onChange={(e) => setAddForm((p) => ({ ...p, prefixEn: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                    >
+                      <option value="Mr.">Mr.</option>
+                      <option value="Mrs.">Mrs.</option>
+                      <option value="Ms.">Ms.</option>
+                      <option value="Miss">Miss</option>
+                      <option value="Dr.">Dr.</option>
+                    </select>
+                  </div>
+                  <div className="col-span-4 sm:col-span-5">
+                    <input
+                      type="text"
+                      placeholder="First Name (EN)"
+                      value={addForm.firstNameEn}
+                      onChange={(e) => setAddForm((p) => ({ ...p, firstNameEn: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                    />
+                  </div>
+                  <div className="col-span-4 sm:col-span-4">
+                    <input
+                      type="text"
+                      placeholder="Last Name (EN)"
+                      value={addForm.lastNameEn}
+                      onChange={(e) => setAddForm((p) => ({ ...p, lastNameEn: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* เพศ & ประเภทบุคลากร */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">เพศ</label>
+                  <select
+                    value={addForm.gender}
+                    onChange={(e) => setAddForm((p) => ({ ...p, gender: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                  >
+                    <option value="หญิง">หญิง</option>
+                    <option value="ชาย">ชาย</option>
+                    <option value="อื่นๆ">อื่นๆ</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ประเภทบุคลากร</label>
+                  <select
+                    value={addForm.employmentType}
+                    onChange={(e) => setAddForm((p) => ({ ...p, employmentType: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                  >
+                    <option value="ข้าราชการ">ข้าราชการ</option>
+                    <option value="พนักงานราชการ">พนักงานราชการ</option>
+                    <option value="ลูกจ้างประจำ">ลูกจ้างประจำ</option>
+                    <option value="ลูกจ้างชั่วคราว">ลูกจ้างชั่วคราว</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ตำแหน่ง & แผนก */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                    <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                    <span>ตำแหน่ง</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.title}
+                    onChange={(e) => setAddForm((p) => ({ ...p, title: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                    <Building className="w-3.5 h-3.5 text-slate-400" />
+                    <span>กลุ่ม / ฝ่าย / แผนก</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.department}
+                    onChange={(e) => setAddForm((p) => ({ ...p, department: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* สิทธิ์เข้าใช้งาน, อีเมล & เบอร์โทร */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                    <Shield className="w-3.5 h-3.5 text-amber-500" />
+                    <span>สิทธิ์การใช้งาน</span>
+                  </label>
+                  <select
+                    value={addForm.role}
+                    onChange={(e) => setAddForm((p) => ({ ...p, role: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                  >
+                    <option value="employee">ผู้ใช้งานทั่วไป (User)</option>
+                    <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    <span>อีเมล</span>
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="example@domain.com"
+                    value={addForm.email}
+                    onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span>เบอร์โทรศัพท์</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.phone}
+                    onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* กำหนดโควตาวันลาเริ่มต้น */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <label className="font-bold text-slate-700 flex items-center space-x-1.5">
+                  <CalendarCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>กำหนดโควตาวันลาเริ่มต้นต่อปี (วัน)</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="block text-[11px] font-bold text-emerald-700 mb-1">ลาพักร้อน</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.vacationLimit}
+                      onChange={(e) => setAddForm((p) => ({ ...p, vacationLimit: e.target.value }))}
+                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                    />
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="block text-[11px] font-bold text-teal-700 mb-1">ลากิจส่วนตัว</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.personalLimit}
+                      onChange={(e) => setAddForm((p) => ({ ...p, personalLimit: e.target.value }))}
+                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                    />
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="block text-[11px] font-bold text-rose-600 mb-1">ลาป่วย</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.sickLimit}
+                      onChange={(e) => setAddForm((p) => ({ ...p, sickLimit: e.target.value }))}
+                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                    />
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="block text-[11px] font-bold text-pink-600 mb-1">ลาคลอดบุตร</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.maternityLimit}
+                      onChange={(e) => setAddForm((p) => ({ ...p, maternityLimit: e.target.value }))}
+                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-medium text-xs"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs shadow-sm transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>บันทึกพนักงานใหม่</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete / Deactivate Employee Confirmation Modal */}
+      {deletingEmp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 bg-rose-700 text-white">
+              <div className="flex items-center space-x-2.5">
+                <Trash2 className="w-5 h-5 text-rose-200" />
+                <h3 className="font-bold text-base font-prompt">ยืนยันการลบ / ระงับการใช้งาน</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingEmp(null)}
+                className="p-1 rounded-full hover:bg-white/15 text-rose-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs sm:text-sm">
+              <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <img
+                  src={deletingEmp.avatar}
+                  alt={deletingEmp.name}
+                  className="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-xs"
+                />
+                <div>
+                  <p className="font-bold text-slate-800">{deletingEmp.name}</p>
+                  <p className="text-xs text-slate-500">
+                    รหัส: {deletingEmp.employeeId || deletingEmp.id} • {deletingEmp.department}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-rose-50 rounded-2xl border border-rose-100 text-rose-900 space-y-1">
+                <p className="font-bold text-xs">คุณต้องการลบหรือระงับการใช้งานพนักงานคนนี้หรือไม่?</p>
+                <p className="text-[11px] text-rose-700 leading-relaxed">
+                  บัญชีนี้จะไม่สามารถเข้าสู่ระบบ SmartLeave ได้อีก แต่ประวัติคำขอลาเดิมยังคงถูกบันทึกไว้ในฐานข้อมูลอย่างปลอดภัย
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingEmp(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-medium text-xs"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-sm transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>ยืนยันการลบพนักงาน</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
