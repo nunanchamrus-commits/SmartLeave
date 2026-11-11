@@ -111,9 +111,8 @@ export default function AdminEmployeesView() {
     const matchSearch =
       !q ||
       (emp.name || '').toLowerCase().includes(q) ||
-      (emp.department || '').toLowerCase().includes(q) ||
-      (emp.title || '').toLowerCase().includes(q) ||
-      (emp.employeeId || '').toLowerCase().includes(q);
+      (emp.englishName || '').toLowerCase().includes(q) ||
+      (emp.title || '').toLowerCase().includes(q);
     const matchDept = departmentFilter === 'all' || (emp.department || '').includes(departmentFilter);
     return matchSearch && matchDept;
   });
@@ -317,7 +316,7 @@ export default function AdminEmployeesView() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ค้นหาชื่อพนักงาน, รหัสประจำตัว, หรือตำแหน่ง..."
+            placeholder="ค้นหาชื่อพนักงาน หรือตำแหน่ง..."
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
           />
         </div>
@@ -351,7 +350,9 @@ export default function AdminEmployeesView() {
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลาป่วย</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลาคลอด</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">คงเหลือสิทธิ์ลา</th>
-                <th className="py-3 px-4 text-right whitespace-nowrap">การกระทำ</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">
+                  <span className="sr-only">แก้ไขวันลา</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
