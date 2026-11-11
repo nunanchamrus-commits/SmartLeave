@@ -26,7 +26,16 @@ class ApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        const err = new Error(
+          errorData.message || errorData.error || `HTTP error! status: ${response.status}`
+        );
+        err.status = response.status;
+        throw err;
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType && !contentType.includes('application/json')) {
+        throw new Error('Unexpected non-JSON response from API');
       }
 
       return await response.json();

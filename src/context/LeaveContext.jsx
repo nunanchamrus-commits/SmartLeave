@@ -316,6 +316,7 @@ export function LeaveProvider({ children }) {
   }, []);
 
   const updateEmployeeQuota = async (empId, quotaUpdatesOrKey, value) => {
+    mutationEpochRef.current += 1;
     const rawUpdates =
       typeof quotaUpdatesOrKey === 'object' && quotaUpdatesOrKey !== null
         ? quotaUpdatesOrKey
@@ -328,17 +329,17 @@ export function LeaveProvider({ children }) {
       }
     });
 
-    const targetBase = employees.find((emp) => emp.id === empId || emp.employeeId === empId);
+    const targetBase = employeesRef.current.find((emp) => emp.id === empId || emp.employeeId === empId);
     const nextEmp = targetBase ? normalizeEmployeeQuotas({ ...targetBase, ...normalizedUpdates }) : null;
 
-    setEmployees((prev) =>
-      prev.map((emp) => {
-        if (emp.id === empId || emp.employeeId === empId) {
-          return normalizeEmployeeQuotas({ ...emp, ...normalizedUpdates });
-        }
-        return emp;
-      })
-    );
+    const updatedEmployees = employeesRef.current.map((emp) => {
+      if (emp.id === empId || emp.employeeId === empId) {
+        return normalizeEmployeeQuotas({ ...emp, ...normalizedUpdates });
+      }
+      return emp;
+    });
+    setEmployees(updatedEmployees);
+    employeesRef.current = updatedEmployees;
 
     // ซิงก์การ์ดโควตาหน้าหลักหากแอดมินแก้ไขวันลาของผู้ใช้งานปัจจุบัน
     if (
@@ -362,6 +363,8 @@ export function LeaveProvider({ children }) {
     }
 
     // บันทึกลง Cloudflare D1 Database จริง 100%
+    pendingMutationRef.current += 1;
+    let apiError = null;
     try {
       if (api && api.updateEmployeeQuota) {
         await api.updateEmployeeQuota(empId, {
@@ -370,7 +373,16 @@ export function LeaveProvider({ children }) {
         });
       }
     } catch (e) {
+      apiError = e;
       console.log('[Update Quota D1 Note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(`ไม่สามารถบันทึกโควตาวันลาลงฐานข้อมูลได้ (${apiError.message || 'Server error'})`, 'error');
+      return;
     }
 
     showToast('อัปเดตจำนวนวันลาและสิทธิ์ลาของพนักงานเรียบร้อยแล้ว', 'success');
@@ -399,8 +411,15 @@ export function LeaveProvider({ children }) {
   currentUserRef.current = currentUser;
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
+  const leaveRequestsRef = useRef(leaveRequests);
+  leaveRequestsRef.current = leaveRequests;
+  const employeesRef = useRef(employees);
+  employeesRef.current = employees;
+  const isDbConnectedRef = useRef(isDbConnected);
+  isDbConnectedRef.current = isDbConnected;
   const isFetchingRef = useRef(false);
   const pendingMutationRef = useRef(0);
+  const mutationEpochRef = useRef(0);
   const knownMyLeaveStatusesRef = useRef({ userKey: null, statuses: new Map(), seeded: false });
 
   const syncLeaveBaselineForUser = (requests, targetUser) => {
@@ -449,21 +468,28 @@ export function LeaveProvider({ children }) {
 
     const activeUser = currentUserRef.current;
     const startUserKey = getUserStableKey(activeUser);
+    const startEpoch = mutationEpochRef.current;
+    const isStaleSync = () =>
+      getUserStableKey(currentUserRef.current) !== startUserKey ||
+      mutationEpochRef.current !== startEpoch ||
+      pendingMutationRef.current > 0;
+
     isFetchingRef.current = true;
 
     try {
       // 1. ดึงข้อมูลพนักงานสดจาก Cloudflare D1
       const empData = await api.getEmployees();
-      if (getUserStableKey(currentUserRef.current) !== startUserKey) return;
+      if (isStaleSync()) return;
 
       const hasEmpData = Array.isArray(empData) && empData.length > 0;
-      let latestEmployees = employees;
+      let latestEmployees = employeesRef.current;
       let matchedActiveUser = activeUser;
 
       if (hasEmpData) {
         latestEmployees = empData.map(normalizeEmployeeQuotas);
         setEmployees(latestEmployees);
         setIsDbConnected(true);
+        isDbConnectedRef.current = true;
 
         // ซิงก์ข้อมูล currentUser เข้ากับข้อมูลล่าสุดใน DB
         if (activeUser) {
@@ -502,7 +528,7 @@ export function LeaveProvider({ children }) {
 
       // 2. ดึงรายการคำขอลาสดจาก Cloudflare D1
       const leavesData = await api.getLeaveRequests();
-      if (getUserStableKey(currentUserRef.current) !== startUserKey) return;
+      if (isStaleSync()) return;
 
       if (Array.isArray(leavesData)) {
         const normalizedLeaves = leavesData.map((r) => ({
@@ -549,7 +575,7 @@ export function LeaveProvider({ children }) {
 
       // 3. ดึงประกาศสดจาก Cloudflare D1
       const annData = await api.getAnnouncements();
-      if (getUserStableKey(currentUserRef.current) !== startUserKey) return;
+      if (isStaleSync()) return;
       if (Array.isArray(annData) && annData.length > 0) {
         setAnnouncements(annData);
       }
@@ -557,7 +583,7 @@ export function LeaveProvider({ children }) {
       // 4. ดึงการแจ้งเตือนสดจาก Cloudflare D1 เฉพาะของ user คนนั้น
       if (matchedActiveUser) {
         const notifData = await api.getNotifications(matchedActiveUser);
-        if (getUserStableKey(currentUserRef.current) !== startUserKey) return;
+        if (isStaleSync()) return;
         if (Array.isArray(notifData)) {
           setNotifications(notifData.map(normalizeNotificationItem));
         }
@@ -692,6 +718,7 @@ export function LeaveProvider({ children }) {
 
   // Submit a new leave request
   const submitLeaveRequest = async (newRequestData) => {
+    mutationEpochRef.current += 1;
     const id = `req-${Date.now()}`;
     const newReq = {
       id,
@@ -709,10 +736,12 @@ export function LeaveProvider({ children }) {
       ...newRequestData,
     };
 
-    const updated = [newReq, ...leaveRequests];
+    const baseRequests = leaveRequestsRef.current;
+    const updated = [newReq, ...baseRequests];
     setLeaveRequests(updated);
+    leaveRequestsRef.current = updated;
     syncLeaveBaselineForUser(updated, currentUser);
-    recalculateQuotas(updated, employees, true);
+    recalculateQuotas(updated, employeesRef.current, true);
 
     // Add notification tagged cleanly to submitting user
     const newNotif = normalizeNotificationItem({
@@ -735,6 +764,7 @@ export function LeaveProvider({ children }) {
     // ส่งบันทึกลง D1 Database จริง
     pendingMutationRef.current += 1;
     let apiSynced = false;
+    let apiError = null;
     try {
       if (api && api.createLeaveRequest) {
         await api.createLeaveRequest({
@@ -746,9 +776,16 @@ export function LeaveProvider({ children }) {
         apiSynced = true;
       }
     } catch (e) {
+      apiError = e;
       console.log('[Leave submit to DB note]:', e.message);
     } finally {
       pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(`ไม่สามารถบันทึกคำขอลาลงฐานข้อมูลได้: ${apiError.message || 'Server error'}`, 'error');
+      return newReq;
     }
 
     if (apiSynced) {
@@ -761,11 +798,14 @@ export function LeaveProvider({ children }) {
   // Update status (Admin / Approver only) across the 4 workflow statuses
   const updateLeaveStatus = async (requestId, nextStatus, remark = '') => {
     if (!isAdmin) return;
+    mutationEpochRef.current += 1;
     const normalizedStatus = normalizeLeaveStatus(nextStatus);
     const isFinalDecision = normalizedStatus === 'อนุมัติ' || normalizedStatus === 'ไม่อนุมัติ';
 
-    const target = leaveRequests.find((r) => String(r.id) === String(requestId));
-    const updated = leaveRequests.map((r) => {
+    const baseRequests = leaveRequestsRef.current;
+    const baseEmployees = employeesRef.current;
+    const target = baseRequests.find((r) => String(r.id) === String(requestId));
+    const updated = baseRequests.map((r) => {
       if (String(r.id) === String(requestId)) {
         return {
           ...r,
@@ -781,14 +821,16 @@ export function LeaveProvider({ children }) {
     const isNowApproved = normalizedStatus === 'อนุมัติ';
 
     setLeaveRequests(updated);
+    leaveRequestsRef.current = updated;
     syncLeaveBaselineForUser(updated, currentUserRef.current);
 
     // ปรับวันลาที่ใช้ไปและคงเหลือในตารางพนักงานทันทีเมื่อเปลี่ยนสถานะเข้าหรือออกจากการอนุมัติ
-    let nextEmployees = employees;
+    let nextEmployees = baseEmployees;
     if (target && wasApproved !== isNowApproved) {
       const daysDelta = isNowApproved ? Number(target.days || 0) : -Number(target.days || 0);
-      nextEmployees = applyEmployeeQuotaDelta(employees, target, null, daysDelta);
+      nextEmployees = applyEmployeeQuotaDelta(baseEmployees, target, null, daysDelta);
       setEmployees(nextEmployees);
+      employeesRef.current = nextEmployees;
     }
     recalculateQuotas(updated, nextEmployees, true);
 
@@ -839,6 +881,7 @@ export function LeaveProvider({ children }) {
     // ส่งอัปเดตสถานะไปยัง Database
     pendingMutationRef.current += 1;
     let apiSynced = false;
+    let apiError = null;
     try {
       if (api && api.updateLeaveStatus) {
         await api.updateLeaveStatus(requestId, normalizedStatus, remark);
@@ -851,9 +894,19 @@ export function LeaveProvider({ children }) {
         apiSynced = true;
       }
     } catch (e) {
+      apiError = e;
       console.log('[Update Leave Status DB note]:', e.message);
     } finally {
       pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(
+        `ไม่สามารถบันทึกสถานะลงฐานข้อมูลได้ (${apiError.message || 'Server error'})`,
+        'error'
+      );
+      return;
     }
 
     if (apiSynced) {
@@ -865,7 +918,10 @@ export function LeaveProvider({ children }) {
 
   // Update Leave Request Details (User or Admin)
   const updateLeaveRequest = async (requestId, updatedData) => {
-    const prevReq = leaveRequests.find((r) => String(r.id) === String(requestId));
+    mutationEpochRef.current += 1;
+    const baseRequests = leaveRequestsRef.current;
+    const baseEmployees = employeesRef.current;
+    const prevReq = baseRequests.find((r) => String(r.id) === String(requestId));
     const hasStatusUpdate =
       updatedData?.status !== undefined &&
       updatedData?.status !== null &&
@@ -878,7 +934,7 @@ export function LeaveProvider({ children }) {
       : { ...updatedData };
     const isFinalDecision = nextStatus === 'อนุมัติ' || nextStatus === 'ไม่อนุมัติ';
 
-    const updated = leaveRequests.map((r) => {
+    const updated = baseRequests.map((r) => {
       if (String(r.id) === String(requestId)) {
         return {
           ...r,
@@ -892,9 +948,10 @@ export function LeaveProvider({ children }) {
     });
 
     setLeaveRequests(updated);
+    leaveRequestsRef.current = updated;
     syncLeaveBaselineForUser(updated, currentUserRef.current);
 
-    let nextEmployees = employees;
+    let nextEmployees = baseEmployees;
     if (prevReq) {
       const wasApproved = prevReq.status === 'อนุมัติ';
       const isNowApproved = nextStatus === 'อนุมัติ';
@@ -916,8 +973,9 @@ export function LeaveProvider({ children }) {
         }
       }
 
-      if (nextEmployees !== employees) {
+      if (nextEmployees !== baseEmployees) {
         setEmployees(nextEmployees);
+        employeesRef.current = nextEmployees;
       }
     }
     recalculateQuotas(updated, nextEmployees, true);
@@ -971,15 +1029,26 @@ export function LeaveProvider({ children }) {
 
     pendingMutationRef.current += 1;
     let apiSynced = false;
+    let apiError = null;
     try {
       if (api && api.updateLeaveRequest) {
         await api.updateLeaveRequest(requestId, normalizedPatch);
         apiSynced = true;
       }
     } catch (e) {
+      apiError = e;
       console.log('[Update Leave API Note]:', e.message);
     } finally {
       pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(
+        `ไม่สามารถบันทึกการแก้ไขลงฐานข้อมูลได้ (${apiError.message || 'Server error'})`,
+        'error'
+      );
+      return;
     }
 
     if (apiSynced) {
@@ -991,15 +1060,20 @@ export function LeaveProvider({ children }) {
 
   // Delete Leave Request (User or Admin)
   const deleteLeaveRequest = async (requestId) => {
-    const target = leaveRequests.find((r) => String(r.id) === String(requestId));
-    const updated = leaveRequests.filter((r) => String(r.id) !== String(requestId));
+    mutationEpochRef.current += 1;
+    const baseRequests = leaveRequestsRef.current;
+    const baseEmployees = employeesRef.current;
+    const target = baseRequests.find((r) => String(r.id) === String(requestId));
+    const updated = baseRequests.filter((r) => String(r.id) !== String(requestId));
     setLeaveRequests(updated);
+    leaveRequestsRef.current = updated;
     syncLeaveBaselineForUser(updated, currentUserRef.current);
 
-    let nextEmployees = employees;
+    let nextEmployees = baseEmployees;
     if (target && target.status === 'อนุมัติ') {
-      nextEmployees = applyEmployeeQuotaDelta(employees, target, null, -Number(target.days || 0));
+      nextEmployees = applyEmployeeQuotaDelta(baseEmployees, target, null, -Number(target.days || 0));
       setEmployees(nextEmployees);
+      employeesRef.current = nextEmployees;
     }
     recalculateQuotas(updated, nextEmployees, true);
 
@@ -1009,15 +1083,26 @@ export function LeaveProvider({ children }) {
 
     pendingMutationRef.current += 1;
     let apiSynced = false;
+    let apiError = null;
     try {
       if (api && api.deleteLeaveRequest) {
         await api.deleteLeaveRequest(requestId);
         apiSynced = true;
       }
     } catch (e) {
+      apiError = e;
       console.log('[Delete Leave API Note]:', e.message);
     } finally {
       pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(
+        `ไม่สามารถลบคำขอลาออกจากฐานข้อมูลได้ (${apiError.message || 'Server error'})`,
+        'error'
+      );
+      return;
     }
 
     if (apiSynced) {
@@ -1070,7 +1155,8 @@ export function LeaveProvider({ children }) {
 
   // Update Employee (Admin)
   const updateEmployee = async (empId, updatedData) => {
-    const updated = employees.map((emp) => {
+    mutationEpochRef.current += 1;
+    const updated = employeesRef.current.map((emp) => {
       if (emp.id === empId || emp.employeeId === empId) {
         return normalizeEmployeeQuotas({
           ...emp,
@@ -1080,6 +1166,7 @@ export function LeaveProvider({ children }) {
       return emp;
     });
     setEmployees(updated);
+    employeesRef.current = updated;
 
     if (
       currentUser?.id === empId ||
@@ -1088,33 +1175,59 @@ export function LeaveProvider({ children }) {
     ) {
       const mergedUser = normalizeEmployeeQuotas({ ...currentUser, ...updatedData });
       setCurrentUser(mergedUser);
-      recalculateQuotas(leaveRequests, updated, true, mergedUser);
+      recalculateQuotas(leaveRequestsRef.current, updated, true, mergedUser);
       sessionStorage.setItem('smartleave_user', JSON.stringify(mergedUser));
       localStorage.setItem('smartleave_user', JSON.stringify(mergedUser));
     }
 
+    pendingMutationRef.current += 1;
+    let apiError = null;
     try {
       if (api && api.updateEmployee) {
         await api.updateEmployee(empId, updatedData);
       }
     } catch (e) {
+      apiError = e;
       console.log('[Update Employee API Note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
     }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(`ไม่สามารถบันทึกข้อมูลพนักงานลงฐานข้อมูลได้ (${apiError.message || 'Server error'})`, 'error');
+      return;
+    }
+
     showToast('บันทึกข้อมูลพนักงานเรียบร้อยแล้ว', 'success');
   };
 
   // Delete Employee (Admin)
   const deleteEmployee = async (empId) => {
-    const updated = employees.filter((emp) => emp.id !== empId && emp.employeeId !== empId);
+    mutationEpochRef.current += 1;
+    const updated = employeesRef.current.filter((emp) => emp.id !== empId && emp.employeeId !== empId);
     setEmployees(updated);
+    employeesRef.current = updated;
 
+    pendingMutationRef.current += 1;
+    let apiError = null;
     try {
       if (api && api.deleteEmployee) {
         await api.deleteEmployee(empId);
       }
     } catch (e) {
+      apiError = e;
       console.log('[Delete Employee API Note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
     }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(`ไม่สามารถลบพนักงานออกจากฐานข้อมูลได้ (${apiError.message || 'Server error'})`, 'error');
+      return;
+    }
+
     showToast('ลบพนักงานออกจากระบบเรียบร้อยแล้ว', 'success');
   };
 
