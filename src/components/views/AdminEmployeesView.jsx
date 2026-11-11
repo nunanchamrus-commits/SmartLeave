@@ -150,7 +150,7 @@ export default function AdminEmployeesView() {
                       className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-200"
                     />
                     <div>
-                      <div className="flex items-center space-x-1.5">
+                      <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                         <p className="font-bold text-slate-900">{emp.name}</p>
                         {emp.gender && (
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
@@ -159,8 +159,15 @@ export default function AdminEmployeesView() {
                             {emp.gender}
                           </span>
                         )}
+                        {emp.employmentType && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                            {emp.employmentType}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs text-slate-500">{emp.title}</p>
+                      <p className="text-xs text-slate-500">
+                        {emp.title} {emp.englishName && <span className="text-slate-400 font-normal">({emp.englishName})</span>}
+                      </p>
                     </div>
                   </td>
                   <td className="py-3 px-4 text-slate-600 max-w-xs">{emp.department}</td>

@@ -36,7 +36,9 @@ CREATE TABLE users (
     prefix VARCHAR(20),                          -- นาย / นาง / นางสาว
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
-    gender VARCHAR(20) DEFAULT 'หญิง',
+    english_name VARCHAR(150),                   -- ชื่อ-นามสกุล ภาษาอังกฤษ
+    gender VARCHAR(20) DEFAULT 'หญิง',           -- ชาย / หญิง
+    employment_type VARCHAR(50) DEFAULT 'ข้าราชการ', -- ข้าราชการ / ลูกจ้างประจำ / พนักงานราชการ / ลูกจ้างเหมาบริการ
     phone VARCHAR(30),
     department_id INT,
     role_id INT NOT NULL,

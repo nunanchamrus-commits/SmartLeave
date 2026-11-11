@@ -42,7 +42,9 @@ export default function SettingsView() {
 
   const [formData, setFormData] = useState({
     name: currentUser?.name || '',
+    englishName: currentUser?.englishName || '',
     gender: currentUser?.gender || 'หญิง',
+    employmentType: currentUser?.employmentType || 'ข้าราชการ',
     title: currentUser?.title || '',
     department: currentUser?.department || '',
     email: currentUser?.email || '',
@@ -59,7 +61,9 @@ export default function SettingsView() {
     if (currentUser) {
       setFormData({
         name: currentUser.name || '',
+        englishName: currentUser.englishName || '',
         gender: currentUser.gender || 'หญิง',
+        employmentType: currentUser.employmentType || 'ข้าราชการ',
         title: currentUser.title || '',
         department: currentUser.department || '',
         email: currentUser.email || '',
@@ -226,7 +230,7 @@ export default function SettingsView() {
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
             <div className="sm:col-span-8">
               <label className="block font-semibold text-slate-700 mb-1">
-                ชื่อ - นามสกุล <span className="text-rose-500">*</span>
+                ชื่อ - นามสกุล (ภาษาไทย) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
@@ -266,6 +270,38 @@ export default function SettingsView() {
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* Row: ชื่อภาษาอังกฤษ และ ประเภทการจ้างงาน */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                ชื่อ - นามสกุล (ภาษาอังกฤษ)
+              </label>
+              <input
+                type="text"
+                value={formData.englishName}
+                onChange={(e) => setFormData({ ...formData, englishName: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                placeholder="เช่น Panika Thammoeang"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                ประเภทการจ้างงาน
+              </label>
+              <select
+                value={formData.employmentType}
+                onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all cursor-pointer"
+              >
+                <option value="ข้าราชการ">ข้าราชการ</option>
+                <option value="ลูกจ้างประจำ">ลูกจ้างประจำ</option>
+                <option value="พนักงานราชการ">พนักงานราชการ</option>
+                <option value="ลูกจ้างเหมาบริการ">ลูกจ้างเหมาบริการ</option>
+              </select>
             </div>
           </div>
 

@@ -223,7 +223,9 @@ export async function onRequest(context) {
         user: {
           id: `usr-${user.user_id}`,
           name: displayName,
+          englishName: user.english_name || '',
           gender,
+          employmentType: user.employment_type || 'ข้าราชการ',
           email: user.email,
           phone: user.phone || '081-234-5678',
           title: user.position || (user.role_id === 3 ? 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ' : 'นักวิชาการสหกรณ์ปฏิบัติการ'),
@@ -241,7 +243,7 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if (path === '/auth/register' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      let { firstName, lastName, fullName, prefix, employeeCode, email, department, position, title, gender, phone, password } = body;
+      let { firstName, lastName, fullName, englishName, prefix, employeeCode, email, department, position, title, gender, employmentType, phone, password } = body;
 
       if (!firstName && fullName) {
         const parts = fullName.trim().split(/\s+/);
@@ -262,24 +264,53 @@ export async function onRequest(context) {
       const empCode = employeeCode || `EMP-${Date.now().toString().slice(-4)}`;
       const jobPosition = position || title || 'เจ้าหน้าที่สหกรณ์';
       const userGender = gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย');
+      const empType = employmentType || 'ข้าราชการ';
       const avatarUrl = userGender === 'ชาย'
         ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
         : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80';
 
-      // ค้นหา department_id หรือจับคู่กับกลุ่มส่งเสริมและพัฒนาสหกรณ์ 1
-      let deptId = 2;
+      // ค้นหา department_id หรือเพิ่มแผนกใหม่หากยังไม่มี
+      let deptId = 6; // ค่าเริ่มต้น: กลุ่มส่งเสริมสหกรณ์ 1
       if (department) {
-        const dept = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th LIKE ? LIMIT 1').bind(`%${department}%`).first();
-        if (dept) deptId = dept.department_id;
+        const dept = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
+          .bind(department.trim(), `%${department.trim()}%`).first();
+        if (dept) {
+          deptId = dept.department_id;
+        } else {
+          try {
+            const deptCode = `DEP-${Date.now().toString().slice(-4)}`;
+            const newDept = await env.DB.prepare('INSERT INTO departments (code, name_th, name_en) VALUES (?, ?, ?)')
+              .bind(deptCode, department.trim(), department.trim()).run();
+            deptId = newDept.meta.last_row_id;
+          } catch (e) {
+            deptId = 1;
+          }
+        }
       }
 
-      // ตรวจสอบและเพิ่มคอลัมน์ gender เผื่อยังไม่มี
+      // ตรวจสอบและเพิ่มคอลัมน์ใหม่ใน users อัตโนมัติ (Dynamic Migration)
+      await env.DB.prepare("ALTER TABLE users ADD COLUMN english_name TEXT").run().catch(() => {});
       await env.DB.prepare("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'หญิง'").run().catch(() => {});
+      await env.DB.prepare("ALTER TABLE users ADD COLUMN employment_type TEXT DEFAULT 'ข้าราชการ'").run().catch(() => {});
 
       const insert = await env.DB.prepare(`
-        INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, gender, phone, role_id, department_id, position, avatar_url, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, 1)
-      `).bind(empCode, email, password || '123456', prefix, firstName || 'เจ้าหน้าที่', lastName || '', userGender, phone || '081-999-8888', deptId, jobPosition, avatarUrl).run();
+        INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, 1)
+      `).bind(
+        empCode,
+        email,
+        password || '123456',
+        prefix,
+        firstName || 'เจ้าหน้าที่',
+        lastName || '',
+        englishName || '',
+        userGender,
+        empType,
+        phone || '081-999-8888',
+        deptId,
+        jobPosition,
+        avatarUrl
+      ).run();
 
       const newUserId = insert.meta.last_row_id;
 
@@ -297,8 +328,12 @@ export async function onRequest(context) {
         user: {
           id: `usr-${newUserId}`,
           name: `${prefix}${firstName} ${lastName}`.trim(),
+          englishName: englishName || '',
           gender: userGender,
+          employmentType: empType,
+          title: jobPosition,
           email,
+          phone: phone || '081-999-8888',
           role: 'employee',
           department: department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
           employeeId: empCode,
@@ -357,7 +392,9 @@ export async function onRequest(context) {
           u.user_id as raw_id,
           ('usr-' || u.user_id) as id,
           ((CASE WHEN u.prefix IS NOT NULL AND u.prefix != '' THEN u.prefix ELSE '' END) || u.first_name || ' ' || u.last_name) as name,
+          COALESCE(u.english_name, '') as englishName,
           COALESCE(u.gender, CASE WHEN u.prefix LIKE '%นาง%' THEN 'หญิง' ELSE 'ชาย' END) as gender,
+          COALESCE(u.employment_type, 'ข้าราชการ') as employmentType,
           u.email,
           COALESCE(u.phone, '081-234-5678') as phone,
           u.employee_code as employeeId,
@@ -530,7 +567,7 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if ((path === '/users/profile' || path === '/auth/profile') && (method === 'PUT' || method === 'POST')) {
       const body = await request.json().catch(() => ({}));
-      const { name, email, phone, title, department, avatar, employeeId, gender } = body;
+      const { name, englishName, email, phone, title, department, avatar, employeeId, gender, employmentType } = body;
 
       let firstName = name;
       let lastName = '';
@@ -550,17 +587,25 @@ export async function onRequest(context) {
 
       if (email || employeeId) {
         try {
+          // ตรวจสอบคอลัมน์ใหม่เผื่อยังไม่มี
+          await env.DB.prepare("ALTER TABLE users ADD COLUMN english_name TEXT").run().catch(() => {});
+          await env.DB.prepare("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'หญิง'").run().catch(() => {});
+          await env.DB.prepare("ALTER TABLE users ADD COLUMN employment_type TEXT DEFAULT 'ข้าราชการ'").run().catch(() => {});
+
           await env.DB.prepare(`
             UPDATE users 
             SET prefix = COALESCE(?, prefix),
                 first_name = COALESCE(?, first_name),
                 last_name = COALESCE(?, last_name),
+                english_name = COALESCE(?, english_name),
+                gender = COALESCE(?, gender),
+                employment_type = COALESCE(?, employment_type),
                 phone = COALESCE(?, phone),
                 position = COALESCE(?, position),
                 avatar_url = COALESCE(?, avatar_url),
                 updated_at = datetime('now', 'localtime')
             WHERE email = ? OR employee_code = ?
-          `).bind(prefix, firstName, lastName, phone, title, avatar, email, employeeId).run();
+          `).bind(prefix, firstName, lastName, englishName, gender, employmentType, phone, title, avatar, email, employeeId).run();
         } catch (dbErr) {
           console.log('[D1 Update Profile Note]:', dbErr.message);
         }
@@ -568,6 +613,15 @@ export async function onRequest(context) {
 
       return jsonResponse({
         success: true,
+        message: 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว',
+        user: {
+          ...body,
+          englishName: englishName || '',
+          gender: gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
+          employmentType: employmentType || 'ข้าราชการ',
+        },
+      });
+    }
         message: 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว',
         user: {
           ...body,
