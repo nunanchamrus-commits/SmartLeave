@@ -4,7 +4,6 @@ import {
   Bell,
   ChevronDown,
   Menu,
-  UserCheck,
   RotateCcw,
   Settings,
   LogOut,
@@ -264,51 +263,6 @@ export default function Header({ onMenuClick }) {
                 <p className="text-xs text-slate-400 font-medium">เข้าสู่ระบบในชื่อ</p>
                 <p className="text-sm font-semibold text-slate-800 mt-0.5">{currentUser.name}</p>
                 <p className="text-xs text-emerald-700 font-medium">{currentUser.department}</p>
-              </div>
-
-              {/* Role Switcher */}
-              <div className="p-2 border-b border-slate-100">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-2">
-                  สลับมุมมองบทบาท (Role View)
-                </p>
-                <button
-                  onClick={() => {
-                    switchRole('employee');
-                    setIsProfileMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between ${
-                    currentUser?.role === 'employee'
-                      ? 'bg-emerald-50 text-emerald-800 font-semibold'
-                      : 'hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <UserCheck className="w-4 h-4 text-emerald-600" />
-                    <span>มุมมองพนักงาน (Employee View)</span>
-                  </div>
-                  {currentUser?.role === 'employee' && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    switchRole('approver');
-                    setIsProfileMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between mt-1 ${
-                    currentUser?.role === 'approver' || currentUser?.role === 'admin'
-                      ? 'bg-emerald-50 text-emerald-800 font-semibold'
-                      : 'hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <UserCheck className="w-4 h-4 text-emerald-600" />
-                    <span>มุมมองผู้อนุมัติ (Approver View)</span>
-                  </div>
-                  {(currentUser?.role === 'approver' || currentUser?.role === 'admin') && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                  )}
-                </button>
               </div>
 
               {/* Menu options */}
