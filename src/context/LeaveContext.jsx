@@ -1426,14 +1426,14 @@ export function LeaveProvider({ children }) {
   };
 
   // Login action (Strict Database Authentication 100%)
-  const login = async (email, password) => {
-    if (!email || !password) {
-      return { success: false, message: 'กรุณากรอกอีเมลและรหัสผ่าน' };
+  const login = async (identifier, password) => {
+    if (!identifier || !password) {
+      return { success: false, message: 'กรุณากรอกชื่อ-สกุล ภาษาอังกฤษ และรหัสผ่าน' };
     }
 
     try {
       if (api && api.login) {
-        const res = await api.login(email.trim(), password);
+        const res = await api.login(identifier.trim(), password);
         if (res && res.user) {
           const dbUser = {
             ...res.user,
@@ -1469,7 +1469,7 @@ export function LeaveProvider({ children }) {
       setIsAuthenticated(false);
       return {
         success: false,
-        message: apiErr.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีในฐานข้อมูล Cloudflare D1',
+        message: apiErr.message || 'ชื่อ-สกุล ภาษาอังกฤษ หรือรหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีในฐานข้อมูล Cloudflare D1',
       };
     }
   };

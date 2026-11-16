@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Mail,
   Lock,
   Eye,
   EyeOff,
@@ -18,7 +17,7 @@ import { useLeave } from '../context/LeaveContext';
 export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const { login } = useLeave();
 
-  const [email, setEmail] = useState('');
+  const [englishName, setEnglishName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -27,8 +26,8 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim()) {
-      setError('กรุณากรอกอีเมล');
+    if (!englishName.trim()) {
+      setError('กรุณากรอกชื่อ-สกุล ภาษาอังกฤษ');
       return;
     }
     if (!password) {
@@ -44,10 +43,10 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
     setError('');
 
     try {
-      const res = await login(email.trim(), password);
+      const res = await login(englishName.trim(), password);
       setIsLoading(false);
       if (!res || !res.success) {
-        setError(res?.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีในฐานข้อมูล');
+        setError(res?.message || 'ชื่อ-สกุล ภาษาอังกฤษ หรือรหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีในฐานข้อมูล');
       }
     } catch (err) {
       setIsLoading(false);
@@ -138,7 +137,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
                 เข้าสู่ระบบ SmartLeave
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                กรุณากรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ
+                กรุณากรอกชื่อ-สกุล ภาษาอังกฤษ และรหัสผ่านเพื่อเข้าสู่ระบบ
               </p>
             </div>
 
@@ -152,23 +151,24 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              {/* Email */}
+              {/* English Full Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  อีเมล (Email)
+                  ชื่อ-สกุล ภาษาอังกฤษ (English Full Name)
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Mail className="w-4 h-4" />
+                    <User className="w-4 h-4" />
                   </div>
                   <input
-                    type="email"
-                    value={email}
+                    type="text"
+                    value={englishName}
                     onChange={(e) => {
-                      setEmail(e.target.value);
+                      setEnglishName(e.target.value);
                       setError('');
                     }}
-                    placeholder="name@SmartLeave.com"
+                    placeholder="เช่น Somchai Mankhong หรือ Panika Thammoeang"
+                    autoComplete="name"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
                   />
                 </div>

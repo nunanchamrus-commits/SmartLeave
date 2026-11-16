@@ -49,10 +49,16 @@ class ApiService {
   // ==========================================
   // 1. ระบบยืนยันตัวตน (Authentication & User)
   // ==========================================
-  async login(email, password) {
+  async login(identifier, password) {
     return this.request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        englishName: identifier,
+        email: identifier,
+        username: identifier,
+        identifier,
+        password,
+      }),
     });
   }
 
