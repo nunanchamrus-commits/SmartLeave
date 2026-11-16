@@ -23,6 +23,7 @@ export default function LeaveDetailModal() {
     selectedLeaveDetail,
     setSelectedLeaveDetail,
     currentUser,
+    employees,
     updateLeaveStatus,
     updateLeaveRequest,
     deleteLeaveRequest,
@@ -81,6 +82,14 @@ export default function LeaveDetailModal() {
     currentUser?.name === req.employeeName;
 
   const canEdit = isApprover || isOwner;
+
+  const reqEmp = (employees || []).find(
+    (e) => e.id === req.userId || e.id === req.employeeId || e.name === req.employeeName
+  );
+  const isReqMale =
+    reqEmp?.gender === 'ชาย' ||
+    Boolean(req.employeeName?.includes('นาย')) ||
+    (isOwner && (currentUser?.gender === 'ชาย' || currentUser?.prefix?.includes('นาย')));
 
   const handleStatusChange = (nextStatus) => {
     setPendingStatusConfirm(nextStatus);
@@ -196,7 +205,9 @@ export default function LeaveDetailModal() {
                   <option value="vacation">ลาพักร้อน</option>
                   <option value="personal">ลากิจส่วนตัว</option>
                   <option value="sick">ลาป่วย</option>
-                  <option value="maternity">ลาคลอดบุตร</option>
+                  {(!isReqMale || editForm.typeKey === 'maternity') && (
+                    <option value="maternity">ลาคลอดบุตร</option>
+                  )}
                 </select>
               </div>
 

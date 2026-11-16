@@ -104,39 +104,6 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
             </div>
           </div>
 
-          {/* Feature highlights */}
-          <div className="relative z-10 my-8 space-y-3.5">
-            <div className="flex items-center space-x-3 bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10">
-              <div className="w-8 h-8 rounded-xl bg-emerald-400/20 text-emerald-300 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div className="text-xs">
-                <p className="font-semibold text-white">ของ่าย อนุมัติไว</p>
-                <p className="text-emerald-200/70 text-[11px]">แจ้งเตือนทันทีเมื่อคำขอได้รับการพิจารณา</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3 bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10">
-              <div className="w-8 h-8 rounded-xl bg-teal-400/20 text-teal-300 flex items-center justify-center flex-shrink-0">
-                <Calendar className="w-4 h-4" />
-              </div>
-              <div className="text-xs">
-                <p className="font-semibold text-white">ปฏิทินวันลาขององค์กร</p>
-                <p className="text-emerald-200/70 text-[11px]">เห็นภาพรวมวันลาเพื่อวางแผนงานได้ไม่สะดุด</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3 bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10">
-              <div className="w-8 h-8 rounded-xl bg-lime-400/20 text-lime-300 flex items-center justify-center flex-shrink-0">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div className="text-xs">
-                <p className="font-semibold text-white">ตรวจสอบโควตา Real-time</p>
-                <p className="text-emerald-200/70 text-[11px]">คำนวณวันลาคงเหลืออัตโนมัติถูกต้องแม่นยำ</p>
-              </div>
-            </div>
-          </div>
-
           {/* Bottom Copyright */}
           <div className="relative z-10 pt-4 border-t border-emerald-800/40 text-[11px] text-emerald-300/60 flex items-center justify-between">
             <span>© 2026 SmartLeave Inc.</span>
@@ -288,14 +255,6 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
                 </button>
               </p>
             </div>
-          </div>
-
-          {/* Footer notice */}
-          <div className="mt-6 pt-4 border-t border-slate-100 text-center">
-            <p className="text-[11px] text-slate-400">
-              ติดปัญหาการเข้าใช้งาน? ติดต่อฝ่ายทรัพยากรบุคคล (HR) ได้ที่{' '}
-              <span className="text-emerald-700 font-medium">hr@SmartLeave.com</span>
-            </p>
           </div>
         </div>
 

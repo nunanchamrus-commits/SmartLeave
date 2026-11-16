@@ -21,7 +21,7 @@ import {
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
 
-const JOB_TITLE_OPTIONS = [
+export const JOB_TITLE_OPTIONS = [
   'นักวิชาการสหกรณ์ชำนาญการ',
   'นักจัดการงานทั่วไป',
   'นักวิชาการสหกรณ์ปฏิบัติการ',
@@ -40,7 +40,7 @@ const JOB_TITLE_OPTIONS = [
   'พนักงานขับรถยนต์',
 ];
 
-const DEPARTMENT_OPTIONS = [
+export const DEPARTMENT_OPTIONS = [
   'ฝ่ายบริหารทั่วไป',
   'กลุ่มจัดตั้งและส่งเสริมสหกรณ์',
   'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์',

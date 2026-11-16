@@ -21,6 +21,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
+import { JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } from '../RegisterView';
 
 const LEAVE_QUOTA_TYPES = [
   { key: 'vacation', label: 'ลาพักร้อน', dotColor: 'bg-emerald-500', textColor: 'text-emerald-700' },
@@ -898,24 +899,42 @@ export default function AdminEmployeesView() {
                         <Briefcase className="w-3.5 h-3.5 text-slate-400" />
                         <span>ตำแหน่ง</span>
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={editForm.title}
                         onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
-                      />
+                      >
+                        <option value="" disabled>-- เลือกตำแหน่งงาน --</option>
+                        {editForm.title && !JOB_TITLE_OPTIONS.includes(editForm.title) && (
+                          <option value={editForm.title}>{editForm.title}</option>
+                        )}
+                        {JOB_TITLE_OPTIONS.map((job) => (
+                          <option key={job} value={job}>
+                            {job}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
                         <Building className="w-3.5 h-3.5 text-slate-400" />
                         <span>กลุ่ม / ฝ่าย / แผนก</span>
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={editForm.department}
                         onChange={(e) => setEditForm((p) => ({ ...p, department: e.target.value }))}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
-                      />
+                      >
+                        <option value="" disabled>-- เลือกสังกัดกลุ่ม / ฝ่าย --</option>
+                        {editForm.department && !DEPARTMENT_OPTIONS.includes(editForm.department) && (
+                          <option value={editForm.department}>{editForm.department}</option>
+                        )}
+                        {DEPARTMENT_OPTIONS.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -1238,24 +1257,42 @@ export default function AdminEmployeesView() {
                     <Briefcase className="w-3.5 h-3.5 text-slate-400" />
                     <span>ตำแหน่ง</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={addForm.title}
                     onChange={(e) => setAddForm((p) => ({ ...p, title: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
-                  />
+                  >
+                    <option value="" disabled>-- เลือกตำแหน่งงาน --</option>
+                    {addForm.title && !JOB_TITLE_OPTIONS.includes(addForm.title) && (
+                      <option value={addForm.title}>{addForm.title}</option>
+                    )}
+                    {JOB_TITLE_OPTIONS.map((job) => (
+                      <option key={job} value={job}>
+                        {job}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
                     <Building className="w-3.5 h-3.5 text-slate-400" />
                     <span>กลุ่ม / ฝ่าย / แผนก</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={addForm.department}
                     onChange={(e) => setAddForm((p) => ({ ...p, department: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
-                  />
+                  >
+                    <option value="" disabled>-- เลือกสังกัดกลุ่ม / ฝ่าย --</option>
+                    {addForm.department && !DEPARTMENT_OPTIONS.includes(addForm.department) && (
+                      <option value={addForm.department}>{addForm.department}</option>
+                    )}
+                    {DEPARTMENT_OPTIONS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

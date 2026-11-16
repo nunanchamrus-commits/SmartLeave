@@ -4,7 +4,22 @@ import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
 
 export default function LeaveRequestModal() {
-  const { isRequestModalOpen, setIsRequestModalOpen, submitLeaveRequest, quotas } = useLeave();
+  const { isRequestModalOpen, setIsRequestModalOpen, submitLeaveRequest, quotas, currentUser } = useLeave();
+
+  const isMale =
+    currentUser?.gender === 'ชาย' ||
+    currentUser?.gender === 'male' ||
+    Boolean(currentUser?.prefix?.includes('นาย')) ||
+    Boolean(currentUser?.prefixEn?.includes('Mr.')) ||
+    Boolean(currentUser?.name?.startsWith('นาย')) ||
+    Boolean(currentUser?.englishName?.startsWith('Mr.'));
+
+  const availableLeaveTypes = [
+    { id: 'vacation', label: 'ลาพักร้อน' },
+    { id: 'personal', label: 'ลากิจ' },
+    { id: 'sick', label: 'ลาป่วย' },
+    ...(!isMale ? [{ id: 'maternity', label: 'ลาคลอดบุตร' }] : []),
+  ];
 
   const getTodayISO = () => {
     const d = new Date();
@@ -19,10 +34,15 @@ export default function LeaveRequestModal() {
   const [endDate, setEndDate] = useState(getTodayISO);
   const [durationMode, setDurationMode] = useState('full'); // 'full', 'half-morning', 'half-afternoon'
   const [reason, setReason] = useState('');
-  const [substitute, setSubstitute] = useState('เอ');
+  const [substitute, setSubstitute] = useState('');
   const [fileName, setFileName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // If user is male and leaveType was set to maternity, auto-reset to vacation
+  if (isMale && leaveType === 'maternity') {
+    setLeaveType('vacation');
+  }
 
   if (!isRequestModalOpen) return null;
 
@@ -161,13 +181,8 @@ export default function LeaveRequestModal() {
               <label className="block font-semibold text-slate-700 mb-2">
                 ประเภทการลา <span className="text-red-500">*</span>
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { id: 'vacation', label: 'ลาพักร้อน' },
-                  { id: 'personal', label: 'ลากิจ' },
-                  { id: 'sick', label: 'ลาป่วย' },
-                  { id: 'maternity', label: 'ลาคลอดบุตร' },
-                ].map((t) => (
+              <div className={`grid grid-cols-2 ${isMale ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-2`}>
+                {availableLeaveTypes.map((t) => (
                   <button
                     type="button"
                     key={t.id}
@@ -275,7 +290,7 @@ export default function LeaveRequestModal() {
                 type="text"
                 value={substitute}
                 onChange={(e) => setSubstitute(e.target.value)}
-                placeholder="ระบุชื่อ - นามสกุล ผู้ปฏิบัติงานแทน เช่น เอ"
+                placeholder="ระบุชื่อ - นามสกุล ผู้ปฏิบัติงานแทน"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none text-slate-800 placeholder-slate-400"
               />
             </div>
