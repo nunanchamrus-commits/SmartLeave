@@ -97,10 +97,20 @@ function normalizeNotificationItem(notif) {
 function inferUserGender(user) {
   if (!user) return 'หญิง';
   if (user.gender === 'หญิง' || user.gender === 'ชาย' || user.gender === 'อื่นๆ') return user.gender;
-  const name = (user.name || '').trim();
-  if (/^(นางสาว|น\.ส\.|นาง)/.test(name) || user.id === 'usr-101') return 'หญิง';
-  if (/^นาย/.test(name) || user.id === 'usr-102' || user.id === 'usr-202') return 'ชาย';
+  const str = `${user.prefix || ''} ${user.name || ''} ${user.prefixEn || ''} ${user.englishName || ''}`.trim();
+  if (/^(นางสาว|น\.ส\.|นาง|Ms\.|Miss|Mrs\.)/i.test(str) || user.id === 'usr-101' || user.id === 'usr-103' || user.id === 'usr-105') return 'หญิง';
+  if (/นาย|Mr\./i.test(str) || user.id === 'usr-102' || user.id === 'usr-104' || user.id === 'usr-202') return 'ชาย';
   return 'หญิง';
+}
+
+function isMaleEmployee(emp) {
+  if (!emp) return false;
+  if (emp.gender === 'ชาย') return true;
+  if (emp.gender === 'หญิง') return false;
+  const str = `${emp.prefix || ''} ${emp.name || ''} ${emp.prefixEn || ''} ${emp.englishName || ''}`.trim();
+  if (/นาย|Mr\./i.test(str)) return true;
+  if (emp.id === 'usr-102' || emp.id === 'usr-104' || emp.id === 'usr-202') return true;
+  return false;
 }
 
 function normalizeLeaveStatus(status) {
@@ -126,12 +136,13 @@ function normalizeLeaveStatus(status) {
 
 function normalizeEmployeeQuotas(emp) {
   if (!emp) return emp;
-  const gender = emp.gender || inferUserGender(emp);
+  const isMale = isMaleEmployee(emp) || emp.gender === 'ชาย';
+  const gender = isMale ? 'ชาย' : (emp.gender || inferUserGender(emp));
   const defaults = {
     vacation: 10,
     personal: 15,
     sick: 30,
-    maternity: gender === 'ชาย' ? 0 : 90,
+    maternity: isMale ? 0 : 90,
   };
   const next = { ...emp, gender };
   Object.entries(defaults).forEach(([key, defLimit]) => {
@@ -154,6 +165,12 @@ function normalizeEmployeeQuotas(emp) {
     next[`${key}Used`] = used;
     next[`${key}Rem`] = rem;
   });
+
+  if (isMale) {
+    next.maternityLimit = 0;
+    next.maternityUsed = 0;
+    next.maternityRem = 0;
+  }
   return next;
 }
 

@@ -40,6 +40,16 @@ function matchesEmployee(req, emp) {
   return false;
 }
 
+function isMaleEmployee(emp) {
+  if (!emp) return false;
+  if (emp.gender === 'ชาย') return true;
+  if (emp.gender === 'หญิง') return false;
+  const str = `${emp.prefix || ''} ${emp.name || ''} ${emp.prefixEn || ''} ${emp.englishName || ''}`.trim();
+  if (/นาย|Mr\./i.test(str)) return true;
+  if (emp.id === 'usr-102' || emp.id === 'usr-104' || emp.id === 'usr-202') return true;
+  return false;
+}
+
 export default function AdminEmployeesView() {
   const { employees, leaveRequests, updateEmployeeQuota, addEmployee, updateEmployee, deleteEmployee, showToast } = useLeave();
   const [search, setSearch] = useState('');
@@ -102,6 +112,7 @@ export default function AdminEmployeesView() {
   });
 
   const getEmployeeLeaveStats = (emp) => {
+    const isMale = isMaleEmployee(emp);
     const approvedLeaves = (leaveRequests || []).filter(
       (r) => r.status === 'อนุมัติ' && matchesEmployee(r, emp)
     );
@@ -109,7 +120,7 @@ export default function AdminEmployeesView() {
       vacation: approvedLeaves.filter((r) => r.typeKey === 'vacation').length,
       personal: approvedLeaves.filter((r) => r.typeKey === 'personal').length,
       sick: approvedLeaves.filter((r) => r.typeKey === 'sick').length,
-      maternity: approvedLeaves.filter((r) => r.typeKey === 'maternity').length,
+      maternity: isMale ? 0 : approvedLeaves.filter((r) => r.typeKey === 'maternity').length,
     };
 
     const vacationLimit = Number(emp.vacationLimit ?? 10);
@@ -124,10 +135,9 @@ export default function AdminEmployeesView() {
     const sickRem = Number(emp.sickRem ?? sickLimit);
     const sickUsed = Number(emp.sickUsed ?? Math.max(0, sickLimit - sickRem));
 
-    const matDefault = emp.gender === 'ชาย' ? 0 : 90;
-    const maternityLimit = Number(emp.maternityLimit ?? matDefault);
-    const maternityRem = Number(emp.maternityRem ?? maternityLimit);
-    const maternityUsed = Number(emp.maternityUsed ?? Math.max(0, maternityLimit - maternityRem));
+    const maternityLimit = isMale ? 0 : Number(emp.maternityLimit ?? 90);
+    const maternityRem = isMale ? 0 : Number(emp.maternityRem ?? maternityLimit);
+    const maternityUsed = isMale ? 0 : Number(emp.maternityUsed ?? Math.max(0, maternityLimit - maternityRem));
 
     const totalUsedDays = vacationUsed + personalUsed + sickUsed + maternityUsed;
     const generalRem = vacationRem + personalRem + sickRem;
@@ -152,6 +162,7 @@ export default function AdminEmployeesView() {
       totalUsedDays,
       generalRem,
       generalLimit,
+      isMale,
     };
   };
 
@@ -202,6 +213,8 @@ export default function AdminEmployeesView() {
       }
     }
 
+    const isMale = isMaleEmployee(emp) || stats.isMale;
+
     setEditForm({
       prefix,
       firstName,
@@ -211,7 +224,7 @@ export default function AdminEmployeesView() {
       firstNameEn,
       lastNameEn,
       englishName: emp.englishName || `${prefixEn} ${firstNameEn} ${lastNameEn}`.trim(),
-      gender: emp.gender || 'หญิง',
+      gender: emp.gender || (isMale ? 'ชาย' : 'หญิง'),
       employmentType: emp.employmentType || 'ข้าราชการ',
       title: emp.title || '',
       department: emp.department || '',
@@ -227,9 +240,9 @@ export default function AdminEmployeesView() {
       sickLimit: stats.sickLimit,
       sickUsed: stats.sickUsed,
       sickRem: stats.sickRem,
-      maternityLimit: stats.maternityLimit,
-      maternityUsed: stats.maternityUsed,
-      maternityRem: stats.maternityRem,
+      maternityLimit: isMale ? 0 : stats.maternityLimit,
+      maternityUsed: isMale ? 0 : stats.maternityUsed,
+      maternityRem: isMale ? 0 : stats.maternityRem,
     });
   };
 
@@ -296,9 +309,12 @@ export default function AdminEmployeesView() {
       ? `${editForm.prefixEn ? editForm.prefixEn + ' ' : ''}${editForm.firstNameEn} ${editForm.lastNameEn || ''}`.trim()
       : editForm.englishName;
 
+    const isMale = editForm.gender === 'ชาย' || isMaleEmployee({ ...editingEmp, ...editForm, name: fullThaiName, englishName: fullEnglishName });
+
     const payload = {
       ...editingEmp,
       ...editForm,
+      gender: isMale ? 'ชาย' : editForm.gender,
       name: fullThaiName,
       englishName: fullEnglishName,
       vacationLimit: Math.max(0, Number(editForm.vacationLimit || 0)),
@@ -310,9 +326,9 @@ export default function AdminEmployeesView() {
       sickLimit: Math.max(0, Number(editForm.sickLimit || 0)),
       sickUsed: Math.max(0, Number(editForm.sickUsed || 0)),
       sickRem: Math.max(0, Number(editForm.sickRem || 0)),
-      maternityLimit: Math.max(0, Number(editForm.maternityLimit || 0)),
-      maternityUsed: Math.max(0, Number(editForm.maternityUsed || 0)),
-      maternityRem: Math.max(0, Number(editForm.maternityRem || 0)),
+      maternityLimit: isMale ? 0 : Math.max(0, Number(editForm.maternityLimit || 0)),
+      maternityUsed: isMale ? 0 : Math.max(0, Number(editForm.maternityUsed || 0)),
+      maternityRem: isMale ? 0 : Math.max(0, Number(editForm.maternityRem || 0)),
     };
 
     if (updateEmployee) {
@@ -335,10 +351,19 @@ export default function AdminEmployeesView() {
       ? `${addForm.prefixEn ? addForm.prefixEn + ' ' : ''}${addForm.firstNameEn} ${addForm.lastNameEn || ''}`.trim()
       : '';
 
+    const isMale = addForm.gender === 'ชาย' || isMaleEmployee({ ...addForm, name: fullThaiName, englishName: fullEnglishName });
+
     const payload = {
       ...addForm,
+      gender: isMale ? 'ชาย' : addForm.gender,
       name: fullThaiName,
       englishName: fullEnglishName,
+      vacationLimit: Math.max(0, Number(addForm.vacationLimit || 10)),
+      personalLimit: Math.max(0, Number(addForm.personalLimit || 15)),
+      sickLimit: Math.max(0, Number(addForm.sickLimit || 30)),
+      maternityLimit: isMale ? 0 : Math.max(0, Number(addForm.maternityLimit || 90)),
+      maternityUsed: 0,
+      maternityRem: isMale ? 0 : Math.max(0, Number(addForm.maternityLimit || 90)),
     };
 
     if (addEmployee) {
@@ -372,6 +397,7 @@ export default function AdminEmployeesView() {
 
     const rows = filteredEmployees.map((emp) => {
       const s = getEmployeeLeaveStats(emp);
+      const isMale = isMaleEmployee(emp) || s.isMale;
       return [
         emp.employeeId || emp.id,
         `"${(emp.name || '').replace(/"/g, '""')}"`,
@@ -382,7 +408,7 @@ export default function AdminEmployeesView() {
         `${s.vacationRem}/${s.vacationLimit}`,
         `${s.personalRem}/${s.personalLimit}`,
         `${s.sickRem}/${s.sickLimit}`,
-        `${s.maternityRem}/${s.maternityLimit}`,
+        isMale ? '-' : `${s.maternityRem}/${s.maternityLimit}`,
         `${s.generalRem}/${s.generalLimit}`,
       ];
     });
@@ -518,7 +544,7 @@ export default function AdminEmployeesView() {
               ) : (
                 filteredEmployees.map((emp) => {
                   const s = getEmployeeLeaveStats(emp);
-                  const noMaternity = emp.gender === 'ชาย' && s.maternityLimit === 0 && s.maternityRem === 0;
+                  const isMale = isMaleEmployee(emp) || s.isMale;
                   return (
                     <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-3 px-4">
@@ -531,15 +557,15 @@ export default function AdminEmployeesView() {
                           <div className="min-w-0">
                             <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                               <p className="font-bold text-slate-900">{emp.name}</p>
-                              {emp.gender && (
+                              {(emp.gender || (isMale ? 'ชาย' : '')) && (
                                 <span
                                   className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                    emp.gender === 'หญิง'
+                                    (emp.gender || (isMale ? 'ชาย' : '')) === 'หญิง'
                                       ? 'bg-pink-50 text-pink-700 border border-pink-200/60'
                                       : 'bg-blue-50 text-blue-700 border border-blue-200/60'
                                   }`}
                                 >
-                                  {emp.gender}
+                                  {emp.gender || (isMale ? 'ชาย' : '')}
                                 </span>
                               )}
                               {emp.employmentType && (
@@ -615,7 +641,7 @@ export default function AdminEmployeesView() {
 
                       {/* Maternity */}
                       <td className="py-3 px-4 text-center whitespace-nowrap">
-                        {noMaternity ? (
+                        {isMale ? (
                           <span className="text-xs text-slate-400">-</span>
                         ) : (
                           <>
@@ -635,11 +661,6 @@ export default function AdminEmployeesView() {
                         <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-[#155A32] border border-emerald-200/80">
                           {s.generalRem} / {s.generalLimit} วัน
                         </span>
-                        {!noMaternity && s.maternityRem > 0 && (
-                          <div className="text-[10px] text-pink-600 mt-0.5">
-                            + ลาคลอด {s.maternityRem} วัน
-                          </div>
-                        )}
                       </td>
 
                       {/* Action */}
@@ -839,7 +860,16 @@ export default function AdminEmployeesView() {
                       <label className="block font-bold text-slate-700 mb-1">เพศ</label>
                       <select
                         value={editForm.gender}
-                        onChange={(e) => setEditForm((p) => ({ ...p, gender: e.target.value }))}
+                        onChange={(e) => {
+                          const newGender = e.target.value;
+                          setEditForm((p) => ({
+                            ...p,
+                            gender: newGender,
+                            ...(newGender === 'ชาย'
+                              ? { maternityLimit: 0, maternityUsed: 0, maternityRem: 0 }
+                              : (Number(p.maternityLimit) === 0 ? { maternityLimit: 90, maternityUsed: 0, maternityRem: 90 } : {}))
+                          }));
+                        }}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
                       >
                         <option value="หญิง">หญิง</option>
@@ -966,7 +996,9 @@ export default function AdminEmployeesView() {
                       <div className="col-span-3 text-center">คงเหลือ (วัน)</div>
                     </div>
 
-                    {LEAVE_QUOTA_TYPES.map((lt) => (
+                    {LEAVE_QUOTA_TYPES.filter(
+                      (lt) => !(lt.key === 'maternity' && (editForm.gender === 'ชาย' || isMaleEmployee(editingEmp)))
+                    ).map((lt) => (
                       <div
                         key={lt.key}
                         className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center p-3 rounded-2xl bg-slate-50/70 border border-slate-200/70"
@@ -1170,7 +1202,14 @@ export default function AdminEmployeesView() {
                   <label className="block font-bold text-slate-700 mb-1">เพศ</label>
                   <select
                     value={addForm.gender}
-                    onChange={(e) => setAddForm((p) => ({ ...p, gender: e.target.value }))}
+                    onChange={(e) => {
+                      const newGender = e.target.value;
+                      setAddForm((p) => ({
+                        ...p,
+                        gender: newGender,
+                        maternityLimit: newGender === 'ชาย' ? 0 : (Number(p.maternityLimit) === 0 ? 90 : p.maternityLimit),
+                      }));
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
                   >
                     <option value="หญิง">หญิง</option>
@@ -1270,7 +1309,7 @@ export default function AdminEmployeesView() {
                   <CalendarCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>กำหนดโควตาวันลาเริ่มต้นต่อปี (วัน)</span>
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className={`grid gap-2.5 ${addForm.gender === 'ชาย' ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                     <span className="block text-[11px] font-bold text-emerald-700 mb-1">ลาพักร้อน</span>
                     <input
@@ -1301,16 +1340,18 @@ export default function AdminEmployeesView() {
                       className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
                     />
                   </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="block text-[11px] font-bold text-pink-600 mb-1">ลาคลอดบุตร</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={addForm.maternityLimit}
-                      onChange={(e) => setAddForm((p) => ({ ...p, maternityLimit: e.target.value }))}
-                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
-                    />
-                  </div>
+                  {addForm.gender !== 'ชาย' && (
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <span className="block text-[11px] font-bold text-pink-600 mb-1">ลาคลอดบุตร</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={addForm.maternityLimit}
+                        onChange={(e) => setAddForm((p) => ({ ...p, maternityLimit: e.target.value }))}
+                        className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
