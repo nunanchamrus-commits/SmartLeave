@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Printer,
   FileDown,
   RefreshCw,
   Database,
@@ -46,10 +45,6 @@ export default function ReportsView() {
     } finally {
       setIsSyncing(false);
     }
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const handleExportPdf = async () => {
@@ -184,14 +179,6 @@ export default function ReportsView() {
               <FileDown className="w-4 h-4 text-lime-300" />
             )}
             <span>{isExporting ? 'กำลังสร้าง PDF...' : 'ส่งออกรายงาน PDF'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex items-center space-x-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs sm:text-sm font-medium transition-all shadow-xs"
-          >
-            <Printer className="w-4 h-4 text-emerald-600" />
-            <span>พิมพ์รายงาน</span>
           </button>
         </div>
       </div>

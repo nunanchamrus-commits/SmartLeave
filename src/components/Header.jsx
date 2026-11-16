@@ -18,7 +18,6 @@ import { useLeave } from '../context/LeaveContext';
 export default function Header({ onMenuClick }) {
   const {
     currentUser,
-    switchRole,
     searchQuery,
     setSearchQuery,
     notifications,
@@ -114,22 +113,6 @@ export default function Header({ onMenuClick }) {
             {formattedHeaderTime} น.
           </span>
         </div>
-
-        {/* Quick Role Switcher Pill (Compare User vs Admin in 1 Click) */}
-        <button
-          onClick={() => switchRole(isAdmin ? 'employee' : 'approver')}
-          className={`hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs border ${
-            isAdmin
-              ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
-              : 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
-          }`}
-          title="คลิกเพื่อสลับบทบาทดูความแตกต่างทันที"
-        >
-          <span>{isAdmin ? '👑 มุมมอง: Admin (ผู้ดูแล)' : '👤 มุมมอง: User (พนักงาน)'}</span>
-          <span className="text-[10px] bg-white px-2 py-0.5 rounded-full shadow-2xs font-semibold text-slate-700">
-            สลับเป็น {isAdmin ? 'User' : 'Admin'} ➔
-          </span>
-        </button>
 
         {/* Notification Bell Dropdown */}
         <div className="relative" ref={notifMenuRef}>

@@ -14,7 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
-import { downloadLeaveSlipPdf, downloadLeaveSummaryPdf } from '../../utils/exportPdf';
+import { downloadLeaveSlipPdf } from '../../utils/exportPdf';
 
 export default function LeaveHistoryView() {
   const {
@@ -31,7 +31,6 @@ export default function LeaveHistoryView() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [isExportingSummary, setIsExportingSummary] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
   const [adminScope, setAdminScope] = useState('all'); // 'all' | 'my' (เฉพาะ Admin เท่านั้นที่เลือกได้)
 
@@ -56,19 +55,6 @@ export default function LeaveHistoryView() {
       r.employeeName.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchType && matchSearch;
   });
-
-  const handleExportSummaryPdf = async () => {
-    setIsExportingSummary(true);
-    try {
-      await downloadLeaveSummaryPdf(filteredRequests, 'รายงานตรวจสอบสถานะการลา');
-      if (showToast) showToast('ส่งออกรายงานสรุปการลาเป็น PDF เรียบร้อยแล้ว', 'success');
-    } catch (e) {
-      console.error(e);
-      if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF', 'error');
-    } finally {
-      setIsExportingSummary(false);
-    }
-  };
 
   const handleExportRowPdf = async (req) => {
     setDownloadingId(req.id);
@@ -192,19 +178,6 @@ export default function LeaveHistoryView() {
               </button>
             </div>
           )}
-          <button
-            onClick={handleExportSummaryPdf}
-            disabled={isExportingSummary}
-            className="flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-[#155A32] rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs disabled:opacity-60"
-            title="ส่งออกรายงานรายการทั้งหมดเป็นไฟล์ PDF"
-          >
-            {isExportingSummary ? (
-              <div className="w-4 h-4 border-2 border-emerald-700/30 border-t-emerald-700 rounded-full animate-spin" />
-            ) : (
-              <FileDown className="w-4 h-4 text-emerald-700" />
-            )}
-            <span>{isExportingSummary ? 'กำลังสร้าง PDF...' : 'ส่งออกรายงาน PDF'}</span>
-          </button>
           <button
             onClick={exportToCSV}
             className="flex items-center space-x-2 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs sm:text-sm font-medium transition-all shadow-xs"
