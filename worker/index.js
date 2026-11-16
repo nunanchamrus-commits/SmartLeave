@@ -201,7 +201,7 @@ async function adjustUserLeaveQuota(db, userId, leaveTypeId, fiscalYear, deltaDa
           remaining_days = ?,
           updated_at = datetime('now', 'localtime')
       WHERE quota_id = ?
-    `).bind(nextUsed, nextRem, existing.quota_id).run().catch(() => {});
+    `).bind(nextUsed, nextRem, existing.quota_id).run().catch(() => { });
     return;
   }
 
@@ -226,7 +226,7 @@ async function adjustUserLeaveQuota(db, userId, leaveTypeId, fiscalYear, deltaDa
   await db.prepare(`
     INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
-  `).bind(userId, leaveTypeId, year, defaultTotal, nextUsed, nextRem).run().catch(() => {});
+  `).bind(userId, leaveTypeId, year, defaultTotal, nextUsed, nextRem).run().catch(() => { });
 }
 
 async function upsertEmployeeQuotaType(db, userId, leaveTypeId, fiscalYear, defaultLimit, limitVal, usedVal, remVal) {
@@ -262,7 +262,7 @@ async function upsertEmployeeQuotaType(db, userId, leaveTypeId, fiscalYear, defa
   await db.prepare(`
     INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
-  `).bind(userId, leaveTypeId, year, total, used, rem).run().catch(() => {});
+  `).bind(userId, leaveTypeId, year, total, used, rem).run().catch(() => { });
 }
 
 async function createLeaveStatusNotification(db, reqInfo, displayStatus, remark = '') {
@@ -271,10 +271,10 @@ async function createLeaveStatusNotification(db, reqInfo, displayStatus, remark 
     displayStatus === 'อนุมัติ'
       ? 'approved'
       : displayStatus === 'ไม่อนุมัติ'
-      ? 'rejected'
-      : displayStatus === 'ยังไม่ยื่นเอกสาร'
-      ? 'warning'
-      : 'pending';
+        ? 'rejected'
+        : displayStatus === 'ยังไม่ยื่นเอกสาร'
+          ? 'warning'
+          : 'pending';
   const reqNoText = reqInfo.request_no || `#${reqInfo.request_id}`;
   const typeText = reqInfo.type_name ? ` (${reqInfo.type_name})` : '';
   const dateText = reqInfo.start_date
@@ -387,13 +387,13 @@ async function ensureTableColumns(db, tableName, columnSpecs) {
     const existing = new Set((tableInfo.results || []).map((c) => c.name.toLowerCase()));
     for (const [col, spec] of Object.entries(columnSpecs)) {
       if (!existing.has(col.toLowerCase())) {
-        await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} ${spec}`).run().catch(() => {});
+        await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} ${spec}`).run().catch(() => { });
       }
     }
   } catch (err) {
     // กรณี PRAGMA ทำงานไม่ได้ ให้รัน ALTER TABLE แบบ Idempotent ตรงๆ
     for (const [col, spec] of Object.entries(columnSpecs)) {
-      await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} ${spec}`).run().catch(() => {});
+      await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} ${spec}`).run().catch(() => { });
     }
   }
 }
@@ -529,7 +529,7 @@ async function autoMigrateDatabase(db) {
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS roles (
@@ -539,7 +539,7 @@ async function autoMigrateDatabase(db) {
       description TEXT,
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS users (
@@ -566,7 +566,7 @@ async function autoMigrateDatabase(db) {
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS leave_types (
@@ -582,7 +582,7 @@ async function autoMigrateDatabase(db) {
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS employee_leave_quotas (
@@ -598,7 +598,7 @@ async function autoMigrateDatabase(db) {
       updated_at TEXT DEFAULT (datetime('now', 'localtime')),
       UNIQUE(user_id, leave_type_id, fiscal_year)
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS leave_requests (
@@ -623,7 +623,7 @@ async function autoMigrateDatabase(db) {
       created_at TEXT DEFAULT (datetime('now', '+7 hours')),
       updated_at TEXT DEFAULT (datetime('now', '+7 hours'))
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS notifications (
@@ -637,7 +637,7 @@ async function autoMigrateDatabase(db) {
       target_role TEXT,
       created_at TEXT DEFAULT (datetime('now', '+7 hours'))
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS pdpa_consents (
@@ -649,7 +649,7 @@ async function autoMigrateDatabase(db) {
       ip_address TEXT,
       user_agent TEXT
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS password_reset_otps (
@@ -660,11 +660,19 @@ async function autoMigrateDatabase(db) {
       is_used INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', '+7 hours'))
     )
-  `).run().catch(() => {});
+  `).run().catch(() => { });
 
   await db.prepare(`
     CREATE INDEX IF NOT EXISTS idx_password_reset_otps_email ON password_reset_otps(email)
-  `).run().catch(() => {});
+  `).run().catch(() => { });
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      setting_key TEXT PRIMARY KEY,
+      setting_value TEXT,
+      updated_at TEXT DEFAULT (datetime('now', '+7 hours'))
+    )
+  `).run().catch(() => { });
 
   for (const [table, specs] of Object.entries(SCHEMA_COLUMNS)) {
     await ensureTableColumns(db, table, specs);
@@ -676,17 +684,17 @@ async function autoMigrateDatabase(db) {
     for (const u of (existingUsers.results || [])) {
       const parsed = parseEnglishName(u.english_name, u.gender, u.prefix);
       await db.prepare("UPDATE users SET prefix_en = ?, first_name_en = ?, last_name_en = ? WHERE user_id = ?")
-        .bind(parsed.prefixEn || '', parsed.firstNameEn || '', parsed.lastNameEn || '', u.user_id).run().catch(() => {});
+        .bind(parsed.prefixEn || '', parsed.firstNameEn || '', parsed.lastNameEn || '', u.user_id).run().catch(() => { });
     }
-  } catch (migErr) {}
+  } catch (migErr) { }
 
   // อัปเดต review_stage ให้คำขอลาเดิมที่มีอยู่แล้วในฐานข้อมูล (รวมกรณี ALTER TABLE ... DEFAULT 'not_submitted')
   try {
-    await db.prepare("UPDATE leave_requests SET review_stage = 'approved' WHERE status IN ('approved', 'อนุมัติ') AND COALESCE(review_stage, '') != 'approved'").run().catch(() => {});
-    await db.prepare("UPDATE leave_requests SET review_stage = 'rejected' WHERE status IN ('rejected', 'cancelled', 'ไม่อนุมัติ', 'ยกเลิก') AND COALESCE(review_stage, '') != 'rejected'").run().catch(() => {});
-    await db.prepare("UPDATE leave_requests SET review_stage = 'checking' WHERE status IN ('อยู่ระหว่างตรวจสอบ', 'รออนุมัติ') AND COALESCE(review_stage, '') != 'checking'").run().catch(() => {});
-    await db.prepare("UPDATE leave_requests SET review_stage = 'not_submitted' WHERE review_stage IS NULL OR review_stage = ''").run().catch(() => {});
-  } catch (stageMigErr) {}
+    await db.prepare("UPDATE leave_requests SET review_stage = 'approved' WHERE status IN ('approved', 'อนุมัติ') AND COALESCE(review_stage, '') != 'approved'").run().catch(() => { });
+    await db.prepare("UPDATE leave_requests SET review_stage = 'rejected' WHERE status IN ('rejected', 'cancelled', 'ไม่อนุมัติ', 'ยกเลิก') AND COALESCE(review_stage, '') != 'rejected'").run().catch(() => { });
+    await db.prepare("UPDATE leave_requests SET review_stage = 'checking' WHERE status IN ('อยู่ระหว่างตรวจสอบ', 'รออนุมัติ') AND COALESCE(review_stage, '') != 'checking'").run().catch(() => { });
+    await db.prepare("UPDATE leave_requests SET review_stage = 'not_submitted' WHERE review_stage IS NULL OR review_stage = ''").run().catch(() => { });
+  } catch (stageMigErr) { }
   // ลบการแจ้งเตือนที่ซ้ำซ้อนในตาราง notifications สำหรับ Admin/ผู้อนุมัติ ออกให้เหลือเพียงรายการเดียว
   try {
     await db.prepare(`
@@ -698,8 +706,8 @@ async function autoMigrateDatabase(db) {
           WHERE target_role IN ('admin', 'approver')
           GROUP BY title, description
         )
-    `).run().catch(() => {});
-  } catch (cleanNotifErr) {}
+    `).run().catch(() => { });
+  } catch (cleanNotifErr) { }
 }
 
 // -------------------------------------------------------------
@@ -735,7 +743,7 @@ async function seedMasterData(db) {
     // สร้างเฉพาะบัญชีผู้ดูแลระบบหลัก (Admin) เริ่มต้นเพียงบัญชีเดียวหากยังไม่มี โดยใช้ INSERT OR IGNORE เพื่อไม่ให้ทับข้อมูลที่แก้ไขแล้ว
     db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
       VALUES (1, 'ADM-001', 'admin@smartleave.com', '12345678', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'Mr.', 'System', 'Administrator', 'Mr. System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-  ]).catch(() => {});
+  ]).catch(() => { });
 }
 
 // Export สำหรับ Cloudflare Workers (Worker Fetch Event)
@@ -926,7 +934,7 @@ export async function onRequest(context) {
       const isPasswordValid =
         (user.password_hash && user.password_hash === password) ||
         ((user.password_hash === 'default_hash' || user.password_hash?.startsWith('$2a$')) &&
-         (password === '123456' || password === '12345678' || password === 'Admin@Leave2026!'));
+          (password === '123456' || password === '12345678' || password === 'Admin@Leave2026!'));
 
       if (!isPasswordValid) {
         return jsonResponse({
@@ -950,7 +958,7 @@ export async function onRequest(context) {
           'SELECT consent_id FROM pdpa_consents WHERE user_id = ? AND is_granted = 1 LIMIT 1'
         ).bind(user.user_id).first();
         if (consent) pdpaAccepted = true;
-      } catch (e) {}
+      } catch (e) { }
 
       return jsonResponse({
         success: true,
@@ -1010,17 +1018,32 @@ export async function onRequest(context) {
 
       // ยกเลิก OTP เดิมที่ยังไม่ได้ใช้สำหรับอีเมลนี้
       await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE LOWER(email) = LOWER(?) AND is_used = 0')
-        .bind(cleanEmail).run().catch(() => {});
+        .bind(cleanEmail).run().catch(() => { });
 
       // บันทึก OTP ลงฐานข้อมูล มีอายุ 5 นาที (อิงเวลาไทย +7 hours)
       await env.DB.prepare(`
         INSERT INTO password_reset_otps (email, otp_code, expires_at, is_used, created_at)
         VALUES (?, ?, datetime('now', '+7 hours', '+5 minutes'), 0, datetime('now', '+7 hours'))
-      `).bind(cleanEmail, otpCode).run().catch(() => {});
+      `).bind(cleanEmail, otpCode).run().catch(() => { });
 
       // ส่งอีเมลด้วย Resend API
-      const resendApiKey = env.RESEND_API_KEY || (typeof RESEND_API_KEY !== 'undefined' ? RESEND_API_KEY : '');
-      const resendFromEmail = env.RESEND_FROM_EMAIL || (typeof RESEND_FROM_EMAIL !== 'undefined' ? RESEND_FROM_EMAIL : '');
+      // 1. ดึง Resend API Key จาก Cloudflare Environment Secret (env.RESEND_API_KEY)
+      let resendApiKey = env.RESEND_API_KEY || (typeof RESEND_API_KEY !== 'undefined' ? RESEND_API_KEY : '');
+      let resendFromEmail = env.RESEND_FROM_EMAIL || (typeof RESEND_FROM_EMAIL !== 'undefined' ? RESEND_FROM_EMAIL : '');
+
+      // 2. หากยังไม่มีใน Cloudflare Env ให้ดึงจาก D1 Database (ตาราง system_settings) ปลอดภัย 100% ไม่ต้องผ่าน GitHub
+      if (!resendApiKey || !resendApiKey.trim()) {
+        const dbSetting = await env.DB.prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'RESEND_API_KEY'").first().catch(() => null);
+        if (dbSetting?.setting_value) {
+          resendApiKey = dbSetting.setting_value.trim();
+        }
+      }
+      if (!resendFromEmail || resendFromEmail.includes('onboarding@resend.dev')) {
+        const dbFrom = await env.DB.prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'RESEND_FROM_EMAIL'").first().catch(() => null);
+        if (dbFrom?.setting_value) {
+          resendFromEmail = dbFrom.setting_value.trim();
+        }
+      }
 
       const sendResult = await sendOtpEmailWithResend({
         apiKey: resendApiKey,
@@ -1035,7 +1058,7 @@ export async function onRequest(context) {
         if (sendResult.error === 'RESEND_API_KEY_NOT_CONFIGURED') {
           return jsonResponse({
             success: false,
-            message: 'ยังไม่ได้ระบุ RESEND_API_KEY ใน wrangler.toml หรือ Cloudflare Dashboard กรุณาระบุ API Key เพื่อส่งอีเมล',
+            message: 'ยังไม่ได้ระบุ RESEND_API_KEY ใน Cloudflare Dashboard Secrets หรือตาราง system_settings',
             requiresApiKey: true,
           }, 400);
         }
@@ -1048,6 +1071,36 @@ export async function onRequest(context) {
       return jsonResponse({
         success: true,
         message: `ส่งรหัส OTP ไปยังอีเมล ${cleanEmail} เรียบร้อยแล้ว (รหัสมีอายุ 5 นาที)`,
+      });
+    }
+
+    // -------------------------------------------------------------
+    // ตั้งค่า Resend API Key ลงใน D1 Database (บันทึกใน D1 ปลอดภัย ไม่ผ่าน GitHub)
+    // POST /api/settings/resend-key
+    // -------------------------------------------------------------
+    if (path === '/settings/resend-key' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { apiKey, fromEmail } = body;
+      if (!apiKey || !apiKey.trim().startsWith('re_')) {
+        return jsonResponse({ success: false, message: 'รูปแบบ API Key ไม่ถูกต้อง ต้องขึ้นต้นด้วย re_' }, 400);
+      }
+      await env.DB.prepare(`
+        INSERT INTO system_settings (setting_key, setting_value, updated_at)
+        VALUES ('RESEND_API_KEY', ?, datetime('now', '+7 hours'))
+        ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at
+      `).bind(apiKey.trim()).run().catch(() => { });
+
+      if (fromEmail && fromEmail.trim()) {
+        await env.DB.prepare(`
+          INSERT INTO system_settings (setting_key, setting_value, updated_at)
+          VALUES ('RESEND_FROM_EMAIL', ?, datetime('now', '+7 hours'))
+          ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at
+        `).bind(fromEmail.trim()).run().catch(() => { });
+      }
+
+      return jsonResponse({
+        success: true,
+        message: 'บันทึก RESEND_API_KEY ลงฐานข้อมูล Cloudflare D1 เรียบร้อยแล้ว (ปลอดภัย 100% ไม่ถูกเก็บใน GitHub)',
       });
     }
 
@@ -1127,7 +1180,7 @@ export async function onRequest(context) {
 
         // ทำเครื่องหมายว่า OTP ถูกใช้งานแล้ว
         await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE otp_id = ?')
-          .bind(otpRecord.otp_id).run().catch(() => {});
+          .bind(otpRecord.otp_id).run().catch(() => { });
       }
 
       let updateResult = null;
@@ -1147,7 +1200,7 @@ export async function onRequest(context) {
         updateResult = await env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now', '+7 hours') WHERE LOWER(email) = LOWER(?)")
           .bind(newPassword.trim(), email.trim()).run().catch(() => null);
       }
-      
+
       if (!updateResult || updateResult.meta?.changes === 0) {
         return jsonResponse({ success: false, message: 'ไม่พบบัญชีผู้ใช้นี้ในระบบ' }, 404);
       }
@@ -1160,7 +1213,7 @@ export async function onRequest(context) {
           await env.DB.prepare(`
             INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
             VALUES (?, 'กู้คืนรหัสผ่านสำเร็จ', 'รหัสผ่านของคุณถูกตั้งใหม่เรียบร้อยแล้ว สามารถเข้าสู่ระบบด้วยรหัสผ่านใหม่ได้ทันที', 'info', 0, 'employee', datetime('now', '+7 hours'))
-          `).bind(u.user_id).run().catch(() => {});
+          `).bind(u.user_id).run().catch(() => { });
         }
       }
 
@@ -1202,7 +1255,7 @@ export async function onRequest(context) {
       const isPasswordValid =
         (user.password_hash && user.password_hash === currentPassword) ||
         ((user.password_hash === 'default_hash' || user.password_hash?.startsWith('$2a$')) &&
-         (currentPassword === '123456' || currentPassword === '12345678' || currentPassword === 'Admin@Leave2026!'));
+          (currentPassword === '123456' || currentPassword === '12345678' || currentPassword === 'Admin@Leave2026!'));
 
       if (!isPasswordValid) {
         return jsonResponse({ success: false, message: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' }, 400);
@@ -1220,10 +1273,10 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if (path === '/auth/register' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      let { 
-        firstName, lastName, fullName, prefix, 
+      let {
+        firstName, lastName, fullName, prefix,
         prefixEn, firstNameEn, lastNameEn, englishName,
-        employeeCode, email, department, position, title, gender, employmentType, phone, password 
+        employeeCode, email, department, position, title, gender, employmentType, phone, password
       } = body;
 
       const rawThai = (typeof fullName === 'string' && fullName.trim()) || '';
@@ -1587,7 +1640,7 @@ export async function onRequest(context) {
             .bind(newUserId, curYear, perLim, perLim),
           env.DB.prepare("INSERT OR REPLACE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, remaining_days, used_days) VALUES (?, 4, ?, ?, ?, 0.0)")
             .bind(newUserId, curYear, matLim, matLim),
-        ]).catch(() => {});
+        ]).catch(() => { });
       }
 
       return jsonResponse({
@@ -1919,7 +1972,7 @@ export async function onRequest(context) {
           ORDER BY created_at DESC, notification_id DESC
           LIMIT 100
         `).all().catch(() => ({ results: [] }));
-        
+
         // กรองรายการแจ้งเตือนซ้ำ (Deduplicate) ไม่ให้แสดงคำขอเดิมซ้ำ 2 รอบ
         const seen = new Set();
         const uniqueResults = [];
@@ -1940,7 +1993,7 @@ export async function onRequest(context) {
           ORDER BY created_at DESC, notification_id DESC
           LIMIT 100
         `).bind(targetUserId).all().catch(() => ({ results: [] }));
-        
+
         const seen = new Set();
         const uniqueResults = [];
         for (const item of (q.results || [])) {
@@ -1959,7 +2012,7 @@ export async function onRequest(context) {
           ORDER BY created_at DESC, notification_id DESC
           LIMIT 100
         `).all().catch(() => ({ results: [] }));
-        
+
         const seen = new Set();
         const uniqueResults = [];
         for (const item of (q.results || [])) {
@@ -1984,12 +2037,12 @@ export async function onRequest(context) {
       if (cleanId && /^\d+$/.test(cleanId)) {
         const user = await env.DB.prepare('SELECT role_id FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
         if (user && (user.role_id === 1 || user.role_id === 3)) {
-          await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? OR target_role IN ('admin', 'approver')").bind(Number(cleanId)).run().catch(() => {});
+          await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? OR target_role IN ('admin', 'approver')").bind(Number(cleanId)).run().catch(() => { });
         } else {
-          await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').bind(Number(cleanId)).run().catch(() => {});
+          await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').bind(Number(cleanId)).run().catch(() => { });
         }
       } else {
-        await env.DB.prepare('UPDATE notifications SET is_read = 1').run().catch(() => {});
+        await env.DB.prepare('UPDATE notifications SET is_read = 1').run().catch(() => { });
       }
       return jsonResponse({ success: true });
     }
@@ -1997,7 +2050,7 @@ export async function onRequest(context) {
     if (path.match(/^\/notifications\/([^/]+)\/read$/) && (method === 'PUT' || method === 'POST')) {
       const idMatch = path.match(/^\/notifications\/([^/]+)\/read$/);
       const notifId = idMatch[1];
-      await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ?').bind(notifId).run().catch(() => {});
+      await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ?').bind(notifId).run().catch(() => { });
       return jsonResponse({ success: true });
     }
 
@@ -2090,10 +2143,10 @@ export async function onRequest(context) {
         mapped.displayStatus === 'อนุมัติ'
           ? 'approved'
           : mapped.displayStatus === 'ไม่อนุมัติ'
-          ? 'rejected'
-          : mapped.displayStatus === 'ยังไม่ยื่นเอกสาร'
-          ? 'warning'
-          : 'pending';
+            ? 'rejected'
+            : mapped.displayStatus === 'ยังไม่ยื่นเอกสาร'
+              ? 'warning'
+              : 'pending';
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
         VALUES (?, ?, ?, ?, 0, 'employee', datetime('now', '+7 hours'))
@@ -2102,7 +2155,7 @@ export async function onRequest(context) {
         `ยื่นคำขอลา${typeName ? ` (${typeName})` : ''}สำเร็จ`,
         `คำขอลา ${reqNo} (${safeStart} ถึง ${safeEnd}) สถานะ: ${mapped.displayStatus}`,
         notifType
-      ).run().catch(() => {});
+      ).run().catch(() => { });
 
       // 3. สร้างการแจ้งเตือนสำหรับ Admin / ผู้อนุมัติ ทันทีเมื่อมีคำขอส่งเข้ามา (+7 ชั่วโมง)
       // บันทึกเพียง 1 รายการระดับกลุ่ม Admin (target_role = 'admin') เพื่อป้องกันการแจ้งเตือนซ้ำซ้อน
@@ -2112,7 +2165,7 @@ export async function onRequest(context) {
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
         VALUES (NULL, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
-      `).bind(adminNotifTitle, adminNotifDesc).run().catch(() => {});
+      `).bind(adminNotifTitle, adminNotifDesc).run().catch(() => { });
 
       return jsonResponse({
         success: true,
@@ -2301,8 +2354,8 @@ export async function onRequest(context) {
         typeof remark === 'string'
           ? remark.trim()
           : remark !== undefined && remark !== null
-          ? String(remark)
-          : undefined;
+            ? String(remark)
+            : undefined;
       const nextRemark =
         cleanRemark !== undefined && cleanRemark !== ''
           ? cleanRemark
@@ -2495,14 +2548,14 @@ export async function onRequest(context) {
           ip_address TEXT,
           UNIQUE(user_id, policy_id, consent_type)
         )
-      `).run().catch(() => {});
+      `).run().catch(() => { });
 
       if (targetUserId) {
         await env.DB.prepare(`
           INSERT INTO pdpa_consents (user_id, policy_id, consent_type, is_granted, granted_at)
           VALUES (?, 1, 'GENERAL_TERMS', 1, datetime('now', 'localtime'))
           ON CONFLICT(user_id, policy_id, consent_type) DO UPDATE SET is_granted = 1, granted_at = datetime('now', 'localtime')
-        `).bind(targetUserId).run().catch(() => {});
+        `).bind(targetUserId).run().catch(() => { });
       }
 
       await env.DB.prepare(`
@@ -2511,7 +2564,7 @@ export async function onRequest(context) {
       `).bind(
         healthConsent ? 'AGREE_NOTICE_AND_HEALTH_DATA' : 'AGREE_NOTICE_ONLY',
         `User ${targetUserId || 'anonymous'} submitted consent choice: Health=${Boolean(healthConsent)}`
-      ).run().catch(() => {});
+      ).run().catch(() => { });
 
       return jsonResponse({ success: true, message: 'บันทึกความยินยอม PDPA ลงฐานข้อมูล D1 สำเร็จ' });
     }
@@ -2522,7 +2575,7 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if ((path === '/users/profile' || path === '/auth/profile') && (method === 'PUT' || method === 'POST')) {
       const body = await request.json().catch(() => ({}));
-      let { 
+      let {
         name, fullName, email, phone, title, position, department, avatar, employeeId, gender, employmentType,
         prefix, firstName, lastName,
         prefixEn, firstNameEn, lastNameEn, englishName
@@ -2559,7 +2612,7 @@ export async function onRequest(context) {
       }
       const fullEnglishName = englishName || (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
 
-      const rawId = body.id || body.userId;
+      const rawId = body.id || body.userId || body.raw_id;
       const cleanId = rawId ? String(rawId).replace(/^usr-/, '') : '';
       const validUid = /^\d+$/.test(cleanId) ? Number(cleanId) : null;
       let targetUserId = null;
@@ -2567,15 +2620,30 @@ export async function onRequest(context) {
         const u = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ?').bind(validUid).first().catch(() => null);
         if (u) targetUserId = u.user_id;
       }
-      if (!targetUserId && (email || employeeId)) {
-        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(employee_code) = LOWER(?)')
-          .bind(email ? String(email).trim() : '', employeeId ? String(employeeId).trim() : '').first().catch(() => null);
+      if (!targetUserId && (employeeId || body.employee_code)) {
+        const empCode = String(employeeId || body.employee_code).trim();
+        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(employee_code) = LOWER(?)').bind(empCode).first().catch(() => null);
+        if (u) targetUserId = u.user_id;
+      }
+      if (!targetUserId && (body.oldEmail || email)) {
+        const lookupEmail = String(body.oldEmail || email).trim().toLowerCase();
+        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?)').bind(lookupEmail).first().catch(() => null);
         if (u) targetUserId = u.user_id;
       }
 
       if (targetUserId) {
         try {
           await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
+
+          // ตรวจสอบความถูกต้องของอีเมลใหม่ และป้องกันอีเมลซ้ำกับผู้ใช้อื่น
+          const cleanEmail = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
+          if (cleanEmail) {
+            const duplicate = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) AND user_id != ? LIMIT 1')
+              .bind(cleanEmail, targetUserId).first().catch(() => null);
+            if (duplicate) {
+              return jsonResponse({ success: false, message: 'อีเมลนี้ถูกใช้งานโดยผู้ใช้รายอื่นในระบบแล้ว กรุณาใช้อีเมลอื่น' }, 400);
+            }
+          }
 
           let deptId = null;
           if (department && typeof department === 'string' && department.trim()) {
@@ -2595,11 +2663,12 @@ export async function onRequest(context) {
                 english_name = COALESCE(?, english_name),
                 gender = COALESCE(?, gender),
                 employment_type = COALESCE(?, employment_type),
+                email = COALESCE(?, email),
                 phone = COALESCE(?, phone),
                 position = COALESCE(?, position),
                 department_id = COALESCE(?, department_id),
                 avatar_url = COALESCE(?, avatar_url),
-                updated_at = datetime('now', 'localtime')
+                updated_at = datetime('now', '+7 hours')
             WHERE user_id = ?
           `).bind(
             prefix ?? null,
@@ -2611,12 +2680,18 @@ export async function onRequest(context) {
             fullEnglishName ?? null,
             gender ?? null,
             employmentType ?? null,
+            cleanEmail ?? null,
             phone ?? null,
             (position || title) ?? null,
             deptId ?? null,
             avatar ?? null,
             targetUserId
           ).run();
+
+          if (cleanEmail) {
+            await env.DB.prepare('UPDATE pdpa_consents SET user_email = ? WHERE user_id = ?')
+              .bind(cleanEmail, targetUserId).run().catch(() => {});
+          }
         } catch (dbErr) {
           console.log('[D1 Update Profile Note]:', dbErr.message);
         }
@@ -2627,6 +2702,7 @@ export async function onRequest(context) {
         message: 'บันทึกข้อมูลส่วนตัวลง Cloudflare D1 เรียบร้อยแล้ว',
         user: {
           ...body,
+          email: (email && typeof email === 'string' && email.trim()) ? email.trim() : body.email,
           prefix,
           firstName,
           lastName,

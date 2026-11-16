@@ -319,7 +319,14 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
             {error && (
               <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-2xl text-red-600 flex items-start space-x-2.5 text-xs animate-in fade-in duration-200">
                 <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>{error}</span>
+                <div className="flex-1">
+                  <span className="font-medium">{error}</span>
+                  {error.includes('RESEND_API_KEY') && (
+                    <p className="mt-1.5 text-[11px] text-red-700/80 leading-relaxed bg-red-100/50 p-2 rounded-xl border border-red-200/50">
+                      🔒 <strong>วิธีตั้งค่าอย่างปลอดภัย (ไม่ผ่าน GitHub):</strong> นำ API Key (ขึ้นต้นด้วย <code>re_...</code>) ไปเพิ่มใน <strong>Cloudflare Dashboard &gt; Workers &amp; Pages &gt; smartleave &gt; Settings &gt; Variables and Secrets</strong> เป็นประเภท Secret หรือส่งให้ระบบบันทึกลงฐานข้อมูล D1 ได้โดยตรงครับ
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 

@@ -224,7 +224,7 @@ export default function SettingsView() {
     }
   }, [currentUser]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const fullThaiName = `${formData.prefix || ''}${formData.firstName} ${formData.lastName || ''}`.trim();
@@ -233,17 +233,30 @@ export default function SettingsView() {
       return;
     }
 
+    const cleanEmail = (formData.email || '').trim();
+    if (!cleanEmail) {
+      if (showToast) showToast('กรุณากรอกอีเมลติดต่อ', 'error');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      if (showToast) showToast('รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', 'error');
+      return;
+    }
+
     const payload = {
       ...formData,
+      email: cleanEmail,
       name: fullThaiName || formData.name,
     };
 
     if (updateUserProfile) {
-      updateUserProfile(payload);
+      const res = await updateUserProfile(payload);
+      if (res) {
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 3000);
+      }
     }
-
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
   };
 
   const handleSelectAvatar = (url, gender) => {

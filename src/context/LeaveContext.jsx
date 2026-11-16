@@ -147,10 +147,10 @@ function cleanNumericUserId(val) {
 
 function getUserStableKey(user) {
   if (!user) return '';
-  const email = user.email ? String(user.email).trim().toLowerCase() : '';
   const empId = user.employeeId ? String(user.employeeId).trim().toLowerCase() : '';
   const id = user.id ? String(user.id).trim().toLowerCase() : '';
-  return email || empId || id;
+  const email = user.email ? String(user.email).trim().toLowerCase() : '';
+  return empId || id || email;
 }
 
 function doesLeaveBelongToUser(req, user) {
@@ -650,8 +650,10 @@ export function LeaveProvider({ children }) {
         if (activeUser) {
           const freshUser = latestEmployees.find(
             (e) =>
-              (e.email && e.email.toLowerCase() === activeUser.email?.toLowerCase()) ||
-              (e.employeeId && e.employeeId === activeUser.employeeId)
+              (e.raw_id && activeUser.raw_id && Number(e.raw_id) === Number(activeUser.raw_id)) ||
+              (e.id && activeUser.id && cleanNumericUserId(e.id) === cleanNumericUserId(activeUser.id)) ||
+              (e.employeeId && activeUser.employeeId && e.employeeId.toLowerCase() === activeUser.employeeId.toLowerCase()) ||
+              (e.email && activeUser.email && e.email.toLowerCase() === activeUser.email.toLowerCase())
           );
           if (freshUser) {
             matchedActiveUser = {
@@ -661,6 +663,7 @@ export function LeaveProvider({ children }) {
             };
             const changed =
               activeUser.id !== matchedActiveUser.id ||
+              activeUser.email !== matchedActiveUser.email ||
               activeUser.name !== matchedActiveUser.name ||
               activeUser.title !== matchedActiveUser.title ||
               activeUser.department !== matchedActiveUser.department ||
@@ -1500,7 +1503,9 @@ export function LeaveProvider({ children }) {
     const updatedEmployees = employees.map((emp) => {
       if (
         emp.id === updatedUser.id ||
+        (emp.raw_id && updatedUser.raw_id && Number(emp.raw_id) === Number(updatedUser.raw_id)) ||
         (updatedUser.employeeId && emp.employeeId === updatedUser.employeeId) ||
+        (currentUser.email && emp.email?.toLowerCase() === currentUser.email?.toLowerCase()) ||
         (updatedUser.email && emp.email?.toLowerCase() === updatedUser.email?.toLowerCase())
       ) {
         return {
@@ -1546,7 +1551,18 @@ export function LeaveProvider({ children }) {
     // 5. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1)
     try {
       if (api && api.updateProfile) {
-        await api.updateProfile(updatedUser);
+        const updateRes = await api.updateProfile({
+          ...updatedUser,
+          oldEmail: currentUser?.email,
+        });
+        if (updateRes && updateRes.success === false) {
+          showToast(updateRes.message || 'ไม่สามารถแก้ไขข้อมูลส่วนตัวได้', 'error');
+          // Revert currentUser if failed
+          setCurrentUser(currentUser);
+          sessionStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+          localStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+          return null;
+        }
         const fresh = await api.getEmployees();
         if (Array.isArray(fresh) && fresh.length > 0) {
           setEmployees(fresh.map(normalizeEmployeeQuotas));
@@ -1591,7 +1607,7 @@ export function LeaveProvider({ children }) {
       }
       sessionStorage.setItem('smartleave_user', JSON.stringify(dbUser));
       localStorage.setItem('smartleave_user', JSON.stringify(dbUser));
-      fetchLiveDatabaseData().catch(() => {});
+      fetchLiveDatabaseData().catch(() => { });
       return { success: true, user: dbUser };
     };
 
