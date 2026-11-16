@@ -3,7 +3,7 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, RotateCcw }
 import { useLeave } from '../context/LeaveContext';
 
 export default function CalendarWidget() {
-  const { setSelectedLeaveDetail, leaveRequests } = useLeave();
+  const { setSelectedLeaveDetail, leaveRequests, currentUser, isAdmin, doesLeaveBelongToUser } = useLeave();
   const [selectedDayEvent, setSelectedDayEvent] = useState(null);
 
   // Real-time current clock
@@ -51,7 +51,15 @@ export default function CalendarWidget() {
     const dayStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const matches = (leaveRequests || []).filter((req) => {
       if (!req.startDate || !req.endDate) return false;
-      return dayStr >= req.startDate && dayStr <= req.endDate;
+      const inRange = dayStr >= req.startDate && dayStr <= req.endDate;
+      if (!inRange) return false;
+      // User ทั่วไปแสดงเฉพาะวันลาของตนเองเท่านั้น ส่วน Admin แสดงของทุกคน
+      if (!isAdmin) {
+        return doesLeaveBelongToUser
+          ? doesLeaveBelongToUser(req, currentUser)
+          : (req.employeeId === currentUser?.id || req.employeeName === currentUser?.name);
+      }
+      return true;
     });
 
     if (matches.length === 0) return null;

@@ -3,9 +3,24 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Users, User, Clock
 import { useLeave } from '../../context/LeaveContext';
 
 export default function CalendarView() {
-  const { leaveRequests, setSelectedLeaveDetail, setIsRequestModalOpen, currentUser } = useLeave();
-  const [filterMode, setFilterMode] = useState('all'); // 'my' | 'all'
+  const {
+    leaveRequests,
+    doesLeaveBelongToUser,
+    setSelectedLeaveDetail,
+    setIsRequestModalOpen,
+    currentUser,
+    isAdmin,
+  } = useLeave();
+
+  // ปฏิทินของ User แสดงเฉพาะของตัวเองเท่านั้น ส่วน Admin แสดงของทุกคนเป็นค่าเริ่มต้น
+  const [filterMode, setFilterMode] = useState(isAdmin ? 'all' : 'my'); // 'my' | 'all'
   const [monthOffset, setMonthOffset] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setFilterMode('my');
+    }
+  }, [isAdmin]);
 
   // Live real-time clock
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -71,16 +86,15 @@ export default function CalendarView() {
       const inRange = dayStr >= req.startDate && dayStr <= req.endDate;
       if (!inRange) return false;
 
-      if (filterMode === 'my') {
-        const cleanCurrId = String(currentUser?.id || currentUser?.raw_id || '').replace(/^usr-/, '');
-        const cleanReqUserId = String(req.userId || req.user_id || '').replace(/^usr-/, '');
-        return (
-          (cleanCurrId && cleanReqUserId && cleanCurrId === cleanReqUserId) ||
-          (currentUser?.id && req.employeeId === currentUser.id) ||
-          (currentUser?.employeeId && req.employeeId === currentUser.employeeId) ||
-          (currentUser?.email && req.employeeEmail && req.employeeEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
-          (req.employeeName && currentUser?.name && req.employeeName.trim() === currentUser.name.trim())
-        );
+      if (!isAdmin || filterMode === 'my') {
+        return doesLeaveBelongToUser
+          ? doesLeaveBelongToUser(req, currentUser)
+          : (
+            (currentUser?.id && req.employeeId === currentUser.id) ||
+            (currentUser?.employeeId && req.employeeId === currentUser.employeeId) ||
+            (currentUser?.email && req.employeeEmail && req.employeeEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+            (req.employeeName && currentUser?.name && req.employeeName.trim() === currentUser.name.trim())
+          );
       }
       return true;
     });
@@ -140,31 +154,40 @@ export default function CalendarView() {
             </span>
           </div>
 
-          {/* Filter toggle */}
-          <div className="bg-white p-1 rounded-xl border border-slate-200 flex space-x-1 shadow-xs">
-            <button
-              onClick={() => setFilterMode('all')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                filterMode === 'all'
-                  ? 'bg-[#155A32] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>ทั้งหมด</span>
-            </button>
-            <button
-              onClick={() => setFilterMode('my')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                filterMode === 'my'
-                  ? 'bg-[#155A32] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>เฉพาะฉัน</span>
-            </button>
-          </div>
+          {/* Filter toggle: Admin ดูของทุกคน/ของตนเองได้ ส่วน User ถูกล็อกเป็นของตนเอง */}
+          {isAdmin ? (
+            <div className="bg-white p-1 rounded-xl border border-slate-200 flex space-x-1 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setFilterMode('all')}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  filterMode === 'all'
+                    ? 'bg-[#155A32] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>ทั้งหมด (ทุกคน)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterMode('my')}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  filterMode === 'my'
+                    ? 'bg-[#155A32] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>เฉพาะของฉัน</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2 bg-emerald-50 text-emerald-800 px-3.5 py-1.5 rounded-xl border border-emerald-200/80 text-xs font-semibold shadow-xs">
+              <User className="w-3.5 h-3.5 text-emerald-600" />
+              <span>ปฏิทินของฉัน ({currentUser?.name || 'ผู้ใช้งาน'})</span>
+            </div>
+          )}
 
           <button
             onClick={() => setIsRequestModalOpen(true)}

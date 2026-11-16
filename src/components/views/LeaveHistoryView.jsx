@@ -10,19 +10,42 @@ import {
   Briefcase,
   PlusCircle,
   FileDown,
+  User,
+  Users,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadLeaveSummaryPdf } from '../../utils/exportPdf';
 
 export default function LeaveHistoryView() {
-  const { leaveRequests, setSelectedLeaveDetail, setIsRequestModalOpen, showToast } = useLeave();
+  const {
+    leaveRequests,
+    myLeaveRequests,
+    doesLeaveBelongToUser,
+    currentUser,
+    isAdmin,
+    setSelectedLeaveDetail,
+    setIsRequestModalOpen,
+    showToast,
+  } = useLeave();
+
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [isExportingSummary, setIsExportingSummary] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [adminScope, setAdminScope] = useState('all'); // 'all' | 'my' (เฉพาะ Admin เท่านั้นที่เลือกได้)
 
-  const filteredRequests = leaveRequests.filter((r) => {
+  // สำหรับ User ทั่วไป แสดงเฉพาะคำขอลาของตนเองเท่านั้น 100%
+  const baseRequests = (leaveRequests || []).filter((r) => {
+    if (!isAdmin || adminScope === 'my') {
+      return doesLeaveBelongToUser
+        ? doesLeaveBelongToUser(r, currentUser)
+        : (r.employeeId === currentUser?.id || r.employeeId === currentUser?.employeeId || r.employeeName === currentUser?.name);
+    }
+    return true;
+  });
+
+  const filteredRequests = baseRequests.filter((r) => {
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     const matchType = typeFilter === 'all' || r.typeKey === typeFilter;
     const matchSearch =
@@ -123,12 +146,52 @@ export default function LeaveHistoryView() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 font-prompt">ตรวจสอบสถานะการลา</h2>
+          <div className="flex items-center space-x-2.5">
+            <h2 className="text-2xl font-bold text-slate-800 font-prompt">ตรวจสอบสถานะการลา</h2>
+            {!isAdmin ? (
+              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <User className="w-3 h-3" />
+                <span>เฉพาะของฉัน</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                <Users className="w-3 h-3" />
+                <span>ผู้ดูแลระบบ</span>
+              </span>
+            )}
+          </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ตรวจสอบสถานะการยื่นเอกสาร การพิจารณา และผลการอนุมัติคำขอลา
+            {!isAdmin
+              ? `ตรวจสอบสถานะการยื่นเอกสารและผลการอนุมัติของคุณ (${currentUser?.name || 'ผู้ใช้งาน'})`
+              : 'ตรวจสอบสถานะการยื่นเอกสาร การพิจารณา และผลการอนุมัติคำขอลา'}
           </p>
         </div>
+
         <div className="flex flex-wrap items-center gap-2.5">
+          {isAdmin && (
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs mr-1">
+              <button
+                type="button"
+                onClick={() => setAdminScope('all')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 ${
+                  adminScope === 'all' ? 'bg-[#155A32] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>คำขอทั้งหมด</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminScope('my')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 ${
+                  adminScope === 'my' ? 'bg-[#155A32] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>เฉพาะของฉัน</span>
+              </button>
+            </div>
+          )}
           <button
             onClick={handleExportSummaryPdf}
             disabled={isExportingSummary}

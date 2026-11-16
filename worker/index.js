@@ -756,11 +756,22 @@ export async function onRequest(context) {
       const lastNameEn = user.last_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).lastNameEn : '');
       const fullEnglishName = user.english_name || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn}`.trim();
 
+      // ตรวจสอบสถานะการยอมรับ PDPA จากฐานข้อมูล Cloudflare D1
+      let pdpaAccepted = false;
+      try {
+        const consent = await env.DB.prepare(
+          'SELECT consent_id FROM pdpa_consents WHERE user_id = ? AND is_granted = 1 LIMIT 1'
+        ).bind(user.user_id).first();
+        if (consent) pdpaAccepted = true;
+      } catch (e) {}
+
       return jsonResponse({
         success: true,
         token: `token-${user.user_id}-${Date.now()}`,
         user: {
           id: `usr-${user.user_id}`,
+          raw_id: user.user_id,
+          pdpaAccepted,
           name: displayName,
           prefix: user.prefix || '',
           firstName: user.first_name || '',
@@ -1927,22 +1938,55 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
-    // 7. บันทึกความยินยอม PDPA (Consent)
+    // 7. บันทึกความยินยอม PDPA (Consent) - บันทึกลง D1 ต่อผู้ใช้รายบุคคล
     // POST /api/pdpa/consent
     // -------------------------------------------------------------
     if (path === '/pdpa/consent' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const { healthConsent } = body;
+      const { healthConsent, userId, email, employeeId } = body;
+
+      let targetUserId = null;
+      if (userId) {
+        const clean = String(userId).replace(/^usr-/, '');
+        if (/^\d+$/.test(clean)) targetUserId = Number(clean);
+      }
+      if (!targetUserId && (email || employeeId)) {
+        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(employee_code) = LOWER(?)')
+          .bind(email || '', employeeId || '').first().catch(() => null);
+        if (u) targetUserId = u.user_id;
+      }
+
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS pdpa_consents (
+          consent_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          policy_id INTEGER NOT NULL DEFAULT 1,
+          consent_type TEXT NOT NULL DEFAULT 'GENERAL_TERMS',
+          is_granted INTEGER NOT NULL DEFAULT 1,
+          granted_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+          revoked_at TEXT,
+          ip_address TEXT,
+          UNIQUE(user_id, policy_id, consent_type)
+        )
+      `).run().catch(() => {});
+
+      if (targetUserId) {
+        await env.DB.prepare(`
+          INSERT INTO pdpa_consents (user_id, policy_id, consent_type, is_granted, granted_at)
+          VALUES (?, 1, 'GENERAL_TERMS', 1, datetime('now', 'localtime'))
+          ON CONFLICT(user_id, policy_id, consent_type) DO UPDATE SET is_granted = 1, granted_at = datetime('now', 'localtime')
+        `).bind(targetUserId).run().catch(() => {});
+      }
 
       await env.DB.prepare(`
         INSERT INTO pdpa_audit_logs (action, policy_version, details, ip_address)
         VALUES (?, 'v1.0', ?, 'Cloudflare Edge')
       `).bind(
         healthConsent ? 'AGREE_NOTICE_AND_HEALTH_DATA' : 'AGREE_NOTICE_ONLY',
-        `User submitted consent choice: Health=${healthConsent}`
-      ).run();
+        `User ${targetUserId || 'anonymous'} submitted consent choice: Health=${Boolean(healthConsent)}`
+      ).run().catch(() => {});
 
-      return jsonResponse({ success: true });
+      return jsonResponse({ success: true, message: 'บันทึกความยินยอม PDPA ลงฐานข้อมูล D1 สำเร็จ' });
     }
 
     // -------------------------------------------------------------

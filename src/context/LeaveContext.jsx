@@ -184,8 +184,21 @@ export function LeaveProvider({ children }) {
     return saved === 'true';
   });
 
-  // PDPA Consent State: Require confirmation after logging in
+  // PDPA Consent State: ตรวจสอบความยินยอม PDPA เฉพาะบุคคล (ไม่ถามซ้ำหากยอมรับแล้ว)
   const [isPdpaAccepted, setIsPdpaAccepted] = useState(() => {
+    try {
+      const savedUserStr = localStorage.getItem('smartleave_user');
+      if (savedUserStr) {
+        const u = JSON.parse(savedUserStr);
+        const userKey = getUserStableKey(u);
+        if (userKey && localStorage.getItem(`smartleave_pdpa_accepted_${userKey}`) === 'true') {
+          return true;
+        }
+        if (u.pdpaAccepted || u.pdpa_accepted) {
+          return true;
+        }
+      }
+    } catch (e) {}
     return sessionStorage.getItem('smartleave_pdpa') === 'true';
   });
 
@@ -1397,11 +1410,20 @@ export function LeaveProvider({ children }) {
             ...res.user,
             gender: res.user.gender || inferUserGender(res.user),
           };
+          const userKey = getUserStableKey(dbUser);
+          const hasAcceptedPdpa =
+            localStorage.getItem(`smartleave_pdpa_accepted_${userKey}`) === 'true' ||
+            Boolean(dbUser.pdpaAccepted || dbUser.pdpa_accepted);
+
           setCurrentUser(dbUser);
           setIsAuthenticated(true);
-          setIsPdpaAccepted(false);
+          setIsPdpaAccepted(hasAcceptedPdpa);
           sessionStorage.setItem('smartleave_auth', 'true');
-          sessionStorage.removeItem('smartleave_pdpa');
+          if (hasAcceptedPdpa) {
+            sessionStorage.setItem('smartleave_pdpa', 'true');
+          } else {
+            sessionStorage.removeItem('smartleave_pdpa');
+          }
           sessionStorage.setItem('smartleave_user', JSON.stringify(dbUser));
           localStorage.setItem('smartleave_user', JSON.stringify(dbUser));
           if (res.token) {
@@ -1566,10 +1588,29 @@ export function LeaveProvider({ children }) {
     return newUser;
   };
 
-  // Accept PDPA consent action
-  const acceptPdpa = () => {
+  // Accept PDPA consent action (จำกัดให้กดยืนยันเฉพาะบุคคล ไม่ถามซ้ำ)
+  const acceptPdpa = async () => {
+    const userKey = getUserStableKey(currentUser);
+    if (userKey) {
+      localStorage.setItem(`smartleave_pdpa_accepted_${userKey}`, 'true');
+    }
     setIsPdpaAccepted(true);
     sessionStorage.setItem('smartleave_pdpa', 'true');
+
+    // บันทึก Log และสถานะความยินยอมลง Cloudflare D1
+    try {
+      if (api && api.submitConsent) {
+        await api.submitConsent({
+          healthConsent: true,
+          userId: currentUser?.raw_id || currentUser?.id,
+          email: currentUser?.email,
+          employeeId: currentUser?.employeeId,
+        });
+      }
+    } catch (e) {
+      console.log('[PDPA Consent Sync Note]:', e.message);
+    }
+
     showToast('ยืนยันความยินยอม PDPA เรียบร้อยแล้ว ยินดีต้อนรับเข้าสู่ระบบ', 'success');
   };
 
@@ -1609,6 +1650,12 @@ export function LeaveProvider({ children }) {
     showToast('รีเซ็ตข้อมูลระบบและซิงก์ Cloudflare D1 เรียบร้อยแล้ว', 'info');
   };
 
+  // กรองคำขอลาเฉพาะของ User แต่ละคน (User's own leave requests)
+  const myLeaveRequests = useMemo(() => {
+    if (!currentUser) return [];
+    return (leaveRequests || []).filter((r) => doesLeaveBelongToUser(r, currentUser));
+  }, [leaveRequests, currentUser]);
+
   // กรองการแจ้งเตือนเฉพาะของ User แต่ละคน (Notifications Separation)
   const userNotifications = useMemo(() => {
     if (!currentUser) return [];
@@ -1639,6 +1686,8 @@ export function LeaveProvider({ children }) {
         setSearchQuery,
         quotas,
         leaveRequests,
+        myLeaveRequests,
+        doesLeaveBelongToUser,
         notifications: userNotifications,
         unreadCount,
         announcements,
