@@ -18,12 +18,11 @@ import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
 
 export default function ForgotPasswordView({ onSwitchToLogin }) {
-  const { resetPassword } = useLeave();
+  const { resetPassword, sendPasswordResetOtp, verifyPasswordResetOtp } = useLeave();
 
   // Form states
   const [email, setEmail] = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -54,8 +53,8 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  // Handle Send OTP
-  const handleSendOtp = (e) => {
+  // Handle Send OTP via Resend
+  const handleSendOtp = async (e) => {
     if (e) e.preventDefault();
     setError('');
 
@@ -72,23 +71,27 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
     }
 
     setIsSendingOtp(true);
+    try {
+      const res = await sendPasswordResetOtp(emailTrim);
+      if (res && res.success) {
+        setOtpSent(true);
+        setCountdown(60);
+        setOtpDigits(['', '', '', '', '', '']);
 
-    setTimeout(() => {
-      // Generate a random 6-digit OTP
-      const randomOtp = String(Math.floor(100000 + Math.random() * 900000));
-      setGeneratedOtp(randomOtp);
-      setOtpSent(true);
-      setCountdown(60);
+        // Focus first OTP input box
+        setTimeout(() => {
+          if (otpInputsRef.current[0]) {
+            otpInputsRef.current[0].focus();
+          }
+        }, 100);
+      } else {
+        setError(res?.message || 'ไม่สามารถส่งรหัส OTP ได้ กรุณาลองใหม่อีกครั้ง');
+      }
+    } catch (err) {
+      setError(err?.message || 'เกิดข้อผิดพลาดในการส่ง OTP');
+    } finally {
       setIsSendingOtp(false);
-      setOtpDigits(['', '', '', '', '', '']);
-
-      // Focus first OTP input box
-      setTimeout(() => {
-        if (otpInputsRef.current[0]) {
-          otpInputsRef.current[0].focus();
-        }
-      }, 100);
-    }, 600);
+    }
   };
 
   // Handle single digit input
@@ -130,16 +133,8 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
     otpInputsRef.current[nextIdx]?.focus();
   };
 
-  // Quick auto-fill simulated OTP for demonstration
-  const handleAutoFillOtp = () => {
-    if (!generatedOtp) return;
-    const digits = generatedOtp.split('');
-    setOtpDigits(digits);
-    setError('');
-  };
-
   // Handle Confirm OTP verification
-  const handleVerifyOtp = (e) => {
+  const handleVerifyOtp = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -149,7 +144,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
     }
 
     if (!otpSent) {
-      setError('กรุณากดปุ่ม "ส่ง OTP" เพื่อรับรหัสยืนยันทางอีเมลก่อน');
+      setError('กรุณากดปุ่ม "ส่งรหัส OTP" เพื่อรับรหัสยืนยันทางอีเมลก่อน');
       return;
     }
 
@@ -159,21 +154,23 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
       return;
     }
 
-    if (enteredOtp !== generatedOtp) {
-      setError('รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบหรือขอรับรหัสใหม่');
-      return;
-    }
-
-    // Success OTP verification! Transition to reset-password step
     setIsVerifying(true);
-    setTimeout(() => {
+    try {
+      const res = await verifyPasswordResetOtp(email.trim(), enteredOtp);
+      if (res && res.success) {
+        setStep('reset-password');
+      } else {
+        setError(res?.message || 'รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบหรือขอรหัสใหม่');
+      }
+    } catch (err) {
+      setError(err?.message || 'เกิดข้อผิดพลาดในการตรวจสอบรหัส OTP');
+    } finally {
       setIsVerifying(false);
-      setStep('reset-password');
-    }, 500);
+    }
   };
 
   // Handle Set New Password
-  const handleResetPasswordSubmit = (e) => {
+  const handleResetPasswordSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -193,22 +190,24 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
     }
 
     setIsVerifying(true);
-
-    setTimeout(() => {
-      if (resetPassword) {
-        resetPassword(email, newPassword);
+    try {
+      const enteredOtp = otpDigits.join('');
+      const success = await resetPassword(email.trim(), newPassword.trim(), enteredOtp);
+      if (success) {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+        setStep('done');
+      } else {
+        setError('ไม่สามารถตั้งรหัสผ่านใหม่ได้ กรุณาตรวจสอบรหัส OTP หรือขอยื่นเรื่องใหม่');
       }
-
-      // Celebratory confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-
+    } catch (err) {
+      setError(err?.message || 'เกิดข้อผิดพลาดในการบันทึกรหัสผ่านใหม่');
+    } finally {
       setIsVerifying(false);
-      setStep('done');
-    }, 600);
+    }
   };
 
   return (
@@ -393,33 +392,21 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                     </div>
                   </div>
 
-                  {/* Simulated OTP Email Notification Box */}
+                  {/* Resend OTP Email Notification Banner */}
                   {otpSent && (
-                    <div className="p-4 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl space-y-2 animate-in fade-in duration-300">
+                    <div className="p-4 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl space-y-1.5 animate-in fade-in duration-300">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-900">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span>ส่งรหัส OTP ไปยังอีเมลเรียบร้อยแล้ว!</span>
+                          <span>ส่งรหัส OTP ไปยังอีเมลผ่าน Resend สำเร็จแล้ว!</span>
                         </div>
-                        <span className="text-[11px] text-emerald-700 font-mono bg-emerald-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[11px] text-emerald-700 font-medium bg-emerald-100/90 px-2.5 py-0.5 rounded-full">
                           มีอายุ 5 นาที
                         </span>
                       </div>
-                      <p className="text-xs text-emerald-800">
-                        สำหรับระบบทดสอบ รหัส OTP ของคุณคือ:
+                      <p className="text-[11.5px] text-emerald-800/90 leading-relaxed">
+                        ระบบได้จัดส่งรหัสยืนยัน 6 หลักไปยัง <strong className="text-emerald-950 font-semibold">{email}</strong> เรียบร้อยแล้ว โปรดตรวจสอบกล่องข้อความหรือโฟลเดอร์ Junk/Spam
                       </p>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="font-mono text-lg font-bold tracking-widest text-[#113C22] bg-white px-3 py-1 rounded-xl border border-emerald-200 shadow-xs">
-                          {generatedOtp}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleAutoFillOtp}
-                          className="text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline bg-emerald-100 hover:bg-emerald-200 px-3 py-1.5 rounded-xl transition-colors"
-                        >
-                          กดเพื่อใส่รหัสอัตโนมัติ
-                        </button>
-                      </div>
                     </div>
                   )}
 

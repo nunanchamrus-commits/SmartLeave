@@ -1669,12 +1669,68 @@ export function LeaveProvider({ children }) {
     };
   };
 
-  // Reset password action - บันทึกลง Cloudflare D1 จริง 100%
-  const resetPassword = async (email, newPassword) => {
+  // ส่งรหัสยืนยัน OTP ผ่าน Resend สำหรับกู้คืนรหัสผ่าน
+  const sendPasswordResetOtp = async (email) => {
+    if (!email || !email.trim()) {
+      showToast('กรุณากรอกอีเมลที่ลงทะเบียนไว้', 'error');
+      return { success: false, message: 'กรุณากรอกอีเมลที่ลงทะเบียนไว้' };
+    }
+    try {
+      if (api && api.sendPasswordResetOtp) {
+        const res = await api.sendPasswordResetOtp(email.trim());
+        if (res && res.success) {
+          showToast(res.message || 'ส่งรหัส OTP เรียบร้อยแล้ว', 'success');
+          return res;
+        } else {
+          const msg = res?.message || 'ไม่สามารถส่งรหัส OTP ได้';
+          showToast(msg, 'error');
+          return { success: false, message: msg };
+        }
+      }
+      return { success: false, message: 'ระบบส่งอีเมลไม่พร้อมใช้งาน' };
+    } catch (e) {
+      const msg = e.message || 'เกิดข้อผิดพลาดในการส่ง OTP';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+  };
+
+  // ตรวจสอบความถูกต้องของรหัส OTP
+  const verifyPasswordResetOtp = async (email, otp) => {
+    if (!email || !otp) {
+      return { success: false, message: 'กรุณากรอกอีเมลและรหัส OTP ให้ครบถ้วน' };
+    }
+    try {
+      if (api && api.verifyPasswordResetOtp) {
+        const res = await api.verifyPasswordResetOtp(email.trim(), String(otp).trim());
+        if (res && res.success) {
+          return res;
+        } else {
+          const msg = res?.message || 'รหัส OTP ไม่ถูกต้อง';
+          return { success: false, message: msg };
+        }
+      }
+      return { success: false, message: 'ระบบตรวจสอบ OTP ไม่พร้อมใช้งาน' };
+    } catch (e) {
+      return { success: false, message: e.message || 'เกิดข้อผิดพลาดในการตรวจสอบ OTP' };
+    }
+  };
+
+  // Reset password action - บันทึกลง Cloudflare D1 จริง 100% พร้อมรองรับ OTP
+  const resetPassword = async (email, newPassword, otp = null) => {
     if (!email || !newPassword) return false;
     try {
-      if (api && api.resetPassword) {
-        const res = await api.resetPassword(email, newPassword);
+      if (api && api.resetPasswordWithOtp && otp) {
+        const res = await api.resetPasswordWithOtp(email.trim(), String(otp).trim(), newPassword.trim());
+        if (res && res.success) {
+          showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} สำเร็จแล้ว`, 'success');
+          return true;
+        } else {
+          showToast(res?.message || 'ไม่สามารถตั้งรหัสผ่านใหม่ได้', 'error');
+          return false;
+        }
+      } else if (api && api.resetPassword) {
+        const res = await api.resetPassword(email.trim(), newPassword.trim());
         if (res && res.success) {
           showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} สำเร็จแล้ว`, 'success');
           return true;
@@ -1682,6 +1738,8 @@ export function LeaveProvider({ children }) {
       }
     } catch (e) {
       console.log('[Reset Password Note]:', e.message);
+      showToast(e.message || 'เกิดข้อผิดพลาดในการตั้งรหัสผ่านใหม่', 'error');
+      return false;
     }
     showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} เรียบร้อยแล้ว`, 'success');
     return true;
@@ -1965,6 +2023,8 @@ export function LeaveProvider({ children }) {
         login,
         register,
         resetPassword,
+        sendPasswordResetOtp,
+        verifyPasswordResetOtp,
         changeUserPassword,
         adminSetUserPassword,
         logout,

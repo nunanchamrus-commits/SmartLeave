@@ -398,6 +398,126 @@ async function ensureTableColumns(db, tableName, columnSpecs) {
   }
 }
 
+/**
+ * ส่งอีเมลรหัส OTP ผ่าน Resend API (Official REST API)
+ * @param {string} apiKey - Resend API Key (re_...)
+ * @param {string} toEmail - อีเมลผู้รับ
+ * @param {string} otpCode - รหัส OTP 6 หลัก
+ * @param {string} userName - ชื่อผู้ใช้งาน (ถ้ามี)
+ * @param {string} fromEmail - อีเมลผู้ส่ง (default: SmartLeave <onboarding@resend.dev>)
+ */
+async function sendOtpEmailWithResend({ apiKey, toEmail, otpCode, userName, fromEmail }) {
+  if (!apiKey || apiKey.trim() === '' || apiKey === 're_your_api_key_here') {
+    return {
+      success: false,
+      error: 'RESEND_API_KEY_NOT_CONFIGURED',
+      message: 'ยังไม่ได้ระบุ RESEND_API_KEY ในระบบ',
+    };
+  }
+
+  const sender = fromEmail && fromEmail.trim() ? fromEmail.trim() : 'SmartLeave <onboarding@resend.dev>';
+  const greeting = userName ? `เรียน คุณ${userName}` : 'เรียน ผู้ใช้งานระบบ SmartLeave';
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รหัสยืนยัน OTP สำหรับกู้คืนรหัสผ่าน</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f5; font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7f5; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 560px; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #0F3D24 0%, #155A32 100%); padding: 36px 32px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">SmartLeave</h1>
+              <p style="margin: 6px 0 0 0; color: #a7f3d0; font-size: 13px; font-weight: 500;">สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 36px 32px;">
+              <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center;">
+                รหัสยืนยัน OTP สำหรับกู้คืนรหัสผ่าน
+              </h2>
+              <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569; text-align: center;">
+                ${greeting} มีการร้องขอตั้งรหัสผ่านใหม่สำหรับบัญชีระบบ SmartLeave ของท่าน กรุณานำรหัสยืนยันตัวตน 6 หลักด้านล่างนี้ไปกรอกในระบบ
+              </p>
+              
+              <div style="background: #f0fdf4; border: 2px dashed #16a34a; border-radius: 16px; padding: 24px; text-align: center; margin: 28px 0;">
+                <span style="font-family: 'Courier New', Courier, monospace; font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #155A32; display: inline-block;">
+                  ${otpCode}
+                </span>
+                <p style="margin: 12px 0 0 0; font-size: 12px; color: #15803d; font-weight: 600;">
+                  ⏱️ รหัสนี้มีอายุการใช้งาน 5 นาที
+                </p>
+              </div>
+
+              <div style="background-color: #f8fafc; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #64748b;">
+                  🔒 <strong>คำเตือนความปลอดภัย:</strong> โปรดอย่าเปิดเผยรหัส OTP นี้แก่ผู้อื่น เจ้าหน้าที่สำนักงานฯ จะไม่มีการสอบถามรหัสนี้จากท่านในทุกกรณี หากท่านไม่ได้เป็นผู้ทำรายการ โปรดละเว้นอีเมลฉบับนี้
+                </p>
+              </div>
+
+              <p style="margin: 28px 0 0 0; font-size: 13px; color: #64748b; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+                ระบบบริหารจัดการวันเวลาของการลา (SmartLeave)<br>
+                สำนักงานสหกรณ์จังหวัดขอนแก่น
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f8fafc; padding: 20px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+                © 2026 SmartLeave. ข้อมูลนี้เป็นข้อมูลเฉพาะบุคคลและส่งแบบอัตโนมัติ กรุณาอย่าตอบกลับอีเมลนี้
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: sender,
+        to: [toEmail.trim()],
+        subject: 'รหัส OTP สำหรับกู้คืนรหัสผ่าน - SmartLeave สำนักงานสหกรณ์จังหวัดขอนแก่น',
+        html: htmlContent,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const errMsg = data?.message || data?.error?.message || `Resend HTTP Error ${res.status}`;
+      return {
+        success: false,
+        error: errMsg,
+        statusCode: res.status,
+      };
+    }
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message || 'Network error connecting to Resend',
+    };
+  }
+}
+
 async function autoMigrateDatabase(db) {
   // สร้างตารางโครงสร้างพื้นฐานทั้งหมด (Core Master Tables) หากยังไม่มี
   await db.prepare(`
@@ -529,6 +649,21 @@ async function autoMigrateDatabase(db) {
       ip_address TEXT,
       user_agent TEXT
     )
+  `).run().catch(() => {});
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS password_reset_otps (
+      otp_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      otp_code TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      is_used INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now', '+7 hours'))
+    )
+  `).run().catch(() => {});
+
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_password_reset_otps_email ON password_reset_otps(email)
   `).run().catch(() => {});
 
   for (const [table, specs] of Object.entries(SCHEMA_COLUMNS)) {
@@ -846,12 +981,125 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
-    // 1.2 รีเซ็ต/จัดการรหัสผ่าน (Reset Password - Admin & Self)
+    // 1.1a ส่งรหัส OTP กู้คืนรหัสผ่านผ่าน Resend (Send Password Reset OTP)
+    // POST /api/auth/send-otp
+    // -------------------------------------------------------------
+    if (path === '/auth/send-otp' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { email } = body;
+      if (!email || !email.trim()) {
+        return jsonResponse({ success: false, message: 'กรุณากรอกอีเมลที่ลงทะเบียนไว้' }, 400);
+      }
+      const cleanEmail = email.trim().toLowerCase();
+
+      // ตรวจสอบว่ามีผู้ใช้นี้ในระบบหรือไม่
+      const user = await env.DB.prepare('SELECT user_id, first_name, last_name, prefix FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1')
+        .bind(cleanEmail).first().catch(() => null);
+
+      if (!user) {
+        return jsonResponse({
+          success: false,
+          message: 'ไม่พบบัญชีผู้ใช้งานที่ผูกกับอีเมลนี้ในระบบ กรุณาตรวจสอบอีเมลอีกครั้ง',
+        }, 404);
+      }
+
+      const userName = `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim();
+
+      // สร้างรหัสยืนยัน OTP 6 หลัก
+      const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+
+      // ยกเลิก OTP เดิมที่ยังไม่ได้ใช้สำหรับอีเมลนี้
+      await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE LOWER(email) = LOWER(?) AND is_used = 0')
+        .bind(cleanEmail).run().catch(() => {});
+
+      // บันทึก OTP ลงฐานข้อมูล มีอายุ 5 นาที (อิงเวลาไทย +7 hours)
+      await env.DB.prepare(`
+        INSERT INTO password_reset_otps (email, otp_code, expires_at, is_used, created_at)
+        VALUES (?, ?, datetime('now', '+7 hours', '+5 minutes'), 0, datetime('now', '+7 hours'))
+      `).bind(cleanEmail, otpCode).run().catch(() => {});
+
+      // ส่งอีเมลด้วย Resend API
+      const resendApiKey = env.RESEND_API_KEY || (typeof RESEND_API_KEY !== 'undefined' ? RESEND_API_KEY : '');
+      const resendFromEmail = env.RESEND_FROM_EMAIL || (typeof RESEND_FROM_EMAIL !== 'undefined' ? RESEND_FROM_EMAIL : '');
+
+      const sendResult = await sendOtpEmailWithResend({
+        apiKey: resendApiKey,
+        toEmail: cleanEmail,
+        otpCode,
+        userName,
+        fromEmail: resendFromEmail,
+      });
+
+      if (!sendResult.success) {
+        console.log('[Resend OTP Error]:', sendResult.error);
+        if (sendResult.error === 'RESEND_API_KEY_NOT_CONFIGURED') {
+          return jsonResponse({
+            success: false,
+            message: 'ยังไม่ได้ระบุ RESEND_API_KEY ใน wrangler.toml หรือ Cloudflare Dashboard กรุณาระบุ API Key เพื่อส่งอีเมล',
+            requiresApiKey: true,
+          }, 400);
+        }
+        return jsonResponse({
+          success: false,
+          message: `ไม่สามารถส่งอีเมล OTP ผ่าน Resend ได้: ${sendResult.error}`,
+        }, 500);
+      }
+
+      return jsonResponse({
+        success: true,
+        message: `ส่งรหัส OTP ไปยังอีเมล ${cleanEmail} เรียบร้อยแล้ว (รหัสมีอายุ 5 นาที)`,
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 1.1b ยืนยันรหัส OTP (Verify Password Reset OTP)
+    // POST /api/auth/verify-otp
+    // -------------------------------------------------------------
+    if (path === '/auth/verify-otp' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { email, otp } = body;
+      if (!email || !otp) {
+        return jsonResponse({ success: false, message: 'กรุณากรอกอีเมลและรหัส OTP' }, 400);
+      }
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanOtp = String(otp).trim();
+
+      const record = await env.DB.prepare(`
+        SELECT otp_id, otp_code, expires_at, is_used,
+               CASE WHEN expires_at < datetime('now', '+7 hours') THEN 1 ELSE 0 END as is_expired
+        FROM password_reset_otps
+        WHERE LOWER(email) = LOWER(?) AND otp_code = ? AND is_used = 0
+        ORDER BY otp_id DESC
+        LIMIT 1
+      `).bind(cleanEmail, cleanOtp).first().catch(() => null);
+
+      if (!record) {
+        return jsonResponse({
+          success: false,
+          message: 'รหัส OTP ไม่ถูกต้อง หรือถูกใช้งานไปแล้ว กรุณาตรวจสอบหรือขอรหัสใหม่',
+        }, 400);
+      }
+
+      if (record.is_expired === 1) {
+        return jsonResponse({
+          success: false,
+          message: 'รหัส OTP หมดอายุแล้ว (มีอายุการใช้งาน 5 นาที) กรุณากดขอรับรหัสใหม่',
+        }, 400);
+      }
+
+      return jsonResponse({
+        success: true,
+        message: 'ยืนยันรหัส OTP ถูกต้องเรียบร้อย',
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 1.2 รีเซ็ต/จัดการรหัสผ่าน (Reset Password - Admin, Self & OTP)
     // POST /api/auth/reset-password
     // -------------------------------------------------------------
     if (path === '/auth/reset-password' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const { email, userId, newPassword } = body;
+      const { email, userId, newPassword, otp } = body;
       if ((!email && !userId) || !newPassword) {
         return jsonResponse({ success: false, message: 'กรุณากรอกข้อมูลบัญชีผู้ใช้และรหัสผ่านใหม่' }, 400);
       }
@@ -859,27 +1107,63 @@ export async function onRequest(context) {
         return jsonResponse({ success: false, message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' }, 400);
       }
 
+      // หากส่ง OTP มาด้วย ให้ตรวจสอบความถูกต้องของ OTP
+      if (otp && email) {
+        const cleanOtp = String(otp).trim();
+        const otpRecord = await env.DB.prepare(`
+          SELECT otp_id, CASE WHEN expires_at < datetime('now', '+7 hours') THEN 1 ELSE 0 END as is_expired
+          FROM password_reset_otps
+          WHERE LOWER(email) = LOWER(?) AND otp_code = ? AND is_used = 0
+          ORDER BY otp_id DESC
+          LIMIT 1
+        `).bind(email.trim().toLowerCase(), cleanOtp).first().catch(() => null);
+
+        if (!otpRecord) {
+          return jsonResponse({ success: false, message: 'รหัส OTP ไม่ถูกต้อง หรือถูกใช้งานไปแล้ว' }, 400);
+        }
+        if (otpRecord.is_expired === 1) {
+          return jsonResponse({ success: false, message: 'รหัส OTP หมดอายุแล้ว กรุณาขอรหัสใหม่' }, 400);
+        }
+
+        // ทำเครื่องหมายว่า OTP ถูกใช้งานแล้ว
+        await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE otp_id = ?')
+          .bind(otpRecord.otp_id).run().catch(() => {});
+      }
+
       let updateResult = null;
       if (userId) {
         const cleanId = String(userId).replace(/^usr-/, '');
         if (/^\d+$/.test(cleanId)) {
-          updateResult = await env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now', 'localtime') WHERE user_id = ?")
+          updateResult = await env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now', '+7 hours') WHERE user_id = ?")
             .bind(newPassword.trim(), Number(cleanId)).run().catch(() => null);
         }
         if (!updateResult || updateResult.meta?.changes === 0) {
-          updateResult = await env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now', 'localtime') WHERE employee_code = ?")
+          updateResult = await env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now', '+7 hours') WHERE employee_code = ?")
             .bind(newPassword.trim(), String(userId).trim()).run().catch(() => null);
         }
       }
 
       if ((!updateResult || updateResult.meta?.changes === 0) && email) {
-        updateResult = await env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now', 'localtime') WHERE LOWER(email) = LOWER(?)")
+        updateResult = await env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now', '+7 hours') WHERE LOWER(email) = LOWER(?)")
           .bind(newPassword.trim(), email.trim()).run().catch(() => null);
       }
       
       if (!updateResult || updateResult.meta?.changes === 0) {
         return jsonResponse({ success: false, message: 'ไม่พบบัญชีผู้ใช้นี้ในระบบ' }, 404);
       }
+
+      // บันทึกการแจ้งเตือนสำหรับผู้ใช้งาน
+      if (email) {
+        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1')
+          .bind(email.trim()).first().catch(() => null);
+        if (u?.user_id) {
+          await env.DB.prepare(`
+            INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
+            VALUES (?, 'กู้คืนรหัสผ่านสำเร็จ', 'รหัสผ่านของคุณถูกตั้งใหม่เรียบร้อยแล้ว สามารถเข้าสู่ระบบด้วยรหัสผ่านใหม่ได้ทันที', 'info', 0, 'employee', datetime('now', '+7 hours'))
+          `).bind(u.user_id).run().catch(() => {});
+        }
+      }
+
       return jsonResponse({ success: true, message: 'บันทึกรหัสผ่านใหม่เรียบร้อยแล้ว' });
     }
 
