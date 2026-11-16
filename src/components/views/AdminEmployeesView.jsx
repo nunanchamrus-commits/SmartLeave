@@ -87,12 +87,12 @@ export default function AdminEmployeesView() {
     vacationLimit: 10,
     vacationUsed: 0,
     vacationRem: 10,
-    personalLimit: 15,
+    personalLimit: 45,
     personalUsed: 0,
-    personalRem: 15,
-    sickLimit: 30,
+    personalRem: 45,
+    sickLimit: 60,
     sickUsed: 0,
-    sickRem: 30,
+    sickRem: 60,
     maternityLimit: 90,
     maternityUsed: 0,
     maternityRem: 90,
@@ -114,13 +114,18 @@ export default function AdminEmployeesView() {
     phone: '081-234-5678',
     password: 'password123',
     vacationLimit: 10,
-    personalLimit: 15,
-    sickLimit: 30,
+    personalLimit: 45,
+    sickLimit: 60,
     maternityLimit: 90,
   });
 
   const getEmployeeLeaveStats = (emp) => {
     const isMale = isMaleEmployee(emp);
+    const empType = emp.employmentType || 'ข้าราชการ';
+    const isSickAsActual = empType === 'พนักงานราชการ' || emp.isSickAsActual || Number(emp.sickLimit) === 999;
+    const defaultPersonal = empType === 'พนักงานราชการ' ? 10 : 45;
+    const defaultSick = isSickAsActual ? 999 : 60;
+
     const approvedLeaves = (leaveRequests || []).filter(
       (r) => r.status === 'อนุมัติ' && matchesEmployee(r, emp)
     );
@@ -135,21 +140,25 @@ export default function AdminEmployeesView() {
     const vacationRem = Number(emp.vacationRem ?? vacationLimit);
     const vacationUsed = Number(emp.vacationUsed ?? Math.max(0, vacationLimit - vacationRem));
 
-    const personalLimit = Number(emp.personalLimit ?? 15);
-    const personalRem = Number(emp.personalRem ?? personalLimit);
+    let personalLimit = Number(emp.personalLimit ?? defaultPersonal);
+    if (personalLimit === 15) personalLimit = defaultPersonal;
+    let personalRem = Number(emp.personalRem ?? personalLimit);
+    if (personalRem === 15 && personalLimit === 45) personalRem = 45;
     const personalUsed = Number(emp.personalUsed ?? Math.max(0, personalLimit - personalRem));
 
-    const sickLimit = Number(emp.sickLimit ?? 30);
-    const sickRem = Number(emp.sickRem ?? sickLimit);
-    const sickUsed = Number(emp.sickUsed ?? Math.max(0, sickLimit - sickRem));
+    let sickLimit = isSickAsActual ? 999 : Number(emp.sickLimit ?? defaultSick);
+    if (sickLimit === 30) sickLimit = defaultSick;
+    let sickRem = isSickAsActual ? 999 : Number(emp.sickRem ?? sickLimit);
+    if (sickRem === 30 && sickLimit === 60) sickRem = 60;
+    const sickUsed = Number(emp.sickUsed ?? (isSickAsActual ? 0 : Math.max(0, sickLimit - sickRem)));
 
     const maternityLimit = isMale ? 0 : Number(emp.maternityLimit ?? 90);
     const maternityRem = isMale ? 0 : Number(emp.maternityRem ?? maternityLimit);
     const maternityUsed = isMale ? 0 : Number(emp.maternityUsed ?? Math.max(0, maternityLimit - maternityRem));
 
     const totalUsedDays = vacationUsed + personalUsed + sickUsed + maternityUsed;
-    const generalRem = vacationRem + personalRem + sickRem;
-    const generalLimit = vacationLimit + personalLimit + sickLimit;
+    const generalRem = isSickAsActual ? (vacationRem + personalRem) : (vacationRem + personalRem + sickRem);
+    const generalLimit = isSickAsActual ? (vacationLimit + personalLimit) : (vacationLimit + personalLimit + sickLimit);
 
     return {
       approvedLeaves,
@@ -171,6 +180,7 @@ export default function AdminEmployeesView() {
       generalRem,
       generalLimit,
       isMale,
+      isSickAsActual,
     };
   };
 
@@ -379,14 +389,15 @@ export default function AdminEmployeesView() {
 
     const isMale = addForm.gender === 'ชาย' || isMaleEmployee({ ...addForm, name: fullThaiName, englishName: fullEnglishName });
 
+    const isGovEmp = addForm.employmentType === 'พนักงานราชการ';
     const payload = {
       ...addForm,
       gender: isMale ? 'ชาย' : addForm.gender,
       name: fullThaiName,
       englishName: fullEnglishName,
       vacationLimit: Math.max(0, Number(addForm.vacationLimit || 10)),
-      personalLimit: Math.max(0, Number(addForm.personalLimit || 15)),
-      sickLimit: Math.max(0, Number(addForm.sickLimit || 30)),
+      personalLimit: Math.max(0, Number(addForm.personalLimit || (isGovEmp ? 10 : 45))),
+      sickLimit: isGovEmp ? 999 : Math.max(0, Number(addForm.sickLimit || 60)),
       maternityLimit: isMale ? 0 : Math.max(0, Number(addForm.maternityLimit || 90)),
       maternityUsed: 0,
       maternityRem: isMale ? 0 : Math.max(0, Number(addForm.maternityLimit || 90)),
@@ -433,7 +444,7 @@ export default function AdminEmployeesView() {
         s.totalUsedDays,
         `${s.vacationRem}/${s.vacationLimit}`,
         `${s.personalRem}/${s.personalLimit}`,
-        `${s.sickRem}/${s.sickLimit}`,
+        s.isSickAsActual ? 'เท่าที่ป่วยจริง' : `${s.sickRem}/${s.sickLimit}`,
         isMale ? '-' : `${s.maternityRem}/${s.maternityLimit}`,
         `${s.generalRem}/${s.generalLimit}`,
       ];
@@ -657,7 +668,7 @@ export default function AdminEmployeesView() {
                       {/* Sick */}
                       <td className="py-3 px-4 text-center whitespace-nowrap">
                         <div className="font-bold text-rose-600">
-                          {s.sickRem} / {s.sickLimit} วัน
+                          {s.isSickAsActual ? 'เท่าที่ป่วยจริง' : `${s.sickRem} / ${s.sickLimit} วัน`}
                         </div>
                         <div className="text-[11px] text-slate-400">
                           ใช้ {s.sickUsed} วัน
@@ -907,7 +918,22 @@ export default function AdminEmployeesView() {
                       <label className="block font-bold text-slate-700 mb-1">ประเภทบุคลากร</label>
                       <select
                         value={editForm.employmentType}
-                        onChange={(e) => setEditForm((p) => ({ ...p, employmentType: e.target.value }))}
+                        onChange={(e) => {
+                          const newType = e.target.value;
+                          const isGovEmp = newType === 'พนักงานราชการ';
+                          setEditForm((p) => {
+                            const newPer = isGovEmp ? 10 : 45;
+                            const newSic = isGovEmp ? 999 : 60;
+                            return {
+                              ...p,
+                              employmentType: newType,
+                              personalLimit: newPer,
+                              personalRem: Math.max(0, newPer - Number(p.personalUsed || 0)),
+                              sickLimit: newSic,
+                              sickRem: isGovEmp ? 999 : Math.max(0, newSic - Number(p.sickUsed || 0)),
+                            };
+                          });
+                        }}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
                       >
                         <option value="ข้าราชการ">ข้าราชการ</option>
@@ -1099,15 +1125,21 @@ export default function AdminEmployeesView() {
                           <label className="sm:hidden block text-[11px] text-slate-500 mb-1">
                             สิทธิ์รวมต่อปี (วัน)
                           </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.5"
-                            value={editForm[`${lt.key}Limit`]}
-                            onChange={(e) => handleQuotaFieldChange(lt.key, 'Limit', e.target.value)}
-                            onBlur={() => handleQuotaFieldBlur(lt.key, 'Limit')}
-                            className="w-full px-3 py-1.5 text-center bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                          />
+                          {lt.key === 'sick' && editForm.employmentType === 'พนักงานราชการ' ? (
+                            <div className="w-full py-2 text-center bg-rose-50 border border-rose-200 rounded-xl font-bold text-xs text-rose-700">
+                              เท่าที่ป่วยจริง
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={editForm[`${lt.key}Limit`]}
+                              onChange={(e) => handleQuotaFieldChange(lt.key, 'Limit', e.target.value)}
+                              onBlur={() => handleQuotaFieldBlur(lt.key, 'Limit')}
+                              className="w-full px-3 py-1.5 text-center bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                            />
+                          )}
                         </div>
 
                         <div className="sm:col-span-2">
@@ -1129,15 +1161,21 @@ export default function AdminEmployeesView() {
                           <label className="sm:hidden block text-[11px] text-slate-500 mb-1">
                             คงเหลือ (วัน)
                           </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.5"
-                            value={editForm[`${lt.key}Rem`]}
-                            onChange={(e) => handleQuotaFieldChange(lt.key, 'Rem', e.target.value)}
-                            onBlur={() => handleQuotaFieldBlur(lt.key, 'Rem')}
-                            className="w-full px-3 py-1.5 text-center bg-white border border-emerald-200 rounded-xl font-bold text-[#155A32] outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                          />
+                          {lt.key === 'sick' && editForm.employmentType === 'พนักงานราชการ' ? (
+                            <div className="w-full py-2 text-center bg-emerald-50 border border-emerald-200 rounded-xl font-bold text-xs text-emerald-800">
+                              เท่าที่ป่วยจริง
+                            </div>
+                          ) : (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={editForm[`${lt.key}Rem`]}
+                              onChange={(e) => handleQuotaFieldChange(lt.key, 'Rem', e.target.value)}
+                              onBlur={() => handleQuotaFieldBlur(lt.key, 'Rem')}
+                              className="w-full px-3 py-1.5 text-center bg-white border border-emerald-200 rounded-xl font-bold text-[#155A32] outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                            />
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1301,7 +1339,16 @@ export default function AdminEmployeesView() {
                   <label className="block font-bold text-slate-700 mb-1">ประเภทบุคลากร</label>
                   <select
                     value={addForm.employmentType}
-                    onChange={(e) => setAddForm((p) => ({ ...p, employmentType: e.target.value }))}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      const isGovEmp = newType === 'พนักงานราชการ';
+                      setAddForm((p) => ({
+                        ...p,
+                        employmentType: newType,
+                        personalLimit: isGovEmp ? 10 : 45,
+                        sickLimit: isGovEmp ? 999 : 60,
+                      }));
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
                   >
                     <option value="ข้าราชการ">ข้าราชการ</option>
@@ -1430,13 +1477,19 @@ export default function AdminEmployeesView() {
                   </div>
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                     <span className="block text-[11px] font-bold text-rose-600 mb-1">ลาป่วย</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={addForm.sickLimit}
-                      onChange={(e) => setAddForm((p) => ({ ...p, sickLimit: e.target.value }))}
-                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
-                    />
+                    {addForm.employmentType === 'พนักงานราชการ' ? (
+                      <div className="w-full py-1 text-center bg-rose-50 border border-rose-200 rounded-lg text-xs font-bold text-rose-700">
+                        เท่าที่ป่วยจริง
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        value={addForm.sickLimit}
+                        onChange={(e) => setAddForm((p) => ({ ...p, sickLimit: e.target.value }))}
+                        className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                      />
+                    )}
                   </div>
                   {addForm.gender !== 'ชาย' && (
                     <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">

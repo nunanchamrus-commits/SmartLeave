@@ -22,7 +22,7 @@ export const initialQuotas = {
   personal: {
     name: 'ลากิจ',
     remaining: 0,
-    limit: 15,
+    limit: 45,
     unit: 'วัน',
     used: 0,
     color: '#0D9488',
@@ -31,7 +31,7 @@ export const initialQuotas = {
   sick: {
     name: 'ลาป่วย',
     remaining: 0,
-    limit: 30,
+    limit: 60,
     unit: 'วัน',
     used: 0,
     color: '#EF4444',
@@ -40,7 +40,7 @@ export const initialQuotas = {
   maternity: {
     name: 'ลาคลอดบุตร',
     remaining: 0,
-    limit: 0,
+    limit: 90,
     unit: 'วัน',
     used: 0,
     color: '#EC4899',

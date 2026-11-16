@@ -63,17 +63,22 @@ export default function LeaveRequestModal() {
 
   // Get quota info
   const getCurrentQuota = () => {
+    const isSickAsActual = currentUser?.employmentType === 'พนักงานราชการ' || quotas.sick?.isSickAsActual;
     switch (leaveType) {
       case 'vacation':
-        return { name: 'ลาพักร้อน', remaining: quotas.vacation.remaining };
+        return { name: 'ลาพักร้อน', remaining: Number(quotas.vacation?.remaining ?? 10), isActual: false };
       case 'personal':
-        return { name: 'ลากิจ', remaining: quotas.personal.remaining };
+        return { name: 'ลากิจ', remaining: Number(quotas.personal?.remaining ?? (currentUser?.employmentType === 'พนักงานราชการ' ? 10 : 45)), isActual: false };
       case 'sick':
-        return { name: 'ลาป่วย', remaining: quotas.sick.remaining };
+        return {
+          name: 'ลาป่วย',
+          remaining: isSickAsActual ? 999 : Number(quotas.sick?.remaining ?? 60),
+          isActual: isSickAsActual,
+        };
       case 'maternity':
-        return { name: 'ลาคลอดบุตร', remaining: quotas.maternity ? quotas.maternity.remaining : 90 };
+        return { name: 'ลาคลอดบุตร', remaining: Number(quotas.maternity ? quotas.maternity.remaining : 90), isActual: false };
       default:
-        return { name: 'อื่นๆ', remaining: 10 };
+        return { name: 'อื่นๆ', remaining: 10, isActual: false };
     }
   };
 
@@ -95,7 +100,7 @@ export default function LeaveRequestModal() {
       setErrorMsg('กรุณากรอกเหตุผลการลา');
       return;
     }
-    if (daysCount > quotaInfo.remaining && leaveType !== 'sick') {
+    if (daysCount > quotaInfo.remaining && !quotaInfo.isActual) {
       setErrorMsg(`จำนวนวันลาเกินโควตาคงเหลือ (${quotaInfo.remaining} วัน)`);
       return;
     }
@@ -182,23 +187,36 @@ export default function LeaveRequestModal() {
                 ประเภทการลา <span className="text-red-500">*</span>
               </label>
               <div className={`grid grid-cols-2 ${isMale ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-2`}>
-                {availableLeaveTypes.map((t) => (
-                  <button
-                    type="button"
-                    key={t.id}
-                    onClick={() => {
-                      setLeaveType(t.id);
-                      setErrorMsg('');
-                    }}
-                    className={`py-2.5 px-2 rounded-2xl border text-center transition-all ${
-                      leaveType === t.id
-                        ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-bold ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="text-xs font-semibold">{t.label}</div>
-                  </button>
-                ))}
+                {availableLeaveTypes.map((t) => {
+                  let remBadge = '';
+                  if (t.id === 'vacation') remBadge = `${quotas.vacation?.remaining ?? 10} วัน`;
+                  else if (t.id === 'personal') remBadge = `${quotas.personal?.remaining ?? (currentUser?.employmentType === 'พนักงานราชการ' ? 10 : 45)} วัน`;
+                  else if (t.id === 'sick') {
+                    const isSickActual = currentUser?.employmentType === 'พนักงานราชการ' || quotas.sick?.isSickAsActual;
+                    remBadge = isSickActual ? 'เท่าที่ป่วยจริง' : `${quotas.sick?.remaining ?? 60} วัน`;
+                  } else if (t.id === 'maternity') remBadge = `${quotas.maternity?.remaining ?? 90} วัน`;
+
+                  return (
+                    <button
+                      type="button"
+                      key={t.id}
+                      onClick={() => {
+                        setLeaveType(t.id);
+                        setErrorMsg('');
+                      }}
+                      className={`py-2 px-2 rounded-2xl border text-center transition-all ${
+                        leaveType === t.id
+                          ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-bold ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="text-xs font-semibold">{t.label}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        เหลือ {remBadge}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

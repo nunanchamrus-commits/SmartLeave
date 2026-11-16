@@ -11,12 +11,20 @@ export default function StatCards() {
     (!currentUser?.gender &&
       /^(นางสาว|น\.ส\.|นาง|Ms\.|Mrs\.|Miss)/.test((currentUser?.name || currentUser?.prefix || '').trim()));
 
+  const isSickActual =
+    currentUser?.employmentType === 'พนักงานราชการ' ||
+    quotas.sick?.isSickAsActual ||
+    quotas.sick?.limit === 'เท่าที่ป่วยจริง' ||
+    quotas.sick?.limit === 999;
+
   const cards = [
     {
       id: 'total',
       title: 'วันลาคงเหลือ',
-      value: `${quotas.totalRemaining} วัน`,
-      subtext: `จาก ${quotas.totalLimit} วัน`,
+      value: `${quotas.totalRemaining ?? 0} วัน`,
+      subtext: isSickActual
+        ? `จาก ${quotas.totalLimit ?? 0} วัน (ไม่รวมลาป่วยตามจริง)`
+        : `จาก ${quotas.totalLimit ?? 0} วัน`,
       icon: (
         <div className="w-12 h-12 rounded-2xl bg-[#EAF7EE] flex items-center justify-center text-[#16A34A] shadow-sm">
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -33,27 +41,27 @@ export default function StatCards() {
           </svg>
         </div>
       ),
-      percent: Math.round((quotas.totalRemaining / quotas.totalLimit) * 100),
+      percent: Math.round(((Number(quotas.totalRemaining) || 0) / (Number(quotas.totalLimit) || 1)) * 100),
       barColor: 'bg-[#22C55E]',
     },
     {
       id: 'vacation',
       title: 'ลาพักร้อน',
-      value: `${quotas.vacation.remaining} วัน`,
-      subtext: `จาก ${quotas.vacation.limit} วัน`,
+      value: `${quotas.vacation?.remaining ?? 10} วัน`,
+      subtext: `จาก ${quotas.vacation?.limit ?? 10} วัน`,
       icon: (
         <div className="w-12 h-12 rounded-2xl bg-[#E6F5F2] flex items-center justify-center text-[#0D9488] shadow-sm">
           <Plane className="w-6 h-6 transform -rotate-45" />
         </div>
       ),
-      percent: Math.round((quotas.vacation.remaining / quotas.vacation.limit) * 100),
+      percent: Math.round(((Number(quotas.vacation?.remaining) || 0) / (Number(quotas.vacation?.limit) || 1)) * 100),
       barColor: 'bg-[#10B981]',
     },
     {
       id: 'personal',
       title: 'ลากิจ',
-      value: `${quotas.personal.remaining} วัน`,
-      subtext: `จาก ${quotas.personal.limit} วัน`,
+      value: `${quotas.personal?.remaining ?? (currentUser?.employmentType === 'พนักงานราชการ' ? 10 : 45)} วัน`,
+      subtext: `จาก ${quotas.personal?.limit ?? (currentUser?.employmentType === 'พนักงานราชการ' ? 10 : 45)} วัน`,
       icon: (
         <div className="w-12 h-12 rounded-2xl bg-[#E5F5ED] flex items-center justify-center text-[#047857] shadow-sm">
           <div className="relative">
@@ -64,14 +72,14 @@ export default function StatCards() {
           </div>
         </div>
       ),
-      percent: Math.round((quotas.personal.remaining / quotas.personal.limit) * 100),
+      percent: Math.round(((Number(quotas.personal?.remaining) || 0) / (Number(quotas.personal?.limit) || 1)) * 100),
       barColor: 'bg-[#16A34A]',
     },
     {
       id: 'sick',
       title: 'ลาป่วย',
-      value: `${quotas.sick.remaining} วัน`,
-      subtext: `จาก ${quotas.sick.limit} วัน`,
+      value: isSickActual ? 'เท่าที่ป่วยจริง' : `${quotas.sick?.remaining ?? 60} วัน`,
+      subtext: isSickActual ? `ใช้ไปแล้ว ${quotas.sick?.used ?? 0} วัน` : `จาก ${quotas.sick?.limit ?? 60} วัน`,
       icon: (
         <div className="w-12 h-12 rounded-2xl bg-[#FFE8EC] flex items-center justify-center text-[#EF4444] shadow-sm">
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -79,7 +87,7 @@ export default function StatCards() {
           </svg>
         </div>
       ),
-      percent: Math.round((quotas.sick.remaining / quotas.sick.limit) * 100),
+      percent: isSickActual ? 100 : Math.round(((Number(quotas.sick?.remaining) || 0) / (Number(quotas.sick?.limit) || 1)) * 100),
       barColor: 'bg-[#FB7185]',
     },
   ];
