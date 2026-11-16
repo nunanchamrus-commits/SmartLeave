@@ -28,26 +28,26 @@ export default function AnnouncementsModal() {
 
         {/* List of Announcements */}
         <div className="p-6 overflow-y-auto space-y-4">
-          {announcements.map((ann) => (
+          {(announcements || []).map((ann) => (
             <div
               key={ann.id}
               className={`p-4 rounded-2xl border transition-all ${
                 ann.pinned
-                  ? 'bg-emerald-50/60 border-emerald-200 shadow-xs'
+                  ? 'bg-amber-50/40 border-amber-200/90 shadow-xs ring-1 ring-amber-300/40'
                   : 'bg-white border-slate-100 hover:border-slate-200'
               }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <span className="p-1 rounded-md bg-emerald-100 text-emerald-800">
-                    <Volume2 className="w-3.5 h-3.5" />
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                  <span className={`p-1 rounded-md ${ann.isHoliday ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {ann.isHoliday ? <span className="text-xs">🏛️</span> : <Volume2 className="w-3.5 h-3.5" />}
                   </span>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ann.isHoliday ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'}`}>
                     {ann.badge}
                   </span>
                   {ann.pinned && (
-                    <span className="flex items-center text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
-                      <Pin className="w-2.5 h-2.5 mr-0.5" /> ปักหมุด
+                    <span className="flex items-center text-[10px] text-amber-800 bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-full font-bold">
+                      <Pin className="w-2.5 h-2.5 mr-0.5 text-amber-700" /> วันหยุดใกล้ถึง (ปักหมุด)
                     </span>
                   )}
                 </div>

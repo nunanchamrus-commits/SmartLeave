@@ -8,6 +8,7 @@ import {
   notificationsData,
   employeesList,
 } from '../data/mockData';
+import { generateHolidayAnnouncements } from '../data/holidays';
 import api from '../services/api';
 
 const LeaveContext = createContext();
@@ -330,7 +331,7 @@ export function LeaveProvider({ children }) {
     }, 3200);
   };
 
-  const [announcements, setAnnouncements] = useState(announcementsData);
+  const [announcements, setAnnouncements] = useState(() => generateHolidayAnnouncements());
 
   // ล้างแคชตารางเดิมใน LocalStorage เพื่อให้ดึงข้อมูลจาก Cloudflare D1 100%
   useEffect(() => {
@@ -603,11 +604,22 @@ export function LeaveProvider({ children }) {
         }
       }
 
-      // 3. ดึงประกาศสดจาก Cloudflare D1
+      // 3. ดึงประกาศสดจาก Cloudflare D1 ผสานกับวันหยุดจริงจากปฏิทิน
       const annData = await api.getAnnouncements();
       if (isStaleSync()) return;
       if (Array.isArray(annData) && annData.length > 0) {
-        setAnnouncements(annData);
+        const holidayAnns = generateHolidayAnnouncements();
+        const customAnns = annData.map((a) => ({ ...a, pinned: false }));
+        // ปักหมุดเฉพาะวันหยุดที่ใกล้ถึงที่สุดเพียงรายการเดียว
+        const pinnedHoliday = holidayAnns.find((h) => h.pinned);
+        const unpinnedHolidays = holidayAnns.filter((h) => !h.pinned);
+        setAnnouncements([
+          ...(pinnedHoliday ? [pinnedHoliday] : []),
+          ...customAnns,
+          ...unpinnedHolidays,
+        ]);
+      } else {
+        setAnnouncements(generateHolidayAnnouncements());
       }
 
       // 4. ดึงการแจ้งเตือนสดจาก Cloudflare D1 เฉพาะของ user คนนั้น

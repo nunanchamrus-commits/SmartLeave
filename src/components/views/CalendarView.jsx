@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Users, User, Clock, RotateCcw } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
+import { getHolidaysMap } from '../../data/holidays';
 
 export default function CalendarView() {
   const {
@@ -50,6 +51,8 @@ export default function CalendarView() {
   const displayYear = displayDate.getFullYear();
   const displayMonth = displayDate.getMonth();
   const displayYearBE = displayYear + 543;
+
+  const holidaysMap = useMemo(() => getHolidaysMap(displayYear), [displayYear]);
 
   const todayDescription = `${thaiDayNames[realToday.getDay()]}ที่ ${realDate} ${monthsThai[realMonth]} ${realYear + 543}`;
   const formattedTime = currentTime.toLocaleTimeString('th-TH', {
@@ -114,12 +117,15 @@ export default function CalendarView() {
       displayMonth === realMonth &&
       displayYear === realYear;
 
+    const dayStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dayHoliday = holidaysMap[dayStr] || null;
     const dayEvents = getEventsForDay(d);
     days.push({
       day: d,
       isCurrent: true,
       isToday,
       events: dayEvents,
+      holiday: dayHoliday,
     });
   }
 
@@ -277,13 +283,25 @@ export default function CalendarView() {
                     วันนี้
                   </span>
                 )}
-                {!item.isToday && item.events && item.events.length > 0 && (
+                {!item.isToday && item.holiday && (
+                  <span className="w-2 h-2 rounded-full bg-purple-500" title={item.holiday.name} />
+                )}
+                {!item.isToday && !item.holiday && item.events && item.events.length > 0 && (
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 )}
               </div>
 
-              {/* Event Chips */}
+              {/* Event & Holiday Chips */}
               <div className="space-y-1 mt-1 overflow-y-auto max-h-16">
+                {item.holiday && (
+                  <div
+                    className="w-full text-left px-1.5 py-0.5 rounded-lg text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/90 truncate flex items-center space-x-1"
+                    title={item.holiday.name}
+                  >
+                    <span className="text-[10px]">🏛️</span>
+                    <span className="truncate">{item.holiday.name}</span>
+                  </div>
+                )}
                 {item.events?.map((ev, i) => (
                   <button
                     type="button"
