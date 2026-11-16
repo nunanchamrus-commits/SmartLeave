@@ -1,8 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
-  FileDown,
-  RefreshCw,
-  Database,
   Calendar,
   CheckCircle2,
   Clock,
@@ -14,51 +11,21 @@ import {
   FileText,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
-import { downloadLeaveSummaryPdf } from '../../utils/exportPdf';
 
 export default function ReportsView() {
-  const { leaveRequests, employees, isDbConnected, fetchLiveDatabaseData, showToast } = useLeave();
-  const [isExporting, setIsExporting] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const { leaveRequests, employees, fetchLiveDatabaseData } = useLeave();
 
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentYearBE = currentYear + 543;
   const currentMonthIndex = now.getMonth();
 
-  // ซิงค์ข้อมูลล่าสุดกับ Database D1 เมื่อเข้าสู่หน้านี้
+  // ซิงค์ข้อมูลล่าสุดกับ Database เมื่อเข้าสู่หน้านี้
   useEffect(() => {
     if (fetchLiveDatabaseData) {
       fetchLiveDatabaseData({ silent: true });
     }
   }, []);
-
-  const handleManualSync = async () => {
-    setIsSyncing(true);
-    try {
-      if (fetchLiveDatabaseData) {
-        await fetchLiveDatabaseData({ resetBaseline: true, silent: false });
-      }
-      if (showToast) showToast('ซิงค์ข้อมูลสถิติจาก Cloudflare D1 เรียบร้อยแล้ว', 'success');
-    } catch (e) {
-      if (showToast) showToast('ไม่สามารถซิงค์ข้อมูลกับ Database ได้', 'error');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleExportPdf = async () => {
-    setIsExporting(true);
-    try {
-      await downloadLeaveSummaryPdf(leaveRequests, `รายงานสถิติการลาประจำปี ${currentYearBE}`);
-      if (showToast) showToast('ส่งออกรายงานเป็น PDF สำเร็จ', 'success');
-    } catch (e) {
-      console.error(e);
-      if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF', 'error');
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
   // 1. คำนวณสถิติรายเดือนจากฐานข้อมูลจริง 100% (ไม่มีการ Hardcode ค่าจำลอง)
   const thaiMonthsShort = [
@@ -135,51 +102,12 @@ export default function ReportsView() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-2.5">
-            <h2 className="text-2xl font-bold text-slate-800 font-prompt">
-              รายงานสถิติการลา (Leave Analytics)
-            </h2>
-            <span
-              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                isDbConnected
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  : 'bg-amber-100 text-amber-800 border border-amber-200'
-              }`}
-            >
-              <Database className="w-3 h-3" />
-              <span>{isDbConnected ? 'Cloudflare D1 (Live)' : 'D1 Synced'}</span>
-            </span>
-          </div>
+          <h2 className="text-2xl font-bold text-slate-800 font-prompt">
+            รายงานสถิติการลา
+          </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ดึงข้อมูลสถิติสดจากฐานข้อมูล Cloudflare D1 ประจำปี พ.ศ. {currentYearBE} (ค.ศ. {currentYear})
+            ข้อมูลสถิติการลาประจำปี พ.ศ. {currentYearBE} (ค.ศ. {currentYear})
           </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleManualSync}
-            disabled={isSyncing}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs sm:text-sm font-medium transition-all shadow-xs disabled:opacity-60"
-            title="รีเฟรชดึงข้อมูลสถิติล่าสุดจากฐานข้อมูล D1"
-          >
-            <RefreshCw className={`w-4 h-4 text-emerald-600 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ D1'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            disabled={isExporting}
-            className="flex items-center space-x-2 px-4 py-2 bg-[#155A32] hover:bg-[#114929] text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs disabled:opacity-60"
-            title="ส่งออกรายงานทั้งหมดเป็น PDF"
-          >
-            {isExporting ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <FileDown className="w-4 h-4 text-lime-300" />
-            )}
-            <span>{isExporting ? 'กำลังสร้าง PDF...' : 'ส่งออกรายงาน PDF'}</span>
-          </button>
         </div>
       </div>
 
@@ -187,7 +115,7 @@ export default function ReportsView() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold text-slate-500">คำขอทั้งหมดใน D1</span>
+            <span className="text-xs font-semibold text-slate-500">คำขอทั้งหมด</span>
             <FileText className="w-4 h-4 text-slate-400" />
           </div>
           <p className="text-2xl font-bold text-slate-800 font-prompt">{statusStats.total}</p>
@@ -241,7 +169,7 @@ export default function ReportsView() {
                 สถิติการลาประจำเดือน (ปี {currentYearBE})
               </h3>
               <p className="text-xs text-slate-500">
-                คำนวณจากวันลาจริงในฐานข้อมูล Cloudflare D1
+                คำนวณจากวันลาจริงในระบบ
               </p>
             </div>
             <span className="text-xs px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 font-medium">
@@ -364,7 +292,7 @@ export default function ReportsView() {
 
         {sortedDepartments.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
-            ยังไม่พบข้อมูลการลาแยกตามกลุ่มงานในฐานข้อมูล Cloudflare D1
+            ยังไม่พบข้อมูลการลาแยกตามกลุ่มงาน
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

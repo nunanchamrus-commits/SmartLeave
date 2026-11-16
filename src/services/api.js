@@ -85,6 +85,25 @@ class ApiService {
     });
   }
 
+  async changePassword(currentPassword, newPassword, email, userId) {
+    return this.request('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword, email, userId }),
+    });
+  }
+
+  async adminResetPassword(userIdOrEmail, newPassword) {
+    const isEmail = typeof userIdOrEmail === 'string' && userIdOrEmail.includes('@');
+    return this.request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: isEmail ? userIdOrEmail : undefined,
+        userId: !isEmail ? userIdOrEmail : undefined,
+        newPassword,
+      }),
+    });
+  }
+
   // ==========================================
   // 2. ข้อมูลการลาและโควตา (Leaves & Quotas)
   // ==========================================

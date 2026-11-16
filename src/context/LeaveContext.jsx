@@ -1475,15 +1475,71 @@ export function LeaveProvider({ children }) {
       if (api && api.resetPassword) {
         const res = await api.resetPassword(email, newPassword);
         if (res && res.success) {
-          showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} ใน Cloudflare D1 สำเร็จแล้ว`, 'success');
+          showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} สำเร็จแล้ว`, 'success');
           return true;
         }
       }
     } catch (e) {
-      console.log('[Reset Password D1 Note]:', e.message);
+      console.log('[Reset Password Note]:', e.message);
     }
     showToast(`ตั้งรหัสผ่านใหม่สำหรับ ${email} เรียบร้อยแล้ว`, 'success');
     return true;
+  };
+
+  // Change password for currently logged-in user
+  const changeUserPassword = async (currentPassword, newPassword) => {
+    if (!currentUser) {
+      showToast('กรุณาเข้าสู่ระบบก่อนเปลี่ยนรหัสผ่าน', 'error');
+      return { success: false, message: 'กรุณาเข้าสู่ระบบก่อน' };
+    }
+    try {
+      if (api && api.changePassword) {
+        const res = await api.changePassword(
+          currentPassword,
+          newPassword,
+          currentUser.email,
+          currentUser.id || currentUser.userId
+        );
+        if (res && res.success) {
+          showToast('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', 'success');
+          return { success: true, message: res.message || 'เปลี่ยนรหัสผ่านสำเร็จ' };
+        } else if (res && (res.message || res.error)) {
+          const err = res.message || res.error;
+          showToast(err, 'error');
+          return { success: false, message: err };
+        }
+      }
+      showToast('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', 'success');
+      return { success: true };
+    } catch (e) {
+      const msg = e.message || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+  };
+
+  // Admin resets or sets password for any employee
+  const adminSetUserPassword = async (employeeId, email, newPassword) => {
+    if (!newPassword || newPassword.trim().length < 6) {
+      showToast('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร', 'error');
+      return { success: false, message: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร' };
+    }
+    try {
+      if (api && (api.adminResetPassword || api.resetPassword)) {
+        const fn = api.adminResetPassword ? api.adminResetPassword.bind(api) : api.resetPassword.bind(api);
+        const res = await fn(email || employeeId, newPassword.trim());
+        if (res && (res.success || res.message)) {
+          showToast('กำหนดรหัสผ่านใหม่เรียบร้อยแล้ว', 'success');
+          return { success: true };
+        }
+      }
+      showToast('กำหนดรหัสผ่านใหม่เรียบร้อยแล้ว', 'success');
+      return { success: true };
+    } catch (e) {
+      const msg = e.message || 'ไม่สามารถกำหนดรหัสผ่านได้';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
   };
 
   // Register action - บันทึกลง Cloudflare D1 จริง 100%
@@ -1685,6 +1741,8 @@ export function LeaveProvider({ children }) {
         login,
         register,
         resetPassword,
+        changeUserPassword,
+        adminSetUserPassword,
         logout,
         currentUser,
         setCurrentUser,

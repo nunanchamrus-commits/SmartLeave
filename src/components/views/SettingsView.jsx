@@ -13,6 +13,10 @@ import {
   Check,
   ChevronDown,
   Globe,
+  KeyRound,
+  Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 
@@ -155,7 +159,7 @@ function extractThaiNameFields(user) {
 }
 
 export default function SettingsView() {
-  const { currentUser, updateUserProfile, resetToDefault, showToast } = useLeave();
+  const { currentUser, updateUserProfile, resetToDefault, showToast, changeUserPassword } = useLeave();
 
   const initialTh = extractThaiNameFields(currentUser);
   const initialEn = extractEnglishNameFields(currentUser);
@@ -181,6 +185,18 @@ export default function SettingsView() {
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+
+  // ส่วนจัดการรหัสผ่าน (Password Management)
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   // ซิงก์ข้อมูลในฟอร์มเมื่อ currentUser ในระบบเปลี่ยนแปลง
   useEffect(() => {
@@ -237,6 +253,46 @@ export default function SettingsView() {
       gender: gender || prev.gender,
     }));
     setShowAvatarPicker(false);
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!passwordData.currentPassword) {
+      if (showToast) showToast('กรุณาระบุรหัสผ่านปัจจุบัน', 'error');
+      return;
+    }
+    if (!passwordData.newPassword) {
+      if (showToast) showToast('กรุณาระบุรหัสผ่านใหม่', 'error');
+      return;
+    }
+    if (passwordData.newPassword.length < 6) {
+      if (showToast) showToast('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร', 'error');
+      return;
+    }
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      if (showToast) showToast('รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน', 'error');
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      if (changeUserPassword) {
+        const res = await changeUserPassword(passwordData.currentPassword, passwordData.newPassword);
+        if (res && res.success) {
+          setPasswordSuccess(true);
+          setPasswordData({
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+          });
+          setTimeout(() => setPasswordSuccess(false), 3000);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   return (
@@ -681,6 +737,131 @@ export default function SettingsView() {
                 <>
                   <Save className="w-4 h-4" />
                   <span>บันทึกการแก้ไข</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Password Change Card */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between pb-5 border-b border-slate-100 mb-6">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+              <KeyRound className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-800">
+                เปลี่ยนรหัสผ่าน (Change Password)
+              </h3>
+              <p className="text-xs text-slate-400">
+                อัปเดตรหัสผ่านสำหรับเข้าสู่ระบบของท่าน (ความยาวอย่างน้อย 6 ตัวอักษร)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs sm:text-sm">
+          {/* Current Password */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              รหัสผ่านปัจจุบัน <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+              <input
+                type={showCurrentPassword ? 'text' : 'password'}
+                value={passwordData.currentPassword}
+                onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                placeholder="ระบุรหัสผ่านเดิมที่ใช้งานอยู่"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword((v) => !v)}
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+              >
+                {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* New Password */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                รหัสผ่านใหม่ <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                  placeholder="รหัสผ่านใหม่อย่างน้อย 6 ตัวอักษร"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm New Password */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                ยืนยันรหัสผ่านใหม่ <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                  placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-end pt-3">
+            <button
+              type="submit"
+              disabled={isUpdatingPassword}
+              className={`flex items-center justify-center space-x-2 px-6 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-60 ${
+                passwordSuccess
+                  ? 'bg-emerald-600 ring-2 ring-emerald-400'
+                  : 'bg-[#155A32] hover:bg-[#114A29]'
+              }`}
+            >
+              {passwordSuccess ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 animate-bounce" />
+                  <span>เปลี่ยนรหัสผ่านสำเร็จ!</span>
+                </>
+              ) : isUpdatingPassword ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>กำลังบันทึก...</span>
+                </>
+              ) : (
+                <>
+                  <KeyRound className="w-4 h-4" />
+                  <span>บันทึกรหัสผ่านใหม่</span>
                 </>
               )}
             </button>

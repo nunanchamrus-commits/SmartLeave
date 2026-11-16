@@ -34,7 +34,6 @@ export default function ApproverView() {
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [remarks, setRemarks] = useState({});
   const [downloadingId, setDownloadingId] = useState(null);
-  const [isExportingAllPdf, setIsExportingAllPdf] = useState(false);
 
   // State สำหรับ Modal กดยืนยันการเปลี่ยนสถานะอีกรอบ (อนุมัติ, ไม่อนุมัติ, อยู่ระหว่างตรวจสอบ, ยังไม่ยื่นเอกสาร)
   const [confirmModal, setConfirmModal] = useState({
@@ -105,21 +104,6 @@ export default function ApproverView() {
     }
   };
 
-  const handleExportSummaryPdf = async () => {
-    setIsExportingAllPdf(true);
-    try {
-      const listToExport = activeTab === 'pending' ? pendingRequests : leaveRequests;
-      const title = activeTab === 'pending' ? 'รายงานคำขอรอพิจารณาอนุมัติ' : 'รายงานตรวจสอบสถานะการลาทั้งหมดในองค์กร';
-      await downloadLeaveSummaryPdf(listToExport, title);
-      if (showToast) showToast('ส่งออกรายงานสรุป PDF สำเร็จ', 'success');
-    } catch (err) {
-      console.error(err);
-      if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF', 'error');
-    } finally {
-      setIsExportingAllPdf(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Banner if currently viewing as employee */}
@@ -147,26 +131,11 @@ export default function ApproverView() {
             ระบบพิจารณาอนุมัติคำขอลา (Approver Portal)
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ตรวจสอบ อนุมัติ ปฏิเสธคำขอ และส่งออกใบลาอิเล็กทรอนิกส์เป็น PDF สำหรับผู้บริหาร
+            ตรวจสอบ อนุมัติ และปฏิเสธคำขอการลาของพนักงานในองค์กร
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Export PDF Button */}
-          <button
-            onClick={handleExportSummaryPdf}
-            disabled={isExportingAllPdf}
-            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[#155A32] text-xs sm:text-sm font-semibold transition-colors shadow-xs disabled:opacity-60"
-            title="ส่งออกรายงานคำขอเป็นไฟล์ PDF"
-          >
-            {isExportingAllPdf ? (
-              <div className="w-4 h-4 border-2 border-emerald-700/30 border-t-emerald-700 rounded-full animate-spin" />
-            ) : (
-              <FileDown className="w-4 h-4 text-emerald-700" />
-            )}
-            <span>{isExportingAllPdf ? 'กำลังสร้าง PDF...' : 'ส่งออกรายงาน PDF'}</span>
-          </button>
-
           <div className="px-3.5 py-2 rounded-xl bg-amber-100 text-amber-800 font-bold text-xs flex items-center space-x-1.5 border border-amber-200">
             <Clock className="w-3.5 h-3.5" />
             <span>รอพิจารณา {pendingRequests.length} รายการ</span>
