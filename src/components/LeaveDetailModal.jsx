@@ -35,6 +35,7 @@ export default function LeaveDetailModal() {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingStatusConfirm, setPendingStatusConfirm] = useState(null);
 
   const [editForm, setEditForm] = useState({
     typeKey: 'vacation',
@@ -53,6 +54,7 @@ export default function LeaveDetailModal() {
       setApproverRemark('');
       setIsEditing(false);
       setShowDeleteConfirm(false);
+      setPendingStatusConfirm(null);
       setEditForm({
         typeKey: selectedLeaveDetail.typeKey || 'vacation',
         type: selectedLeaveDetail.type || 'ลาพักร้อน',
@@ -81,6 +83,11 @@ export default function LeaveDetailModal() {
   const canEdit = isApprover || isOwner;
 
   const handleStatusChange = (nextStatus) => {
+    setPendingStatusConfirm(nextStatus);
+    setShowDeleteConfirm(false);
+  };
+
+  const handleExecuteStatusChange = (nextStatus) => {
     if (nextStatus === 'อนุมัติ') {
       approveLeaveRequest(req.id, approverRemark || 'อนุมัติเรียบร้อย');
       setSelectedLeaveDetail(null);
@@ -463,6 +470,71 @@ export default function LeaveDetailModal() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Confirmation Prompt before Status Change */}
+                  {pendingStatusConfirm && (
+                    <div className={`p-4 rounded-2xl border space-y-2.5 animate-in fade-in ${
+                      pendingStatusConfirm === 'อนุมัติ'
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                        : pendingStatusConfirm === 'ไม่อนุมัติ'
+                        ? 'bg-red-50 border-red-200 text-red-900'
+                        : pendingStatusConfirm === 'อยู่ระหว่างตรวจสอบ'
+                        ? 'bg-yellow-50 border-yellow-200 text-yellow-900'
+                        : 'bg-orange-50 border-orange-200 text-orange-900'
+                    }`}>
+                      <div className="flex items-center space-x-2 font-semibold text-xs sm:text-sm">
+                        {pendingStatusConfirm === 'อนุมัติ' ? (
+                          <Check className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+                        ) : pendingStatusConfirm === 'ไม่อนุมัติ' ? (
+                          <X className="w-4 h-4 flex-shrink-0 text-red-600" />
+                        ) : pendingStatusConfirm === 'อยู่ระหว่างตรวจสอบ' ? (
+                          <Clock className="w-4 h-4 flex-shrink-0 text-yellow-600" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 text-orange-600" />
+                        )}
+                        <span>ยืนยันการเปลี่ยนสถานะคำขอลาเป็น "{pendingStatusConfirm}" หรือไม่?</span>
+                      </div>
+                      <p className="text-xs opacity-80">
+                        {approverRemark
+                          ? `หมายเหตุผู้อนุมัติ: "${approverRemark}" • ระบบจะบันทึกสถานะลงฐานข้อมูล D1 และแจ้งเตือนผู้ใช้งาน`
+                          : 'ระบบจะบันทึกสถานะลงฐานข้อมูล D1 ทันที และส่งการแจ้งเตือนไปยังผู้ใช้งาน'}
+                      </p>
+                      <div className="flex items-center justify-end space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setPendingStatusConfirm(null)}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50"
+                        >
+                          ยกเลิก
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = pendingStatusConfirm;
+                            setPendingStatusConfirm(null);
+                            handleExecuteStatusChange(next);
+                          }}
+                          className={`px-3.5 py-1.5 rounded-lg text-white text-xs font-semibold shadow-xs ${
+                            pendingStatusConfirm === 'อนุมัติ'
+                              ? 'bg-[#155A32] hover:bg-[#124A29]'
+                              : pendingStatusConfirm === 'ไม่อนุมัติ'
+                              ? 'bg-red-600 hover:bg-red-700'
+                              : pendingStatusConfirm === 'อยู่ระหว่างตรวจสอบ'
+                              ? 'bg-amber-600 hover:bg-amber-700'
+                              : 'bg-orange-600 hover:bg-orange-700'
+                          }`}
+                        >
+                          {pendingStatusConfirm === 'อนุมัติ' ? (
+                            <span>ยืนยันอนุมัติ</span>
+                          ) : pendingStatusConfirm === 'ไม่อนุมัติ' ? (
+                            <span>ยืนยันไม่อนุมัติ</span>
+                          ) : (
+                            <span>ยืนยันเปลี่ยนสถานะ</span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

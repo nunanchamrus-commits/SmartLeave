@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadLeaveSummaryPdf } from '../../utils/exportPdf';
+import StatusConfirmModal from '../StatusConfirmModal';
 
 export default function ApproverView() {
   const {
@@ -35,6 +36,14 @@ export default function ApproverView() {
   const [downloadingId, setDownloadingId] = useState(null);
   const [isExportingAllPdf, setIsExportingAllPdf] = useState(false);
 
+  // State สำหรับ Modal กดยืนยันการเปลี่ยนสถานะอีกรอบ (อนุมัติ, ไม่อนุมัติ, อยู่ระหว่างตรวจสอบ, ยังไม่ยื่นเอกสาร)
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    req: null,
+    targetStatus: '',
+    defaultRemark: '',
+  });
+
   const pendingRequests = leaveRequests.filter(
     (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ'
   );
@@ -42,22 +51,44 @@ export default function ApproverView() {
     (r) => r.status === 'อนุมัติ' || r.status === 'ไม่อนุมัติ'
   );
 
-  const handleSetChecking = (id) => {
-    updateLeaveStatus(id, 'อยู่ระหว่างตรวจสอบ', remarks[id] || '');
+  const handleOpenConfirm = (req, targetStatus) => {
+    let defaultRemark = remarks[req.id] || '';
+    if (!defaultRemark) {
+      if (targetStatus === 'อนุมัติ') defaultRemark = 'อนุมัติเรียบร้อย';
+      else if (targetStatus === 'ไม่อนุมัติ') defaultRemark = 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน';
+      else if (targetStatus === 'อยู่ระหว่างตรวจสอบ') defaultRemark = 'อยู่ระหว่างตรวจสอบเอกสาร';
+    }
+    setConfirmModal({
+      isOpen: true,
+      req,
+      targetStatus,
+      defaultRemark,
+    });
   };
 
-  const handleSetNotSubmitted = (id) => {
-    updateLeaveStatus(id, 'ยังไม่ยื่นเอกสาร', remarks[id] || '');
+  const handleCloseConfirm = () => {
+    setConfirmModal({
+      isOpen: false,
+      req: null,
+      targetStatus: '',
+      defaultRemark: '',
+    });
   };
 
-  const handleApprove = (id) => {
-    const remark = remarks[id] || 'อนุมัติเรียบร้อย';
-    approveLeaveRequest(id, remark);
-  };
+  const handleConfirmAction = async (finalRemark) => {
+    if (!confirmModal.req) return;
+    const { req, targetStatus } = confirmModal;
+    const remark = finalRemark !== undefined ? finalRemark : confirmModal.defaultRemark;
 
-  const handleReject = (id) => {
-    const remark = remarks[id] || 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน';
-    rejectLeaveRequest(id, remark);
+    if (targetStatus === 'อนุมัติ') {
+      await approveLeaveRequest(req.id, remark || 'อนุมัติเรียบร้อย');
+    } else if (targetStatus === 'ไม่อนุมัติ') {
+      await rejectLeaveRequest(req.id, remark || 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน');
+    } else {
+      await updateLeaveStatus(req.id, targetStatus, remark || '');
+    }
+
+    handleCloseConfirm();
   };
 
   const handleDownloadSlip = async (req, e) => {
@@ -259,7 +290,7 @@ export default function ApproverView() {
                         {req.status === 'ยังไม่ยื่นเอกสาร' ? (
                           <button
                             type="button"
-                            onClick={() => handleSetChecking(req.id)}
+                            onClick={() => handleOpenConfirm(req, 'อยู่ระหว่างตรวจสอบ')}
                             className="px-3.5 py-2 rounded-xl bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
                           >
                             <Clock className="w-3.5 h-3.5" />
@@ -268,7 +299,7 @@ export default function ApproverView() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => handleSetNotSubmitted(req.id)}
+                            onClick={() => handleOpenConfirm(req, 'ยังไม่ยื่นเอกสาร')}
                             className="px-3.5 py-2 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
                           >
                             <AlertCircle className="w-3.5 h-3.5" />
@@ -278,7 +309,8 @@ export default function ApproverView() {
 
                         {/* Reject */}
                         <button
-                          onClick={() => handleReject(req.id)}
+                          type="button"
+                          onClick={() => handleOpenConfirm(req, 'ไม่อนุมัติ')}
                           className="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -287,7 +319,8 @@ export default function ApproverView() {
 
                         {/* Approve */}
                         <button
-                          onClick={() => handleApprove(req.id)}
+                          type="button"
+                          onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
                           className="px-4 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1"
                         >
                           <Check className="w-3.5 h-3.5" />
@@ -371,6 +404,16 @@ export default function ApproverView() {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal before status changes */}
+      <StatusConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={handleCloseConfirm}
+        onConfirm={handleConfirmAction}
+        req={confirmModal.req}
+        targetStatus={confirmModal.targetStatus}
+        defaultRemark={confirmModal.defaultRemark}
+      />
     </div>
   );
 }

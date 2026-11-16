@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf } from '../../utils/exportPdf';
+import StatusConfirmModal from '../StatusConfirmModal';
 
 const THAI_MONTHS_SHORT = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -38,6 +39,47 @@ export default function AdminDashboardView() {
   } = useLeave();
 
   const [searchEmployee, setSearchEmployee] = useState('');
+
+  // State สำหรับ Modal กดยืนยันการเปลี่ยนสถานะอีกรอบ
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    req: null,
+    targetStatus: '',
+    defaultRemark: '',
+  });
+
+  const handleOpenConfirm = (req, targetStatus) => {
+    let defaultRemark = '';
+    if (targetStatus === 'อนุมัติ') defaultRemark = 'อนุมัติเรียบร้อย';
+    else if (targetStatus === 'ไม่อนุมัติ') defaultRemark = 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน';
+    else if (targetStatus === 'อยู่ระหว่างตรวจสอบ') defaultRemark = 'อยู่ระหว่างตรวจสอบเอกสาร';
+    setConfirmModal({
+      isOpen: true,
+      req,
+      targetStatus,
+      defaultRemark,
+    });
+  };
+
+  const handleCloseConfirm = () => {
+    setConfirmModal({ isOpen: false, req: null, targetStatus: '', defaultRemark: '' });
+  };
+
+  const handleConfirmAction = async (finalRemark) => {
+    if (!confirmModal.req) return;
+    const { req, targetStatus } = confirmModal;
+    const remark = finalRemark !== undefined ? finalRemark : confirmModal.defaultRemark;
+
+    if (targetStatus === 'อนุมัติ') {
+      await approveLeaveRequest(req.id, remark || 'อนุมัติเรียบร้อย');
+    } else if (targetStatus === 'ไม่อนุมัติ') {
+      await rejectLeaveRequest(req.id, remark || 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน');
+    } else {
+      await updateLeaveStatus(req.id, targetStatus, remark || '');
+    }
+
+    handleCloseConfirm();
+  };
 
   const now = new Date();
   const currentYearBE = now.getFullYear() + 543;
@@ -279,7 +321,7 @@ export default function AdminDashboardView() {
                     {req.status === 'ยังไม่ยื่นเอกสาร' ? (
                       <button
                         type="button"
-                        onClick={() => updateLeaveStatus(req.id, 'อยู่ระหว่างตรวจสอบ')}
+                        onClick={() => handleOpenConfirm(req, 'อยู่ระหว่างตรวจสอบ')}
                         className="px-2.5 py-1.5 rounded-xl bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-semibold text-xs transition-colors flex items-center space-x-1"
                       >
                         <Clock className="w-3.5 h-3.5" />
@@ -288,7 +330,7 @@ export default function AdminDashboardView() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => updateLeaveStatus(req.id, 'ยังไม่ยื่นเอกสาร')}
+                        onClick={() => handleOpenConfirm(req, 'ยังไม่ยื่นเอกสาร')}
                         className="px-2.5 py-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 font-semibold text-xs transition-colors flex items-center space-x-1"
                       >
                         <AlertCircle className="w-3.5 h-3.5" />
@@ -296,14 +338,16 @@ export default function AdminDashboardView() {
                       </button>
                     )}
                     <button
-                      onClick={() => rejectLeaveRequest(req.id, 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน')}
+                      type="button"
+                      onClick={() => handleOpenConfirm(req, 'ไม่อนุมัติ')}
                       className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs transition-colors flex items-center space-x-1"
                     >
                       <X className="w-3.5 h-3.5" />
                       <span>ไม่อนุมัติ</span>
                     </button>
                     <button
-                      onClick={() => approveLeaveRequest(req.id, 'อนุมัติเรียบร้อย')}
+                      type="button"
+                      onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
                       className="px-3.5 py-1.5 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-xs flex items-center space-x-1"
                     >
                       <Check className="w-3.5 h-3.5" />
@@ -456,6 +500,16 @@ export default function AdminDashboardView() {
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal before status changes */}
+      <StatusConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={handleCloseConfirm}
+        onConfirm={handleConfirmAction}
+        req={confirmModal.req}
+        targetStatus={confirmModal.targetStatus}
+        defaultRemark={confirmModal.defaultRemark}
+      />
     </div>
   );
 }
