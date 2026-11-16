@@ -1854,7 +1854,10 @@ export async function onRequest(context) {
       await upsertEmployeeQuotaType(env.DB, uId, 3, curYear, 15.0, body.personalLimit, body.personalUsed, body.personalRem);
       await upsertEmployeeQuotaType(env.DB, uId, 4, curYear, defaultMat, body.maternityLimit, body.maternityUsed, body.maternityRem);
 
-      const updatedThaiName = fullThaiName || ((prefix || user.prefix ? (prefix || user.prefix) : '') + (firstName || user.first_name || '') + ' ' + (lastName || user.last_name || '')).trim();
+      const finalPrefix = prefix || user.prefix || '';
+      const finalFirst = firstName || user.first_name || '';
+      const finalLast = lastName || user.last_name || '';
+      const updatedThaiName = rawThai || `${finalPrefix}${finalFirst} ${finalLast}`.trim();
 
       return jsonResponse({
         success: true,
