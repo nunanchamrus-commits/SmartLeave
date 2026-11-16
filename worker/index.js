@@ -1700,6 +1700,20 @@ export async function onRequest(context) {
         user = await env.DB.prepare('SELECT user_id, employee_code, email, gender, prefix FROM users WHERE employee_code = ? OR LOWER(email) = LOWER(?)')
           .bind(empIdStr, empIdStr).first().catch(() => null);
       }
+      if (!user && (body.raw_id || body.user_id)) {
+        const candidateId = Number(body.raw_id || body.user_id);
+        if (!isNaN(candidateId)) {
+          user = await env.DB.prepare('SELECT user_id, employee_code, email, gender, prefix FROM users WHERE user_id = ?').bind(candidateId).first().catch(() => null);
+        }
+      }
+      if (!user && body.oldEmail) {
+        user = await env.DB.prepare('SELECT user_id, employee_code, email, gender, prefix FROM users WHERE LOWER(email) = LOWER(?)')
+          .bind(String(body.oldEmail).trim()).first().catch(() => null);
+      }
+      if (!user && body.employeeId) {
+        user = await env.DB.prepare('SELECT user_id, employee_code, email, gender, prefix FROM users WHERE employee_code = ?')
+          .bind(String(body.employeeId).trim()).first().catch(() => null);
+      }
 
       if (!user) {
         return jsonResponse({ error: 'ไม่พบพนักงานที่ต้องการแก้ไข' }, 404);
@@ -1709,14 +1723,25 @@ export async function onRequest(context) {
       let {
         prefix, firstName, lastName, name, fullName,
         prefixEn, firstNameEn, lastNameEn, englishName,
-        phone, title, position, department, gender, employmentType, role, avatar
+        phone, title, position, department, gender, employmentType, role, avatar,
+        email
       } = body;
+
+      // ตรวจสอบความถูกต้องของอีเมล และตรวจสอบการซ้ำกับผู้ใช้อื่น
+      const cleanEmail = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
+      if (cleanEmail) {
+        const duplicate = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) AND user_id != ? LIMIT 1')
+          .bind(cleanEmail, uId).first().catch(() => null);
+        if (duplicate) {
+          return jsonResponse({ success: false, message: 'อีเมลนี้ถูกใช้งานโดยผู้ใช้รายอื่นในระบบแล้ว กรุณาใช้อีเมลอื่น' }, 400);
+        }
+      }
 
       const rawThai = (typeof name === 'string' && name.trim()) || (typeof fullName === 'string' && fullName.trim()) || '';
       if (firstName || lastName) {
         prefix = (typeof prefix === 'string' && prefix.trim()) ? prefix.trim() : (rawThai ? parseThaiName(rawThai, gender).prefix : (user.prefix || ''));
-        firstName = (typeof firstName === 'string') ? firstName.trim() : '';
-        lastName = (typeof lastName === 'string') ? lastName.trim() : '';
+        firstName = (typeof firstName === 'string' && firstName.trim()) ? firstName.trim() : (rawThai ? parseThaiName(rawThai, gender).firstName : null);
+        lastName = (typeof lastName === 'string' && lastName.trim()) ? lastName.trim() : (rawThai ? parseThaiName(rawThai, gender).lastName : null);
       } else if (rawThai) {
         const parsedTh = parseThaiName(rawThai, gender || user.gender);
         prefix = parsedTh.prefix;
@@ -1729,26 +1754,40 @@ export async function onRequest(context) {
 
       if (firstNameEn || lastNameEn) {
         prefixEn = (typeof prefixEn === 'string' && prefixEn.trim()) ? prefixEn.trim() : (gender === 'ชาย' ? 'Mr.' : 'Ms.');
-        firstNameEn = (typeof firstNameEn === 'string') ? firstNameEn.trim() : '';
-        lastNameEn = (typeof lastNameEn === 'string') ? lastNameEn.trim() : '';
+        firstNameEn = (typeof firstNameEn === 'string' && firstNameEn.trim()) ? firstNameEn.trim() : null;
+        lastNameEn = (typeof lastNameEn === 'string' && lastNameEn.trim()) ? lastNameEn.trim() : null;
       } else if (englishName && typeof englishName === 'string') {
         const parsedEn = parseEnglishName(englishName, gender, prefix);
         prefixEn = parsedEn.prefixEn;
         firstNameEn = parsedEn.firstNameEn;
         lastNameEn = parsedEn.lastNameEn;
       }
-      const fullEn = englishName || (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
+      const fullEn = (typeof englishName === 'string' && englishName.trim())
+        ? englishName.trim()
+        : (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
 
       let roleId = null;
-      if (role) {
+      if (body.role_id) {
+        roleId = Number(body.role_id);
+      } else if (role) {
         roleId = (role === 'admin' || role === 'SYSTEM_ADMIN') ? 1 : ((role === 'approver' || role === 'APPROVER') ? 3 : 4);
       }
 
       let deptId = null;
-      if (department) {
+      if (department && typeof department === 'string' && department.trim()) {
         const d = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
           .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
-        if (d) deptId = d.department_id;
+        if (d) {
+          deptId = d.department_id;
+        } else {
+          try {
+            const newDept = await env.DB.prepare('INSERT INTO departments (code, name_th, name_en) VALUES (?, ?, ?)')
+              .bind(`DEP-${Date.now().toString().slice(-4)}`, department.trim(), department.trim()).run();
+            deptId = newDept.meta?.last_row_id || null;
+          } catch (e) {
+            console.log('[Create Dept Note]:', e.message);
+          }
+        }
       }
 
       await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
@@ -1762,6 +1801,7 @@ export async function onRequest(context) {
             first_name_en = COALESCE(?, first_name_en),
             last_name_en = COALESCE(?, last_name_en),
             english_name = COALESCE(?, english_name),
+            email = COALESCE(?, email),
             gender = COALESCE(?, gender),
             employment_type = COALESCE(?, employment_type),
             phone = COALESCE(?, phone),
@@ -1779,15 +1819,24 @@ export async function onRequest(context) {
         firstNameEn ?? null,
         lastNameEn ?? null,
         fullEn ?? null,
-        gender ?? null,
-        employmentType ?? null,
-        phone ?? null,
-        (position || title) ?? null,
+        cleanEmail ?? null,
+        (typeof gender === 'string' && gender.trim()) ? gender.trim() : null,
+        (typeof employmentType === 'string' && employmentType.trim()) ? employmentType.trim() : null,
+        (typeof phone === 'string' && phone.trim()) ? phone.trim() : null,
+        ((typeof position === 'string' && position.trim()) ? position.trim() : ((typeof title === 'string' && title.trim()) ? title.trim() : null)),
         deptId ?? null,
         roleId ?? null,
         avatar ?? null,
         uId
       ).run();
+
+      // อัปเดตอีเมลในตารางที่เกี่ยวข้อง (pdpa_consents และ leave_requests)
+      if (cleanEmail && user.email && cleanEmail !== user.email.toLowerCase()) {
+        await env.DB.prepare("UPDATE pdpa_consents SET email = ? WHERE LOWER(email) = LOWER(?)")
+          .bind(cleanEmail, user.email.toLowerCase()).run().catch((e) => console.log('[PDPA Consent Email Sync Note]:', e.message));
+        await env.DB.prepare("UPDATE leave_requests SET employee_email = ? WHERE LOWER(employee_email) = LOWER(?)")
+          .bind(cleanEmail, user.email.toLowerCase()).run().catch(() => {});
+      }
 
       // หากแอดมินกำหนดรหัสผ่านใหม่มาด้วย ให้อัปเดตรหัสผ่านลงตาราง users ทันที
       const rawPassword = body.newPassword || body.password;
@@ -1805,9 +1854,32 @@ export async function onRequest(context) {
       await upsertEmployeeQuotaType(env.DB, uId, 3, curYear, 15.0, body.personalLimit, body.personalUsed, body.personalRem);
       await upsertEmployeeQuotaType(env.DB, uId, 4, curYear, defaultMat, body.maternityLimit, body.maternityUsed, body.maternityRem);
 
+      const updatedThaiName = fullThaiName || ((prefix || user.prefix ? (prefix || user.prefix) : '') + (firstName || user.first_name || '') + ' ' + (lastName || user.last_name || '')).trim();
+
       return jsonResponse({
         success: true,
-        message: 'อัปเดตข้อมูลพนักงานใน Cloudflare D1 เรียบร้อยแล้ว'
+        message: 'อัปเดตข้อมูลพนักงานใน Cloudflare D1 เรียบร้อยแล้ว',
+        employee: {
+          user_id: uId,
+          raw_id: uId,
+          id: `usr-${uId}`,
+          email: cleanEmail || user.email,
+          employeeId: user.employee_code,
+          prefix: prefix || user.prefix,
+          firstName: firstName || user.first_name,
+          lastName: lastName || user.last_name,
+          name: updatedThaiName,
+          prefixEn: prefixEn || user.prefix_en,
+          firstNameEn: firstNameEn || user.first_name_en,
+          lastNameEn: lastNameEn || user.last_name_en,
+          englishName: fullEn || user.english_name,
+          gender: gender || user.gender,
+          employmentType: employmentType || user.employment_type,
+          phone: phone || user.phone,
+          title: ((typeof position === 'string' && position.trim()) ? position.trim() : ((typeof title === 'string' && title.trim()) ? title.trim() : user.position)),
+          department: department,
+          role: role || (roleId === 1 ? 'admin' : (roleId === 3 ? 'approver' : 'employee')),
+        }
       });
     }
 
@@ -2690,7 +2762,7 @@ export async function onRequest(context) {
 
           if (cleanEmail) {
             await env.DB.prepare('UPDATE pdpa_consents SET user_email = ? WHERE user_id = ?')
-              .bind(cleanEmail, targetUserId).run().catch(() => {});
+              .bind(cleanEmail, targetUserId).run().catch(() => { });
           }
         } catch (dbErr) {
           console.log('[D1 Update Profile Note]:', dbErr.message);

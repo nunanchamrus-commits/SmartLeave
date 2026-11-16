@@ -1357,8 +1357,25 @@ export function LeaveProvider({ children }) {
   // Update Employee (Admin)
   const updateEmployee = async (empId, updatedData) => {
     mutationEpochRef.current += 1;
+    const targetBase = employeesRef.current.find(
+      (emp) =>
+        emp.id === empId ||
+        emp.employeeId === empId ||
+        (emp.raw_id && updatedData?.raw_id && Number(emp.raw_id) === Number(updatedData.raw_id)) ||
+        (emp.id && updatedData?.id && cleanNumericUserId(emp.id) === cleanNumericUserId(updatedData.id)) ||
+        (updatedData?.oldEmail && emp.email?.toLowerCase() === updatedData.oldEmail.toLowerCase())
+    );
+
+    const oldEmail = targetBase?.email || updatedData?.oldEmail;
+
     const updated = employeesRef.current.map((emp) => {
-      if (emp.id === empId || emp.employeeId === empId) {
+      if (
+        emp.id === empId ||
+        emp.employeeId === empId ||
+        (emp.raw_id && updatedData?.raw_id && Number(emp.raw_id) === Number(updatedData.raw_id)) ||
+        (emp.id && updatedData?.id && cleanNumericUserId(emp.id) === cleanNumericUserId(updatedData.id)) ||
+        (oldEmail && emp.email?.toLowerCase() === oldEmail.toLowerCase())
+      ) {
         return normalizeEmployeeQuotas({
           ...emp,
           ...updatedData,
@@ -1372,6 +1389,8 @@ export function LeaveProvider({ children }) {
     if (
       currentUser?.id === empId ||
       currentUser?.employeeId === empId ||
+      (currentUser?.raw_id && targetBase?.raw_id && Number(currentUser.raw_id) === Number(targetBase.raw_id)) ||
+      (oldEmail && currentUser?.email?.toLowerCase() === oldEmail.toLowerCase()) ||
       (updatedData?.email && currentUser?.email?.toLowerCase() === updatedData.email.toLowerCase())
     ) {
       const mergedUser = normalizeEmployeeQuotas({ ...currentUser, ...updatedData });
@@ -1383,9 +1402,17 @@ export function LeaveProvider({ children }) {
 
     pendingMutationRef.current += 1;
     let apiError = null;
+    let responseData = null;
     try {
       if (api && api.updateEmployee) {
-        await api.updateEmployee(empId, updatedData);
+        responseData = await api.updateEmployee(empId, {
+          ...updatedData,
+          oldEmail: oldEmail || updatedData?.email,
+          raw_id: targetBase?.raw_id || updatedData?.raw_id,
+        });
+        if (responseData && responseData.success === false) {
+          throw new Error(responseData.message || 'ไม่สามารถบันทึกข้อมูลพนักงานได้');
+        }
       }
     } catch (e) {
       apiError = e;
@@ -1394,13 +1421,30 @@ export function LeaveProvider({ children }) {
       pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
     }
 
-    if (apiError && isDbConnectedRef.current) {
-      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+    if (apiError) {
+      if (isDbConnectedRef.current) {
+        await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      }
       showToast(`ไม่สามารถบันทึกข้อมูลพนักงานลงฐานข้อมูลได้ (${apiError.message || 'Server error'})`, 'error');
-      return;
+      return { success: false, error: apiError.message };
+    }
+
+    // Refresh employees from live DB to ensure state is 100% in sync with D1
+    try {
+      if (api && api.getEmployees) {
+        const fresh = await api.getEmployees();
+        if (Array.isArray(fresh) && fresh.length > 0) {
+          const freshEmployees = fresh.map(normalizeEmployeeQuotas);
+          setEmployees(freshEmployees);
+          employeesRef.current = freshEmployees;
+        }
+      }
+    } catch (e) {
+      console.log('[Refresh Employees Note]:', e.message);
     }
 
     showToast('บันทึกข้อมูลพนักงานเรียบร้อยแล้ว', 'success');
+    return { success: true };
   };
 
   // Delete Employee (Admin)

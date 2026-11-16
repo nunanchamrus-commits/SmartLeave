@@ -311,6 +311,11 @@ export default function AdminEmployeesView() {
     e.preventDefault();
     if (!editingEmp) return;
 
+    if (editForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) {
+      if (showToast) showToast('กรุณาระบุรูปแบบอีเมลให้ถูกต้อง', 'error');
+      return;
+    }
+
     const fullThaiName = editForm.firstName
       ? `${editForm.prefix || ''}${editForm.firstName} ${editForm.lastName || ''}`.trim()
       : editForm.name;
@@ -323,6 +328,8 @@ export default function AdminEmployeesView() {
     const payload = {
       ...editingEmp,
       ...editForm,
+      email: editForm.email ? editForm.email.trim().toLowerCase() : '',
+      oldEmail: editingEmp.email,
       gender: isMale ? 'ชาย' : editForm.gender,
       name: fullThaiName,
       englishName: fullEnglishName,
@@ -342,16 +349,19 @@ export default function AdminEmployeesView() {
 
     if (editForm.newPassword && editForm.newPassword.trim()) {
       payload.newPassword = editForm.newPassword.trim();
-      if (adminSetUserPassword) {
-        await adminSetUserPassword(editingEmp.id, editForm.email, editForm.newPassword.trim());
-      }
     }
 
+    let result = null;
     if (updateEmployee) {
-      await updateEmployee(editingEmp.id, payload);
+      result = await updateEmployee(editingEmp.id, payload);
     } else {
-      await updateEmployeeQuota(editingEmp.id, payload);
+      result = await updateEmployeeQuota(editingEmp.id, payload);
     }
+
+    if (result && result.success === false) {
+      return;
+    }
+
     setEditingEmp(null);
   };
 
