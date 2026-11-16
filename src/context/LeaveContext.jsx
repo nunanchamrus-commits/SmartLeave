@@ -1583,8 +1583,9 @@ export function LeaveProvider({ children }) {
 
     // 1. ส่งข้อมูลสมัครสมาชิกไปยัง Cloudflare D1 Backend ทันที!
     let dbUserId = newId;
-    try {
-      if (api && api.register) {
+    let registeredDbUser = null;
+    if (api && api.register) {
+      try {
         const res = await api.register({
           fullName: userData.fullName,
           englishName: fullEnglishName,
@@ -1603,36 +1604,46 @@ export function LeaveProvider({ children }) {
           password: userData.password,
           employeeCode: empCode,
         });
-        if (res && res.user && res.user.id) {
+
+        if (res && res.success && res.user) {
+          registeredDbUser = res.user;
           dbUserId = res.user.id;
+        } else if (res && (res.message || res.error)) {
+          const errText = res.message || res.error;
+          showToast(errText, 'error');
+          throw new Error(errText);
         }
+      } catch (apiErr) {
+        console.error('[Register API Error]:', apiErr.message);
+        showToast(apiErr.message || 'ไม่สามารถลงทะเบียนเข้าฐานข้อมูลได้', 'error');
+        throw apiErr;
       }
-    } catch (apiErr) {
-      console.log('[Register API Sync Note]:', apiErr.message);
     }
 
     // 2. จัดเก็บข้อมูลลง State
     const newUser = {
       id: dbUserId,
-      name: userData.fullName,
-      prefix: prefix || (userData.gender === 'หญิง' ? 'นางสาว' : 'นาย'),
-      firstName,
-      lastName,
-      prefixEn,
-      firstNameEn,
-      lastNameEn,
-      englishName: fullEnglishName,
-      gender: userData.gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
-      title: userData.title,
-      department: userData.department,
-      employmentType: userData.employmentType || '',
-      email: userData.email || `${newId}@smartleave.com`,
-      phone: userData.phone || '081-999-8888',
-      employeeId: empCode,
+      raw_id: registeredDbUser?.raw_id,
+      name: registeredDbUser?.name || userData.fullName,
+      prefix: registeredDbUser?.prefix || prefix || (userData.gender === 'หญิง' ? 'นางสาว' : 'นาย'),
+      firstName: registeredDbUser?.firstName || firstName,
+      lastName: registeredDbUser?.lastName || lastName,
+      prefixEn: registeredDbUser?.prefixEn || prefixEn,
+      firstNameEn: registeredDbUser?.firstNameEn || firstNameEn,
+      lastNameEn: registeredDbUser?.lastNameEn || lastNameEn,
+      englishName: registeredDbUser?.englishName || fullEnglishName,
+      gender: registeredDbUser?.gender || userData.gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
+      title: registeredDbUser?.title || userData.title,
+      department: registeredDbUser?.department || userData.department,
+      employmentType: registeredDbUser?.employmentType || userData.employmentType || '',
+      email: registeredDbUser?.email || userData.email || `${newId}@smartleave.com`,
+      phone: registeredDbUser?.phone || userData.phone || '081-999-8888',
+      employeeId: registeredDbUser?.employeeId || empCode,
       avatar:
-        userData.gender === 'ชาย'
+        registeredDbUser?.avatar ||
+        (userData.gender === 'ชาย'
           ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
-          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
+          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'),
       role: 'employee',
       vacationLimit: 10,
       vacationUsed: 0,
@@ -1661,7 +1672,7 @@ export function LeaveProvider({ children }) {
     localStorage.setItem('smartleave_user', JSON.stringify(newUser));
 
     // ดึงข้อมูลล่าสุดจาก Cloudflare D1
-    fetchLiveDatabaseData();
+    await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
 
     showToast(`ยินดีต้อนรับ คุณ${newUser.name} สมัครสมาชิกสำเร็จแล้ว!`, 'success');
     return newUser;

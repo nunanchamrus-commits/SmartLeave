@@ -399,6 +399,112 @@ async function ensureTableColumns(db, tableName, columnSpecs) {
 }
 
 async function autoMigrateDatabase(db) {
+  // สร้างตารางโครงสร้างพื้นฐานทั้งหมด (Core Master Tables) หากยังไม่มี
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS departments (
+      department_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      name_th TEXT NOT NULL,
+      name_en TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+  `).run().catch(() => {});
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS roles (
+      role_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      name_th TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+  `).run().catch(() => {});
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS users (
+      user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_code TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      prefix TEXT,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      prefix_en TEXT,
+      first_name_en TEXT,
+      last_name_en TEXT,
+      english_name TEXT,
+      gender TEXT DEFAULT 'หญิง',
+      employment_type TEXT DEFAULT 'ข้าราชการ',
+      phone TEXT DEFAULT '081-234-5678',
+      department_id INTEGER,
+      role_id INTEGER NOT NULL DEFAULT 4,
+      position TEXT,
+      avatar_url TEXT,
+      is_active INTEGER DEFAULT 1,
+      last_login_at TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+  `).run().catch(() => {});
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS leave_types (
+      leave_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      name_th TEXT NOT NULL,
+      name_en TEXT,
+      default_days_per_year REAL NOT NULL DEFAULT 0.0,
+      is_paid INTEGER DEFAULT 1,
+      requires_attachment INTEGER DEFAULT 0,
+      min_days_notice INTEGER DEFAULT 0,
+      color_hex TEXT DEFAULT '#16a34a',
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+  `).run().catch(() => {});
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS employee_leave_quotas (
+      quota_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      leave_type_id INTEGER NOT NULL,
+      fiscal_year INTEGER NOT NULL,
+      total_quota REAL NOT NULL,
+      carry_over_days REAL DEFAULT 0.0,
+      used_days REAL DEFAULT 0.0,
+      pending_days REAL DEFAULT 0.0,
+      remaining_days REAL NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+      UNIQUE(user_id, leave_type_id, fiscal_year)
+    )
+  `).run().catch(() => {});
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_no TEXT NOT NULL UNIQUE,
+      user_id INTEGER NOT NULL,
+      leave_type_id INTEGER NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      total_days REAL NOT NULL,
+      reason TEXT NOT NULL,
+      contact_address TEXT,
+      contact_phone TEXT,
+      attachment_url TEXT,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'cancelled')),
+      review_stage TEXT DEFAULT 'not_submitted',
+      approver_id INTEGER,
+      approved_at TEXT,
+      rejection_reason TEXT,
+      substitute_user_id INTEGER,
+      substitute_name TEXT,
+      created_at TEXT DEFAULT (datetime('now', '+7 hours')),
+      updated_at TEXT DEFAULT (datetime('now', '+7 hours'))
+    )
+  `).run().catch(() => {});
+
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS notifications (
       notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -410,6 +516,18 @@ async function autoMigrateDatabase(db) {
       is_read INTEGER DEFAULT 0,
       target_role TEXT,
       created_at TEXT DEFAULT (datetime('now', '+7 hours'))
+    )
+  `).run().catch(() => {});
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS pdpa_consents (
+      consent_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      user_email TEXT,
+      accepted_at TEXT DEFAULT (datetime('now', '+7 hours')),
+      policy_version TEXT DEFAULT '1.0',
+      ip_address TEXT,
+      user_agent TEXT
     )
   `).run().catch(() => {});
 
@@ -811,17 +929,16 @@ export async function onRequest(context) {
         employeeCode, email, department, position, title, gender, employmentType, phone, password 
       } = body;
 
-      // จัดการแยกชื่อภาษาไทย
-      if (!firstName && fullName) {
-        const parts = fullName.trim().split(/\s+/);
-        if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
-          prefix = parts[0];
-          firstName = parts[1] || '';
-          lastName = parts.slice(2).join(' ') || '';
-        } else {
-          firstName = parts[0] || '';
-          lastName = parts.slice(1).join(' ') || '';
-        }
+      const rawThai = (typeof fullName === 'string' && fullName.trim()) || '';
+      if (!firstName && rawThai) {
+        const parsedTh = parseThaiName(rawThai, gender);
+        prefix = prefix || parsedTh.prefix;
+        firstName = parsedTh.firstName;
+        lastName = lastName || parsedTh.lastName;
+      } else if (rawThai && !lastName) {
+        const parsedTh = parseThaiName(rawThai, gender);
+        prefix = prefix || parsedTh.prefix;
+        lastName = parsedTh.lastName;
       }
 
       if (!prefix) {
@@ -840,27 +957,46 @@ export async function onRequest(context) {
       }
       const fullEnglishName = englishName || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn || ''} ${lastNameEn || ''}`.trim();
 
-      const empCode = employeeCode || `EMP-${Date.now().toString().slice(-4)}`;
-      const jobPosition = position || title || 'เจ้าหน้าที่สหกรณ์';
       const userGender = gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย');
       const empType = employmentType || 'ข้าราชการ';
+      const jobPosition = position || title || 'เจ้าหน้าที่สหกรณ์';
       const avatarUrl = userGender === 'ชาย'
         ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
         : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80';
 
+      // กำหนดรหัสพนักงานและตรวจสอบความซ้ำซ้อน
+      let finalEmpCode = employeeCode ? String(employeeCode).trim() : `EMP-${Date.now().toString().slice(-4)}`;
+      const existingCode = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ?')
+        .bind(finalEmpCode).first().catch(() => null);
+      if (existingCode) {
+        finalEmpCode = `EMP-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
+      }
+
+      const regEmail = (email && email.trim()) ? email.trim() : `${finalEmpCode.toLowerCase()}@smartleave.com`;
+
+      // ตรวจสอบความซ้ำซ้อนของอีเมลในฐานข้อมูล
+      const existingEmail = await env.DB.prepare('SELECT user_id, email FROM users WHERE LOWER(email) = LOWER(?)')
+        .bind(regEmail).first().catch(() => null);
+      if (existingEmail) {
+        return jsonResponse({
+          success: false,
+          message: `อีเมล ${regEmail} มีผู้ใช้งานในระบบแล้ว กรุณาใช้อีเมลอื่นหรือเข้าสู่ระบบ`
+        }, 400);
+      }
+
       // ค้นหา department_id หรือเพิ่มแผนกใหม่หากยังไม่มี
-      let deptId = 6; // ค่าเริ่มต้น: กลุ่มส่งเสริมสหกรณ์ 1
+      let deptId = 1;
       if (department) {
         const dept = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
-          .bind(department.trim(), `%${department.trim()}%`).first();
-        if (dept) {
+          .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
+        if (dept && dept.department_id) {
           deptId = dept.department_id;
         } else {
           try {
             const deptCode = `DEP-${Date.now().toString().slice(-4)}`;
             const newDept = await env.DB.prepare('INSERT INTO departments (code, name_th, name_en) VALUES (?, ?, ?)')
               .bind(deptCode, department.trim(), department.trim()).run();
-            deptId = newDept.meta.last_row_id;
+            deptId = newDept.meta?.last_row_id || 1;
           } catch (e) {
             deptId = 1;
           }
@@ -870,45 +1006,65 @@ export async function onRequest(context) {
       // ตรวจสอบและเพิ่มคอลัมน์ใหม่ใน users อัตโนมัติ (Dynamic Migration)
       await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
-      const regEmail = (email && email.trim()) ? email.trim() : `${empCode.toLowerCase()}@smartleave.com`;
-      const insert = await env.DB.prepare(`
-        INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, 1)
-      `).bind(
-        empCode,
-        regEmail,
-        password || '123456',
-        prefix || '',
-        firstName || 'เจ้าหน้าที่',
-        lastName || '',
-        prefixEn || 'Mr.',
-        firstNameEn || '',
-        lastNameEn || '',
-        fullEnglishName || '',
-        userGender,
-        empType,
-        phone || '081-999-8888',
-        deptId,
-        jobPosition,
-        avatarUrl
-      ).run();
+      let insert;
+      try {
+        insert = await env.DB.prepare(`
+          INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, 1)
+        `).bind(
+          finalEmpCode,
+          regEmail,
+          password || '12345678',
+          prefix || '',
+          firstName || 'เจ้าหน้าที่',
+          lastName || '',
+          prefixEn || 'Mr.',
+          firstNameEn || '',
+          lastNameEn || '',
+          fullEnglishName || '',
+          userGender,
+          empType,
+          phone || '081-999-8888',
+          deptId,
+          jobPosition,
+          avatarUrl
+        ).run();
+      } catch (insertErr) {
+        console.error('[Register Insert Error]:', insertErr.message);
+        return jsonResponse({
+          success: false,
+          message: `ไม่สามารถบันทึกข้อมูลสมาชิกลงฐานข้อมูลได้: ${insertErr.message}`
+        }, 500);
+      }
 
-      const newUserId = insert.meta.last_row_id;
+      let newUserId = insert?.meta?.last_row_id || insert?.meta?.lastRowId;
+      if (!newUserId) {
+        const created = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ? OR LOWER(email) = LOWER(?)')
+          .bind(finalEmpCode, regEmail).first().catch(() => null);
+        if (created && created.user_id) newUserId = created.user_id;
+      }
 
-      // สร้างโควตาวันลาเริ่มต้นประจำปีให้พนักงานใหม่ใน D1 (Vacation 10, Sick 30, Personal 15, Maternity หญิง 90 / ชาย 0)
-      const currentYear = new Date().getFullYear();
-      const matQuota = userGender === 'ชาย' ? 0.0 : 90.0;
-      await env.DB.batch([
-        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, ?, 10.0, 0.0, 10.0)').bind(newUserId, currentYear),
-        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, ?, 30.0, 0.0, 30.0)').bind(newUserId, currentYear),
-        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, ?, 15.0, 0.0, 15.0)').bind(newUserId, currentYear),
-        env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, ?, ?, 0.0, ?)').bind(newUserId, currentYear, matQuota, matQuota),
-      ]);
+      // สร้างโควตาวันลาเริ่มต้นประจำปีให้พนักงานใหม่ใน D1
+      if (newUserId) {
+        const currentYear = new Date().getFullYear();
+        const matQuota = userGender === 'ชาย' ? 0.0 : 90.0;
+        try {
+          await env.DB.batch([
+            env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 1, ?, 10.0, 0.0, 10.0)').bind(newUserId, currentYear),
+            env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 2, ?, 30.0, 0.0, 30.0)').bind(newUserId, currentYear),
+            env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 3, ?, 15.0, 0.0, 15.0)').bind(newUserId, currentYear),
+            env.DB.prepare('INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (?, 4, ?, ?, 0.0, ?)').bind(newUserId, currentYear, matQuota, matQuota),
+          ]);
+        } catch (qErr) {
+          console.log('[Register Quota Init Note]:', qErr.message);
+        }
+      }
 
       return jsonResponse({
         success: true,
         user: {
           id: `usr-${newUserId}`,
+          raw_id: newUserId,
           name: `${prefix}${firstName} ${lastName}`.trim(),
           prefix,
           firstName,
@@ -924,7 +1080,7 @@ export async function onRequest(context) {
           phone: phone || '081-999-8888',
           role: 'employee',
           department: department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
-          employeeId: empCode,
+          employeeId: finalEmpCode,
           avatar: avatarUrl,
         },
       });
