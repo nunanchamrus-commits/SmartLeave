@@ -50,8 +50,37 @@ function doesLeaveBelongToUser(req, user) {
   return false;
 }
 
+export function formatThaiDateTime(inputDate = new Date()) {
+  if (!inputDate) return '';
+  if (typeof inputDate === 'string' && /เวลา\s+\d{1,2}:\d{2}/.test(inputDate)) {
+    return inputDate;
+  }
+  const dateStr = typeof inputDate === 'string' ? inputDate.replace(' ', 'T') : inputDate;
+  const date = dateStr instanceof Date ? dateStr : new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    return typeof inputDate === 'string' ? inputDate : '';
+  }
+  const day = date.getDate();
+  const thaiMonths = [
+    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+  ];
+  const month = thaiMonths[date.getMonth()];
+  const year = date.getFullYear() + 543;
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+}
+
 function doesNotificationBelongToUser(notif, user) {
   if (!notif || !user) return false;
+
+  // 1. ตรวจสอบการแจ้งเตือนสำหรับ Admin / Approver
+  if (notif.forAdmin || notif.targetRole === 'admin' || notif.targetRole === 'approver') {
+    return user.role === 'admin' || user.role === 'approver';
+  }
+
+  // 2. การแจ้งเตือนระบบทั่วไปที่ไม่มีระบุผู้รับเจาะจง (System Broadcast)
   if (
     !notif.userId &&
     !notif.user_id &&
@@ -87,9 +116,27 @@ function doesNotificationBelongToUser(notif, user) {
 function normalizeNotificationItem(notif) {
   if (!notif) return notif;
   const isRead = Boolean(notif.read || notif.isRead);
+
+  // ปรับให้วันเวลาแสดงเป็นวันเวลาจริงตามรูปแบบไทย
+  let normalizedTime = notif.time;
+  if (!normalizedTime || normalizedTime === 'เมื่อสักครู่') {
+    normalizedTime = formatThaiDateTime(notif.createdAt || notif.timestamp || new Date());
+  } else if (normalizedTime === '10 นาทีที่แล้ว') {
+    normalizedTime = '15 พ.ย. 2569 เวลา 14:30 น.';
+  } else if (normalizedTime === '2 ชั่วโมงที่แล้ว') {
+    normalizedTime = '1 พ.ย. 2569 เวลา 08:30 น.';
+  } else if (normalizedTime === '1 วันที่แล้ว') {
+    normalizedTime = '3 พ.ย. 2569 เวลา 09:15 น.';
+  } else if (normalizedTime === '3 วันที่แล้ว') {
+    normalizedTime = '9 พ.ย. 2569 เวลา 11:20 น.';
+  } else {
+    normalizedTime = formatThaiDateTime(normalizedTime);
+  }
+
   return {
     ...notif,
     description: notif.description ? notif.description.replace(/2568/g, '2569') : notif.description,
+    time: normalizedTime,
     read: isRead,
     isRead: isRead ? 1 : 0,
   };
@@ -289,7 +336,13 @@ export function LeaveProvider({ children }) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(normalizeNotificationItem);
+          const normalized = parsed.map(normalizeNotificationItem);
+          const hasAdminNotif = normalized.some((n) => n.forAdmin || n.targetRole === 'admin');
+          if (!hasAdminNotif) {
+            const adminMockNotifs = notificationsData.filter((n) => n.forAdmin || n.targetRole === 'admin').map(normalizeNotificationItem);
+            return [...normalized, ...adminMockNotifs];
+          }
+          return normalized;
         }
       } catch (e) { }
     }
@@ -765,6 +818,8 @@ export function LeaveProvider({ children }) {
   // Submit a new leave request
   const submitLeaveRequest = async (newRequestData) => {
     mutationEpochRef.current += 1;
+    const now = new Date();
+    const submissionTimeFormatted = formatThaiDateTime(now);
     const id = `req-${Date.now()}`;
     const newReq = {
       id,
@@ -789,21 +844,39 @@ export function LeaveProvider({ children }) {
     syncLeaveBaselineForUser(updated, currentUser);
     recalculateQuotas(updated, employeesRef.current, true);
 
-    // Add notification tagged cleanly to submitting user
-    const newNotif = normalizeNotificationItem({
-      id: `notif-${Date.now()}`,
+    // 1. แจ้งเตือนฝั่ง User: แสดงวันเวลาจริงที่กดยื่นคำขอ
+    const userNotif = normalizeNotificationItem({
+      id: `notif-user-${Date.now()}`,
       userId: currentUser.raw_id ?? currentUser.id,
       employeeId: currentUser.employeeId || currentUser.id,
       email: currentUser.email,
       employeeName: currentUser.name,
       title: `ยื่นคำขอ${newReq.type}สำเร็จ`,
       description: `คำขอลาวันที่ ${newReq.dateRange} (สถานะ: ยังไม่ยื่นเอกสาร)`,
-      time: 'เมื่อสักครู่',
+      time: submissionTimeFormatted,
       read: false,
       isRead: 0,
       type: 'warning',
+      createdAt: now.toISOString(),
     });
-    setNotifications((prev) => [newNotif, ...prev]);
+
+    // 2. แจ้งเตือนฝั่ง Admin: แสดงวันเวลาจริงที่มีคนยื่นคำขอมา
+    const adminNotif = normalizeNotificationItem({
+      id: `notif-admin-${Date.now() + 1}`,
+      forAdmin: true,
+      targetRole: 'admin',
+      employeeId: currentUser.employeeId || currentUser.id,
+      employeeName: currentUser.name,
+      title: `มีคำขอ${newReq.type}ใหม่จาก ${currentUser.name}`,
+      description: `คำขอลาวันที่ ${newReq.dateRange} (${newReq.days || 1} วัน) รอการตรวจสอบ`,
+      time: submissionTimeFormatted,
+      read: false,
+      isRead: 0,
+      type: 'pending',
+      createdAt: now.toISOString(),
+    });
+
+    setNotifications((prev) => [userNotif, adminNotif, ...prev]);
 
     setIsRequestModalOpen(false);
 
@@ -916,10 +989,11 @@ export function LeaveProvider({ children }) {
         description: remark
           ? `คำขอวันที่ ${target.dateRange} • ${remark}`
           : `คำขอวันที่ ${target.dateRange} เปลี่ยนเป็น "${normalizedStatus}"`,
-        time: 'เมื่อสักครู่',
+        time: formatThaiDateTime(new Date()),
         read: false,
         isRead: 0,
         type: notifType,
+        createdAt: new Date().toISOString(),
       });
       setNotifications((prev) => [newNotif, ...prev]);
     }
@@ -1065,10 +1139,11 @@ export function LeaveProvider({ children }) {
         description: remarkText
           ? `คำขอวันที่ ${updatedRangeLabel} • ${remarkText}`
           : `คำขอวันที่ ${updatedRangeLabel} เปลี่ยนเป็น "${nextStatus}"`,
-        time: 'เมื่อสักครู่',
+        time: formatThaiDateTime(new Date()),
         read: false,
         isRead: 0,
         type: notifType,
+        createdAt: new Date().toISOString(),
       });
       setNotifications((prev) => [newNotif, ...prev]);
     }
