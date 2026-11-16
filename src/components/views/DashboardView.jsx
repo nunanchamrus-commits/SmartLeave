@@ -2,7 +2,6 @@ import React from 'react';
 import HeroBanner from '../HeroBanner';
 import StatCards from '../StatCards';
 import CalendarWidget from '../CalendarWidget';
-import AnnouncementsWidget from '../AnnouncementsWidget';
 import RecentLeavesWidget from '../RecentLeavesWidget';
 
 export default function DashboardView() {
@@ -16,10 +15,9 @@ export default function DashboardView() {
 
       {/* 3. Middle & Bottom Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (5 of 12 cols): Calendar + HR Announcement */}
+        {/* Left Column (5 of 12 cols): Calendar */}
         <div className="lg:col-span-5 space-y-6">
           <CalendarWidget />
-          <AnnouncementsWidget />
         </div>
 
         {/* Right Column (7 of 12 cols): Recent Leave Requests */}
