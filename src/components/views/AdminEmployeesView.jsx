@@ -46,7 +46,6 @@ function isMaleEmployee(emp) {
   if (emp.gender === 'หญิง') return false;
   const str = `${emp.prefix || ''} ${emp.name || ''} ${emp.prefixEn || ''} ${emp.englishName || ''}`.trim();
   if (/นาย|Mr\./i.test(str)) return true;
-  if (emp.id === 'usr-102' || emp.id === 'usr-104' || emp.id === 'usr-202') return true;
   return false;
 }
 

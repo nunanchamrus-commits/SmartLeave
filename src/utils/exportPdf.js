@@ -235,7 +235,7 @@ function resolveEmployeeBaseProfile(req) {
 
   const phone = req.phone || (isCurrentUser ? savedUser.phone : null) || empFromList?.phone || '';
   const email = req.email || (isCurrentUser ? savedUser.email : null) || empFromList?.email || '';
-  const approverName = req.approver || 'นายสมชาย มั่นคง';
+  const approverName = req.approver || '';
 
   return {
     savedUser,
@@ -277,8 +277,7 @@ function resolveVacationEmployeeData(req) {
   const thisLeaveDays = Number(req.days) || 1;
 
   // Determine previously used vacation days cleanly and consistently with dashboard/admin tables
-  const isDefaultMainEmployee =
-    req.employeeId === 'usr-101' || employeeName === 'นางสาวพนิกา ธรรมเมือง';
+  const isDefaultMainEmployee = false;
 
   let previouslyUsed = 0;
   if (req.previouslyUsed !== undefined && req.previouslyUsed !== null) {
@@ -1196,7 +1195,7 @@ export function generateStandardElectronicLeaveSlipHTML(req) {
           </tr>
           <tr>
             <td style="padding: 6px 0; color: #64748b;">ผู้อนุมัติ:</td>
-            <td style="padding: 6px 0; font-weight: 600; color: #0f172a;">${req.approver || 'นายสมชาย มั่นคง'}</td>
+            <td style="padding: 6px 0; font-weight: 600; color: #0f172a;">${req.approver || '-'}</td>
             <td style="padding: 6px 0; color: #64748b;">วันที่อนุมัติ:</td>
             <td style="padding: 6px 0; font-weight: 600; color: #0f172a;">${approvedFormatted}</td>
           </tr>
@@ -1236,7 +1235,7 @@ export function generateStandardElectronicLeaveSlipHTML(req) {
               <div style="height: 38px; border-bottom: 1px dotted #94a3b8; margin-bottom: 8px; display: flex; align-items: flex-end; justify-content: center;">
                 ${req.status === 'อนุมัติ' ? '<span style="color: #15803d; font-weight: bold; font-size: 11px;">✓ อนุมัติผ่านระบบอิเล็กทรอนิกส์</span>' : ''}
               </div>
-              <div style="font-weight: 600; color: #0f172a;">( ${req.approver || 'นายสมชาย มั่นคง'} )</div>
+              <div style="font-weight: 600; color: #0f172a;">( ${req.approver || '...........................................'} )</div>
               <div style="color: #64748b; margin-top: 2px;">ผู้อนุมัติ / ผู้บังคับบัญชา</div>
               <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">วันที่ ${req.approvedDate || req.status === 'อนุมัติ' ? approvedFormatted : '...../...../..........'}</div>
             </td>

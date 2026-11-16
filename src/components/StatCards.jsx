@@ -9,8 +9,7 @@ export default function StatCards() {
     currentUser?.gender === 'หญิง' ||
     currentUser?.gender === 'female' ||
     (!currentUser?.gender &&
-      (currentUser?.id === 'usr-101' ||
-        /^(นางสาว|น\.ส\.|นาง)/.test((currentUser?.name || '').trim())));
+      /^(นางสาว|น\.ส\.|นาง|Ms\.|Mrs\.|Miss)/.test((currentUser?.name || currentUser?.prefix || '').trim()));
 
   const cards = [
     {

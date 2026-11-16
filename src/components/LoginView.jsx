@@ -18,39 +18,12 @@ import { useLeave } from '../context/LeaveContext';
 export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const { login } = useLeave();
 
-  const [email, setEmail] = useState('panika.t@smartleave.com');
-  const [password, setPassword] = useState('12345678');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const demoAccounts = [
-    {
-      id: 'panika',
-      name: 'นางสาวพนิกา ธรรมเมือง',
-      role: 'พนักงานทั่วไป (User View)',
-      email: 'panika.t@smartleave.com',
-      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=128&h=128&q=80',
-      badge: '👤 แดชบอร์ดพนักงาน ยื่นขอลา',
-      desc: 'ตรวจเช็กวันลาคงเหลือ, ยื่นคำขอลา, ดูประวัติส่วนตัว',
-    },
-    {
-      id: 'somchai',
-      name: 'นายสมชาย มั่นคง',
-      role: 'ผู้ดูแลระบบและผู้อนุมัติ (Admin View)',
-      email: 'somchai.m@smartleave.com',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=128&h=128&q=80',
-      badge: '👑 แดชบอร์ดผู้บริหาร จัดการโควตา',
-      desc: 'อนุมัติคำขอด่วน, จัดการพนักงานทั้งองค์กร, รายงานสถิติ',
-    },
-  ];
-
-  const handleSelectDemoAccount = (acc) => {
-    setEmail(acc.email);
-    setPassword('12345678');
-    setError('');
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -198,55 +171,8 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
                 เข้าสู่ระบบ SmartLeave
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                กรุณาเลือกบัญชีทดสอบหรือกรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ
+                กรุณากรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ
               </p>
-            </div>
-
-            {/* Quick Demo Account Selector (Click to auto-fill) */}
-            <div className="mt-6">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
-                เลือกบัญชีทดสอบด่วน (One-Click Demo Account):
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {demoAccounts.map((acc) => {
-                  const isSelected = email === acc.email;
-                  return (
-                    <button
-                      type="button"
-                      key={acc.id}
-                      onClick={() => handleSelectDemoAccount(acc)}
-                      className={`p-3 rounded-2xl border text-left transition-all duration-200 flex items-center space-x-3 ${isSelected
-                          ? 'border-emerald-500 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50'
-                        }`}
-                    >
-                      <img
-                        src={acc.avatar}
-                        alt={acc.name}
-                        className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20 flex-shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-bold text-slate-800 truncate">
-                            {acc.name.split(' ')[0]} {acc.name.split(' ')[1]}
-                          </p>
-                          {isSelected && (
-                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">
-                              ✓
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] font-semibold text-emerald-800 mt-0.5">
-                          {acc.badge}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
-                          {acc.desc}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Error Message */}

@@ -91,6 +91,14 @@ export default function AdminDashboardView() {
   const approvedRequests = leaveRequests.filter((r) => r.status === 'อนุมัติ');
 
   // Filter employees
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayOnLeave = (leaveRequests || []).filter((r) => {
+    if (r.status !== 'อนุมัติ') return false;
+    const start = r.startDate || '';
+    const end = r.endDate || start;
+    return start && end && start <= todayIso && end >= todayIso;
+  });
+
   const filteredEmployees = searchEmployee
     ? employees.filter(
         (e) =>
@@ -116,7 +124,7 @@ export default function AdminDashboardView() {
               <span className="text-xs text-emerald-200/80">Executive HR Portal</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-prompt">
-              ยินดีต้อนรับ คุณสมชาย มั่นคง 👋
+              ยินดีต้อนรับ คุณ{currentUser?.name ? currentUser.name.replace(/^(นาย|นางสาว|นาง|ดร\.)\s*/, '') : 'ผู้ดูแลระบบ'} 👋
             </h2>
             <p className="text-xs sm:text-sm text-emerald-100/80 font-normal max-w-xl">
               ศูนย์กลางควบคุมการบริหารจัดการวันลา กำลังพล และการอนุมัติคำขอของบุคลากรทั้งองค์กร
@@ -182,10 +190,12 @@ export default function AdminDashboardView() {
           <div className="mt-4">
             <p className="text-xs font-medium text-slate-500">พนักงานที่ลาวันนี้</p>
             <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
-              2 คน
+              {todayOnLeave.length} คน
             </h3>
             <p className="text-[11px] text-slate-400 mt-1 truncate">
-              พนิกา (พักร้อน), อัครพล (พักร้อน)
+              {todayOnLeave.length > 0
+                ? todayOnLeave.map((r) => `${r.employeeName?.split(' ')[0] || 'เจ้าหน้าที่'} (${r.type})`).join(', ')
+                : 'ไม่มีพนักงานลาในวันนี้'}
             </p>
           </div>
         </div>
@@ -374,39 +384,28 @@ export default function AdminDashboardView() {
             </div>
 
             <div className="mt-3 space-y-3">
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center space-x-3">
-                <img
-                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=128&h=128&q=80"
-                  alt="พนิกา"
-                  className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-800 truncate">
-                    นางสาวพนิกา ธรรมเมือง
-                  </p>
-                  <p className="text-[11px] text-slate-500">UI/UX Designer</p>
+              {todayOnLeave.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  ไม่มีบุคลากรลางานในวันนี้
                 </div>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-200/60 text-emerald-800">
-                  ลาพักร้อน (2 วัน)
-                </span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-100 flex items-center space-x-3">
-                <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=128&h=128&q=80"
-                  alt="อัครพล"
-                  className="w-10 h-10 rounded-full object-cover ring-2 ring-teal-500/20"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-800 truncate">
-                    นายอัครพล เจริญผล
-                  </p>
-                  <p className="text-[11px] text-slate-500">Frontend Engineer</p>
-                </div>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-teal-200/60 text-teal-800">
-                  ลาพักร้อน (3 วัน)
-                </span>
-              </div>
+              ) : (
+                todayOnLeave.slice(0, 4).map((r) => (
+                  <div key={r.id} className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs flex-shrink-0">
+                      {r.employeeName ? r.employeeName.charAt(0) : 'พ'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">
+                        {r.employeeName || 'เจ้าหน้าที่'}
+                      </p>
+                      <p className="text-[11px] text-slate-500 truncate">{r.department || 'สำนักงานสหกรณ์'}</p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-200/60 text-emerald-800 flex-shrink-0">
+                      {r.type} ({r.days} วัน)
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

@@ -14,7 +14,7 @@ export default function RecentLeavesWidget() {
 
   // Filter requests for the current user across both D1 and offline mock IDs
   const userRequests = leaveRequests.filter((r) => {
-    if (!currentUser) return r.employeeId === 'usr-101';
+    if (!currentUser) return false;
     const cleanCurrId = String(currentUser.id || currentUser.raw_id || '').replace(/^usr-/, '');
     const cleanReqUserId = String(r.userId || r.user_id || '').replace(/^usr-/, '');
     if (cleanCurrId && cleanReqUserId && cleanCurrId === cleanReqUserId) return true;

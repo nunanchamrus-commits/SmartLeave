@@ -251,7 +251,7 @@ export default function LeaveDetailModal() {
                   value={editForm.substitute}
                   onChange={(e) => setEditForm({ ...editForm, substitute: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-800"
-                  placeholder="เช่น นายอัครพล เจริญผล"
+                  placeholder="ระบุชื่อผู้ปฏิบัติงานแทน"
                 />
               </div>
 
@@ -372,7 +372,7 @@ export default function LeaveDetailModal() {
                 <div className="p-3 bg-white rounded-xl border border-slate-100">
                   <span className="text-slate-400 font-medium block">ผู้อนุมัติ</span>
                   <span className="font-semibold text-slate-800 mt-0.5 block">
-                    {req.approver || 'นายสมชาย มั่นคง'}
+                    {req.approver || '-'}
                   </span>
                 </div>
               </div>

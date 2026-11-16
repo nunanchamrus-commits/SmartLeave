@@ -418,7 +418,7 @@ export default function SettingsView() {
                     }));
                   }}
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium"
-                  placeholder="เช่น พนิกา"
+                  placeholder="กรอกชื่อจริง"
                 />
               </div>
 
@@ -515,7 +515,7 @@ export default function SettingsView() {
                     });
                   }}
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="เช่น Panika"
+                  placeholder="First Name"
                 />
               </div>
 
@@ -656,14 +656,12 @@ export default function SettingsView() {
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('รีเซ็ตข้อมูลทั้งหมดกลับเป็นค่าเริ่มต้นของระบบหรือไม่?')) {
-                  resetToDefault();
-                }
+                resetToDefault();
               }}
               className="flex items-center justify-center space-x-2 text-xs text-slate-500 hover:text-slate-800 py-2 transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>รีเซ็ตค่าเริ่มต้นระบบ</span>
+              <span>รีเฟรชข้อมูลจากระบบ</span>
             </button>
 
             <button

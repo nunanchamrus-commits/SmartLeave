@@ -269,7 +269,7 @@ export default function Header({ onMenuClick }) {
               {/* Role Switcher */}
               <div className="p-2 border-b border-slate-100">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 px-2">
-                  สลับบทบาททดสอบระบบ (Demo Role)
+                  สลับมุมมองบทบาท (Role View)
                 </p>
                 <button
                   onClick={() => {
@@ -277,16 +277,16 @@ export default function Header({ onMenuClick }) {
                     setIsProfileMenuOpen(false);
                   }}
                   className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between ${
-                    currentUser.role === 'employee'
+                    currentUser?.role === 'employee'
                       ? 'bg-emerald-50 text-emerald-800 font-semibold'
                       : 'hover:bg-slate-50 text-slate-700'
                   }`}
                 >
                   <div className="flex items-center space-x-2">
                     <UserCheck className="w-4 h-4 text-emerald-600" />
-                    <span>นางสาวพนิกา (พนักงาน)</span>
+                    <span>มุมมองพนักงาน (Employee View)</span>
                   </div>
-                  {currentUser.role === 'employee' && (
+                  {currentUser?.role === 'employee' && (
                     <span className="w-2 h-2 rounded-full bg-emerald-600" />
                   )}
                 </button>
@@ -296,16 +296,16 @@ export default function Header({ onMenuClick }) {
                     setIsProfileMenuOpen(false);
                   }}
                   className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between mt-1 ${
-                    currentUser.role === 'approver'
+                    currentUser?.role === 'approver' || currentUser?.role === 'admin'
                       ? 'bg-emerald-50 text-emerald-800 font-semibold'
                       : 'hover:bg-slate-50 text-slate-700'
                   }`}
                 >
                   <div className="flex items-center space-x-2">
                     <UserCheck className="w-4 h-4 text-emerald-600" />
-                    <span>นายสมชาย (ผู้อนุมัติ/ผู้จัดการ)</span>
+                    <span>มุมมองผู้อนุมัติ (Approver View)</span>
                   </div>
-                  {currentUser.role === 'approver' && (
+                  {(currentUser?.role === 'approver' || currentUser?.role === 'admin') && (
                     <span className="w-2 h-2 rounded-full bg-emerald-600" />
                   )}
                 </button>
@@ -325,15 +325,13 @@ export default function Header({ onMenuClick }) {
                 </button>
                 <button
                   onClick={() => {
-                    if (window.confirm('ต้องการรีเซ็ตข้อมูลตัวอย่างกลับเป็นค่าเริ่มต้นหรือไม่?')) {
-                      resetToDefault();
-                      setIsProfileMenuOpen(false);
-                    }
+                    resetToDefault();
+                    setIsProfileMenuOpen(false);
                   }}
                   className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <RotateCcw className="w-4 h-4 text-slate-400" />
-                  <span>รีเซ็ตข้อมูลระบบเป็นค่าเริ่มต้น</span>
+                  <span>รีเฟรชข้อมูลจากฐานข้อมูล</span>
                 </button>
                 <button
                   onClick={() => {

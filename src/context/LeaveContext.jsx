@@ -1,13 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
-import {
-  initialUser,
-  approverUser,
-  initialQuotas,
-  initialLeaveRequests,
-  announcementsData,
-  notificationsData,
-  employeesList,
-} from '../data/mockData';
+import { initialQuotas, initialPDPAPolicy } from '../data/mockData';
 import { generateHolidayAnnouncements } from '../data/holidays';
 import api from '../services/api';
 
@@ -186,8 +178,8 @@ function inferUserGender(user) {
   if (!user) return 'หญิง';
   if (user.gender === 'หญิง' || user.gender === 'ชาย' || user.gender === 'อื่นๆ') return user.gender;
   const str = `${user.prefix || ''} ${user.name || ''} ${user.prefixEn || ''} ${user.englishName || ''}`.trim();
-  if (/^(นางสาว|น\.ส\.|นาง|Ms\.|Miss|Mrs\.)/i.test(str) || user.id === 'usr-101' || user.id === 'usr-103' || user.id === 'usr-105') return 'หญิง';
-  if (/นาย|Mr\./i.test(str) || user.id === 'usr-102' || user.id === 'usr-104' || user.id === 'usr-202') return 'ชาย';
+  if (/^(นางสาว|น\.ส\.|นาง|Ms\.|Miss|Mrs\.)/i.test(str)) return 'หญิง';
+  if (/นาย|Mr\./i.test(str)) return 'ชาย';
   return 'หญิง';
 }
 
@@ -197,7 +189,6 @@ function isMaleEmployee(emp) {
   if (emp.gender === 'หญิง') return false;
   const str = `${emp.prefix || ''} ${emp.name || ''} ${emp.prefixEn || ''} ${emp.englishName || ''}`.trim();
   if (/นาย|Mr\./i.test(str)) return true;
-  if (emp.id === 'usr-102' || emp.id === 'usr-104' || emp.id === 'usr-202') return true;
   return false;
 }
 
@@ -290,130 +281,35 @@ export function LeaveProvider({ children }) {
     return sessionStorage.getItem('smartleave_pdpa') === 'true';
   });
 
-  // Load from localStorage or use initial data
+  // Load from sessionStorage or localStorage, null if not authenticated
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('smartleave_user');
-    if (saved) {
-      try {
+    try {
+      const saved = sessionStorage.getItem('smartleave_user') || localStorage.getItem('smartleave_user');
+      if (saved) {
         const parsed = JSON.parse(saved);
-        // ล้างแคชข้อมูลพนักงานไอทีเก่าออกอัตโนมัติ
-        if (parsed.department?.includes('UI/UX') || parsed.department?.includes('วิศวกรรม')) {
-          localStorage.setItem('smartleave_user', JSON.stringify(initialUser));
-          return initialUser;
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...parsed,
+            gender: parsed.gender || inferUserGender(parsed),
+          };
         }
-        return {
-          ...parsed,
-          gender: parsed.gender || inferUserGender(parsed),
-        };
-      } catch (e) {}
-    }
-    return initialUser;
+      }
+    } catch (e) {}
+    return null;
   });
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [leaveRequests, setLeaveRequests] = useState(() => {
-    const saved = localStorage.getItem('smartleave_requests');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // ล้างแคชคำขอลาฝ่ายไอทีเดิมออก
-          if (parsed.some((r) => r.department?.includes('UI/UX') || r.department?.includes('วิศวกรรม'))) {
-            localStorage.setItem('smartleave_requests', JSON.stringify(initialLeaveRequests));
-            return initialLeaveRequests;
-          }
-          return parsed
-            .filter((r) => r.status !== 'ยกเลิก' && r.status !== 'cancelled')
-            .map((r) => ({
-              ...r,
-              status: normalizeLeaveStatus(r.status),
-              startDate: r.startDate ? r.startDate.replace('2025-', '2026-') : r.startDate,
-              endDate: r.endDate ? r.endDate.replace('2025-', '2026-') : r.endDate,
-              dateRange: r.dateRange ? r.dateRange.replace(/2568/g, '2569') : r.dateRange,
-              appliedDate: r.appliedDate ? r.appliedDate.replace(/2568/g, '2569') : r.appliedDate,
-              approvedDate: r.approvedDate ? r.approvedDate.replace(/2568/g, '2569') : r.approvedDate,
-            }));
-        }
-      } catch (e) { }
-    }
-    return initialLeaveRequests;
-  });
+  const [leaveRequests, setLeaveRequests] = useState([]);
 
-  const [quotas, setQuotas] = useState(() => {
-    const saved = localStorage.getItem('smartleave_quotas') || localStorage.getItem('leaveflow_quotas');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const vacationUsed = parsed.vacation?.used ?? 2;
-        const personalUsed = parsed.personal?.used ?? 0;
-        const sickUsed = parsed.sick?.used ?? 1;
-        const maternityUsed = parsed.maternity?.used ?? 0;
+  const [quotas, setQuotas] = useState(() => initialQuotas);
 
-        const vacationRem = Math.max(0, 10 - vacationUsed);
-        const personalRem = Math.max(0, 15 - personalUsed);
-        const sickRem = Math.max(0, 30 - sickUsed);
-        const maternityRem = Math.max(0, 90 - maternityUsed);
-        const totalRem = vacationRem + personalRem + sickRem;
+  const [notifications, setNotifications] = useState([]);
 
-        return {
-          totalRemaining: totalRem,
-          totalLimit: 55,
-          vacation: { ...initialQuotas.vacation, ...parsed.vacation, limit: 10, remaining: vacationRem, used: vacationUsed },
-          personal: { ...initialQuotas.personal, ...parsed.personal, name: 'ลากิจ', limit: 15, remaining: personalRem, used: personalUsed },
-          sick: { ...initialQuotas.sick, ...parsed.sick, limit: 30, remaining: sickRem, used: sickUsed },
-          maternity: { ...initialQuotas.maternity, ...parsed.maternity, limit: 90, remaining: maternityRem, used: maternityUsed },
-        };
-      } catch (e) {}
-    }
-    return initialQuotas;
-  });
+  const [employees, setEmployees] = useState([]);
 
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem('smartleave_notifications') || localStorage.getItem('leaveflow_notifications');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const normalized = parsed.map(normalizeNotificationItem);
-          const hasAdminNotif = normalized.some((n) => n.forAdmin || n.targetRole === 'admin');
-          if (!hasAdminNotif) {
-            const adminMockNotifs = notificationsData.filter((n) => n.forAdmin || n.targetRole === 'admin').map(normalizeNotificationItem);
-            return [...normalized, ...adminMockNotifs];
-          }
-          return normalized;
-        }
-      } catch (e) { }
-    }
-    return notificationsData.map(normalizeNotificationItem);
-  });
-
-  const [employees, setEmployees] = useState(() => {
-    const saved = localStorage.getItem('smartleave_employees') || localStorage.getItem('leaveflow_employees');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // หากแคชเดิมมีจำนวนคนไม่ใช่ 5 คน หรือเป็นแผนกไอที ให้ล้างแคชและใช้รายชื่อเจ้าหน้าที่สหกรณ์ 5 คนใหม่ทันที
-          if (parsed.length !== 5 || parsed.some((e) => e.department?.includes('UI/UX') || e.department?.includes('วิศวกรรม'))) {
-            localStorage.setItem('smartleave_employees', JSON.stringify(employeesList));
-            return employeesList.map(normalizeEmployeeQuotas);
-          }
-          return parsed.map((emp) =>
-            normalizeEmployeeQuotas({
-              ...emp,
-              gender: emp.gender || inferUserGender(emp),
-              maternityRem: emp.maternityRem === 98 ? 90 : emp.maternityRem,
-            })
-          );
-        }
-      } catch (e) {}
-    }
-    return employeesList.map(normalizeEmployeeQuotas);
-  });
-
-  const isAdmin = currentUser.role === 'approver' || currentUser.role === 'admin';
+  const isAdmin = currentUser?.role === 'approver' || currentUser?.role === 'admin';
 
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
@@ -838,14 +734,14 @@ export function LeaveProvider({ children }) {
   // Switch role between employee and approver (รักษาข้อมูลผู้ใช้งานเดิมไว้ ไม่ดึง Mock data มาทับ)
   const switchRole = (role) => {
     setCurrentUser((prev) => {
-      const base = prev || initialUser;
+      if (!prev) return prev;
       const isApprover = role === 'approver' || role === 'admin';
       const nextUser = {
-        ...base,
+        ...prev,
         role: isApprover ? 'approver' : 'employee',
         title: isApprover
-          ? (base.title?.includes('ผู้อำนวยการ') || base.title?.includes('ผู้อนุมัติ') ? base.title : 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ')
-          : (base.title?.includes('ผู้อำนวยการ') ? 'นักวิชาการสหกรณ์ปฏิบัติการ' : base.title),
+          ? (prev.title?.includes('ผู้อำนวยการ') || prev.title?.includes('ผู้อนุมัติ') ? prev.title : 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ')
+          : (prev.title?.includes('ผู้อำนวยการ') ? 'นักวิชาการสหกรณ์ปฏิบัติการ' : prev.title),
       };
       sessionStorage.setItem('smartleave_user', JSON.stringify(nextUser));
       localStorage.setItem('smartleave_user', JSON.stringify(nextUser));
@@ -863,16 +759,16 @@ export function LeaveProvider({ children }) {
     const id = `req-${Date.now()}`;
     const newReq = {
       id,
-      userId: currentUser.raw_id || cleanNumericUserId(currentUser.id) || undefined,
-      user_id: currentUser.raw_id || cleanNumericUserId(currentUser.id) || undefined,
-      employeeId: currentUser.employeeId || currentUser.id,
-      employeeEmail: currentUser.email,
-      employeeName: currentUser.name,
-      department: currentUser.department,
+      userId: currentUser?.raw_id || cleanNumericUserId(currentUser?.id) || undefined,
+      user_id: currentUser?.raw_id || cleanNumericUserId(currentUser?.id) || undefined,
+      employeeId: currentUser?.employeeId || currentUser?.id,
+      employeeEmail: currentUser?.email,
+      employeeName: currentUser?.name,
+      department: currentUser?.department,
       status: 'ยังไม่ยื่นเอกสาร',
       appliedDate: 'วันนี้',
       approvedDate: null,
-      approver: 'นายสมชาย มั่นคง',
+      approver: 'รอการตรวจสอบและอนุมัติ',
       note: '',
       ...newRequestData,
     };
@@ -1751,30 +1647,17 @@ export function LeaveProvider({ children }) {
     setActiveTab('dashboard');
   };
 
-  // Reset to original mock data via Cloudflare D1 seed
+  // Reset local browser cache and re-sync live database from Cloudflare D1
   const resetToDefault = async () => {
-    try {
-      if (api && api.request) {
-        await api.request('/seed', { method: 'POST' }).catch(() => {});
-      }
-    } catch (e) {}
-
     localStorage.removeItem('smartleave_requests');
     localStorage.removeItem('smartleave_employees');
     localStorage.removeItem('smartleave_quotas');
-    sessionStorage.clear();
+    sessionStorage.removeItem('smartleave_requests');
+    sessionStorage.removeItem('smartleave_employees');
+    sessionStorage.removeItem('smartleave_quotas');
 
-    setCurrentUser(initialUser);
-    setLeaveRequests(initialLeaveRequests);
-    setQuotas(initialQuotas);
-    setNotifications(notificationsData);
-    setEmployees(employeesList.map(normalizeEmployeeQuotas));
-    setActiveTab('dashboard');
-    setIsAuthenticated(false);
-    setIsPdpaAccepted(false);
-
-    await fetchLiveDatabaseData();
-    showToast('รีเซ็ตข้อมูลระบบและซิงก์ Cloudflare D1 เรียบร้อยแล้ว', 'info');
+    await fetchLiveDatabaseData({ resetBaseline: true });
+    showToast('รีเฟรชและซิงก์ข้อมูลจาก Cloudflare D1 เรียบร้อยแล้ว', 'info');
   };
 
   // กรองคำขอลาเฉพาะของ User แต่ละคน (User's own leave requests)
