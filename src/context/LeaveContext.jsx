@@ -812,7 +812,13 @@ export function LeaveProvider({ children }) {
       createdAt: now.toISOString(),
     });
 
-    setNotifications((prev) => [userNotif, adminNotif, ...prev]);
+    setNotifications((prev) => {
+      const itemsToAdd = [userNotif];
+      if (isAdmin) {
+        itemsToAdd.push(adminNotif);
+      }
+      return [...itemsToAdd, ...prev];
+    });
 
     setIsRequestModalOpen(false);
 
@@ -1733,10 +1739,22 @@ export function LeaveProvider({ children }) {
     return (leaveRequests || []).filter((r) => doesLeaveBelongToUser(r, currentUser));
   }, [leaveRequests, currentUser]);
 
-  // กรองการแจ้งเตือนเฉพาะของ User แต่ละคน (Notifications Separation)
+  // กรองการแจ้งเตือนเฉพาะของ User แต่ละคน (Notifications Separation) และป้องกันการแจ้งเตือนซ้ำ
   const userNotifications = useMemo(() => {
     if (!currentUser) return [];
-    return notifications.filter((notif) => doesNotificationBelongToUser(notif, currentUser));
+    const list = notifications.filter((notif) => doesNotificationBelongToUser(notif, currentUser));
+
+    // กรองการแจ้งเตือนที่ซ้ำซ้อน ไม่ให้แสดงรายการเดิมซ้ำ 2 รอบ
+    const seen = new Set();
+    return list.filter((n) => {
+      const idKey = n.id ? String(n.id) : null;
+      const contentKey = `${(n.title || '').trim()}:::${(n.description || '').trim()}`;
+      if (idKey && seen.has(`id:${idKey}`)) return false;
+      if (seen.has(`content:${contentKey}`)) return false;
+      if (idKey) seen.add(`id:${idKey}`);
+      seen.add(`content:${contentKey}`);
+      return true;
+    });
   }, [notifications, currentUser]);
 
   const unreadCount = useMemo(() => {

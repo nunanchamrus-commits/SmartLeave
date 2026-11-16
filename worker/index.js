@@ -552,6 +552,19 @@ async function autoMigrateDatabase(db) {
     await db.prepare("UPDATE leave_requests SET review_stage = 'checking' WHERE status IN ('อยู่ระหว่างตรวจสอบ', 'รออนุมัติ') AND COALESCE(review_stage, '') != 'checking'").run().catch(() => {});
     await db.prepare("UPDATE leave_requests SET review_stage = 'not_submitted' WHERE review_stage IS NULL OR review_stage = ''").run().catch(() => {});
   } catch (stageMigErr) {}
+  // ลบการแจ้งเตือนที่ซ้ำซ้อนในตาราง notifications สำหรับ Admin/ผู้อนุมัติ ออกให้เหลือเพียงรายการเดียว
+  try {
+    await db.prepare(`
+      DELETE FROM notifications
+      WHERE target_role IN ('admin', 'approver')
+        AND notification_id NOT IN (
+          SELECT MIN(notification_id)
+          FROM notifications
+          WHERE target_role IN ('admin', 'approver')
+          GROUP BY title, description
+        )
+    `).run().catch(() => {});
+  } catch (cleanNotifErr) {}
 }
 
 // -------------------------------------------------------------
@@ -1620,9 +1633,20 @@ export async function onRequest(context) {
           FROM notifications
           WHERE target_role = 'admin' OR target_role = 'approver' OR title LIKE '%มีคำขอ%'
           ORDER BY created_at DESC, notification_id DESC
-          LIMIT 50
+          LIMIT 100
         `).all().catch(() => ({ results: [] }));
-        results = q.results || [];
+        
+        // กรองรายการแจ้งเตือนซ้ำ (Deduplicate) ไม่ให้แสดงคำขอเดิมซ้ำ 2 รอบ
+        const seen = new Set();
+        const uniqueResults = [];
+        for (const item of (q.results || [])) {
+          const dedupeKey = `${(item.title || '').trim()}:::${(item.description || '').trim()}`;
+          if (!seen.has(dedupeKey)) {
+            seen.add(dedupeKey);
+            uniqueResults.push(item);
+          }
+        }
+        results = uniqueResults.slice(0, 50);
       } else if (targetUserId) {
         // สำหรับ User ทั่วไป: แสดงเฉพาะคำขอของตนเอง (ไม่แสดงแจ้งเตือนของ Admin)
         const q = await env.DB.prepare(`
@@ -1630,18 +1654,38 @@ export async function onRequest(context) {
           FROM notifications
           WHERE user_id = ? AND (target_role IS NULL OR target_role != 'admin')
           ORDER BY created_at DESC, notification_id DESC
-          LIMIT 50
+          LIMIT 100
         `).bind(targetUserId).all().catch(() => ({ results: [] }));
-        results = q.results || [];
+        
+        const seen = new Set();
+        const uniqueResults = [];
+        for (const item of (q.results || [])) {
+          const dedupeKey = `${(item.title || '').trim()}:::${(item.description || '').trim()}`;
+          if (!seen.has(dedupeKey)) {
+            seen.add(dedupeKey);
+            uniqueResults.push(item);
+          }
+        }
+        results = uniqueResults.slice(0, 50);
       } else {
         const q = await env.DB.prepare(`
           SELECT notification_id as id, user_id as userId, title, description, type, link_url as linkUrl, is_read as isRead, target_role as targetRole, created_at as time
           FROM notifications
           WHERE target_role IS NULL OR target_role != 'admin'
           ORDER BY created_at DESC, notification_id DESC
-          LIMIT 50
+          LIMIT 100
         `).all().catch(() => ({ results: [] }));
-        results = q.results || [];
+        
+        const seen = new Set();
+        const uniqueResults = [];
+        for (const item of (q.results || [])) {
+          const dedupeKey = `${(item.title || '').trim()}:::${(item.description || '').trim()}`;
+          if (!seen.has(dedupeKey)) {
+            seen.add(dedupeKey);
+            uniqueResults.push(item);
+          }
+        }
+        results = uniqueResults.slice(0, 50);
       }
 
       return jsonResponse(results || []);
@@ -1654,7 +1698,12 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const cleanId = body.userId ? String(body.userId).replace(/^usr-/, '') : null;
       if (cleanId && /^\d+$/.test(cleanId)) {
-        await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').bind(Number(cleanId)).run().catch(() => {});
+        const user = await env.DB.prepare('SELECT role_id FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
+        if (user && (user.role_id === 1 || user.role_id === 3)) {
+          await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? OR target_role IN ('admin', 'approver')").bind(Number(cleanId)).run().catch(() => {});
+        } else {
+          await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').bind(Number(cleanId)).run().catch(() => {});
+        }
       } else {
         await env.DB.prepare('UPDATE notifications SET is_read = 1').run().catch(() => {});
       }
@@ -1772,27 +1821,10 @@ export async function onRequest(context) {
       ).run().catch(() => {});
 
       // 3. สร้างการแจ้งเตือนสำหรับ Admin / ผู้อนุมัติ ทันทีเมื่อมีคำขอส่งเข้ามา (+7 ชั่วโมง)
+      // บันทึกเพียง 1 รายการระดับกลุ่ม Admin (target_role = 'admin') เพื่อป้องกันการแจ้งเตือนซ้ำซ้อน
       const adminNotifTitle = `มีคำขอ${typeName ? ` (${typeName})` : ''}ใหม่จาก ${requesterName}`;
       const adminNotifDesc = `คำขอลา ${reqNo} วันที่ ${safeStart} ถึง ${safeEnd} (${safeDays} วัน) รอการตรวจสอบ`;
 
-      const adminUsers = await env.DB.prepare('SELECT user_id FROM users WHERE role_id IN (1, 3)').all().catch(() => ({ results: [] }));
-      const adminList = adminUsers?.results || [];
-
-      if (adminList.length > 0) {
-        for (const adm of adminList) {
-          await env.DB.prepare(`
-            INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
-            VALUES (?, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
-          `).bind(adm.user_id, adminNotifTitle, adminNotifDesc).run().catch(() => {});
-        }
-      } else {
-        await env.DB.prepare(`
-          INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
-          VALUES (1, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
-        `).bind(adminNotifTitle, adminNotifDesc).run().catch(() => {});
-      }
-
-      // บันทึกแจ้งเตือนกลางสำหรับ Role Admin เพื่อความสมบูรณ์
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
         VALUES (NULL, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
