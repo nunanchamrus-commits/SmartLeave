@@ -208,10 +208,12 @@ class ApiService {
         const id = userParam.id || userParam.raw_id;
         const code = userParam.employeeId;
         const email = userParam.email;
+        const role = userParam.role;
         const params = new URLSearchParams();
         if (id) params.set('userId', id);
         if (code) params.set('employeeId', code);
         if (email) params.set('email', email);
+        if (role) params.set('role', role);
         query = `?${params.toString()}`;
       } else {
         query = `?userId=${encodeURIComponent(userParam)}`;

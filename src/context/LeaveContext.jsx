@@ -55,42 +55,82 @@ export function formatThaiDateTime(inputDate = new Date()) {
   if (typeof inputDate === 'string' && /เวลา\s+\d{1,2}:\d{2}/.test(inputDate)) {
     return inputDate;
   }
-  const dateStr = typeof inputDate === 'string' ? inputDate.replace(' ', 'T') : inputDate;
-  const date = dateStr instanceof Date ? dateStr : new Date(dateStr);
-  if (isNaN(date.getTime())) {
-    return typeof inputDate === 'string' ? inputDate : '';
-  }
-  const day = date.getDate();
+
   const thaiMonths = [
     'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
     'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
   ];
-  const month = thaiMonths[date.getMonth()];
-  const year = date.getFullYear() + 543;
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  // กรณีวันที่มาจาก SQLite D1 เช่น "2026-11-16 10:44:00"
+  if (typeof inputDate === 'string') {
+    const trimmed = inputDate.trim();
+    const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/);
+    if (m) {
+      let [_, y, mo, d, hh, mm, ss, tz] = m;
+      let yearNum = parseInt(y, 10);
+      let monthNum = parseInt(mo, 10);
+      let dayNum = parseInt(d, 10);
+      let hourNum = parseInt(hh, 10);
+      let minuteNum = parseInt(mm, 10);
+
+      // ถ้าเป็นเวลา UTC (มี Z หรือท้ายสตริงระบุ Z) ให้ปรับบวก +7 ชั่วโมงเข้าสู่เวลาประเทศไทย
+      if (tz === 'Z' || trimmed.endsWith('Z')) {
+        const dUtc = new Date(Date.UTC(yearNum, monthNum - 1, dayNum, hourNum, minuteNum));
+        const dTh = new Date(dUtc.getTime() + (7 * 3600000));
+        dayNum = dTh.getUTCDate();
+        monthNum = dTh.getUTCMonth() + 1;
+        yearNum = dTh.getUTCFullYear();
+        hourNum = dTh.getUTCHours();
+        minuteNum = dTh.getUTCMinutes();
+      }
+
+      const thaiMonth = thaiMonths[monthNum - 1] || '';
+      const thaiYear = yearNum + 543;
+      const hhStr = String(hourNum).padStart(2, '0');
+      const mmStr = String(minuteNum).padStart(2, '0');
+      return `${dayNum} ${thaiMonth} ${thaiYear} เวลา ${hhStr}:${mmStr} น.`;
+    }
+  }
+
+  const dateObj = inputDate instanceof Date ? inputDate : new Date(inputDate);
+  if (isNaN(dateObj.getTime())) {
+    return typeof inputDate === 'string' ? inputDate : '';
+  }
+
+  // ปรับให้เป็น UTC+7 (เวลาประเทศไทย) เสมอ
+  const utcMs = dateObj.getTime() + (dateObj.getTimezoneOffset() * 60000);
+  const thDate = new Date(utcMs + (7 * 3600000));
+
+  const day = thDate.getDate();
+  const month = thaiMonths[thDate.getMonth()];
+  const year = thDate.getFullYear() + 543;
+  const hours = String(thDate.getHours()).padStart(2, '0');
+  const minutes = String(thDate.getMinutes()).padStart(2, '0');
   return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
 }
 
 function doesNotificationBelongToUser(notif, user) {
   if (!notif || !user) return false;
 
-  // 1. ตรวจสอบการแจ้งเตือนสำหรับ Admin / Approver
-  if (notif.forAdmin || notif.targetRole === 'admin' || notif.targetRole === 'approver') {
-    return user.role === 'admin' || user.role === 'approver';
+  const isAdminUser = user.role === 'admin' || user.role === 'approver';
+
+  // 1. สำหรับ Admin: ให้ขึ้นเฉพาะการแจ้งเตือนที่มีคำขอลาเข้ามาเท่านั้น 100%
+  if (isAdminUser) {
+    const isIncomingRequest =
+      notif.forAdmin === true ||
+      notif.targetRole === 'admin' ||
+      notif.targetRole === 'approver' ||
+      notif.title?.includes('มีคำขอ') ||
+      (notif.type === 'pending' && (notif.description?.includes('รอการตรวจสอบ') || notif.title?.includes('คำขอ')));
+
+    return Boolean(isIncomingRequest);
   }
 
-  // 2. การแจ้งเตือนระบบทั่วไปที่ไม่มีระบุผู้รับเจาะจง (System Broadcast)
-  if (
-    !notif.userId &&
-    !notif.user_id &&
-    !notif.employeeId &&
-    !notif.email &&
-    !notif.employeeEmail &&
-    !notif.employeeName
-  ) {
-    return true;
+  // 2. สำหรับ User ทั่วไป: ให้ขึ้นเฉพาะการแจ้งเตือนของตนเอง (ไม่แสดงแจ้งเตือนรับคำขอของ Admin)
+  if (notif.forAdmin || notif.targetRole === 'admin' || notif.title?.includes('มีคำขอ')) {
+    return false;
   }
+
   const currRawIds = new Set(
     [cleanNumericUserId(user.raw_id), cleanNumericUserId(user.id)].filter(Boolean)
   );

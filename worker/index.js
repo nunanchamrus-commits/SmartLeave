@@ -52,6 +52,8 @@ const SCHEMA_COLUMNS = {
     type: "TEXT DEFAULT 'info'",
     link_url: 'TEXT',
     is_read: 'INTEGER DEFAULT 0',
+    target_role: 'TEXT',
+    created_at: "TEXT DEFAULT (datetime('now', '+7 hours'))",
   },
 };
 
@@ -284,8 +286,8 @@ async function createLeaveStatusNotification(db, reqInfo, displayStatus, remark 
 
   try {
     await db.prepare(`
-      INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
-      VALUES (?, ?, ?, ?, 0, datetime('now', 'localtime'))
+      INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
+      VALUES (?, ?, ?, ?, 0, 'employee', datetime('now', '+7 hours'))
     `).bind(reqInfo.user_id, notifTitle, notifDesc, notifType).run();
   } catch (notifErr) {
     console.log('[Notification Insert Note]:', notifErr.message);
@@ -406,7 +408,8 @@ async function autoMigrateDatabase(db) {
       type TEXT DEFAULT 'info',
       link_url TEXT,
       is_read INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+      target_role TEXT,
+      created_at TEXT DEFAULT (datetime('now', '+7 hours'))
     )
   `).run().catch(() => {});
 
@@ -1436,34 +1439,61 @@ export async function onRequest(context) {
       const queryUserId = url.searchParams.get('userId');
       const queryEmpCode = url.searchParams.get('employeeId');
       const queryEmail = url.searchParams.get('email');
+      const queryRole = url.searchParams.get('role');
 
       let targetUserId = null;
+      let targetUserRole = null;
       if (queryUserId) {
         const cleanId = String(queryUserId).replace(/^usr-/, '');
         if (/^\d+$/.test(cleanId)) targetUserId = Number(cleanId);
       }
       if (!targetUserId && (queryEmpCode || queryEmail)) {
-        const u = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ? OR email = ?')
+        const u = await env.DB.prepare('SELECT user_id, role_id FROM users WHERE employee_code = ? OR email = ?')
           .bind(queryEmpCode || '', queryEmail || '').first().catch(() => null);
-        if (u) targetUserId = u.user_id;
+        if (u) {
+          targetUserId = u.user_id;
+          targetUserRole = (u.role_id === 1 || u.role_id === 3) ? 'admin' : 'employee';
+        }
       }
 
+      if (targetUserId && !targetUserRole) {
+        const u = await env.DB.prepare('SELECT role_id FROM users WHERE user_id = ?').bind(targetUserId).first().catch(() => null);
+        if (u && (u.role_id === 1 || u.role_id === 3)) {
+          targetUserRole = 'admin';
+        }
+      }
+
+      const isAdminRequest = queryRole === 'admin' || queryRole === 'approver' || targetUserRole === 'admin';
+
       let results = [];
-      if (targetUserId) {
+      if (isAdminRequest) {
+        // สำหรับหน้า Admin: แสดงเฉพาะการแจ้งเตือนที่มีคำขอลาส่งเข้ามาเท่านั้น 100%
         const q = await env.DB.prepare(`
-          SELECT notification_id as id, user_id as userId, title, description, type, is_read as isRead, created_at as time
+          SELECT notification_id as id, user_id as userId, title, description, type, link_url as linkUrl, is_read as isRead, target_role as targetRole, created_at as time
           FROM notifications
-          WHERE user_id = ? OR user_id IS NULL
+          WHERE target_role = 'admin' OR target_role = 'approver' OR title LIKE '%มีคำขอ%'
           ORDER BY created_at DESC, notification_id DESC
-        `).bind(targetUserId).all();
+          LIMIT 50
+        `).all().catch(() => ({ results: [] }));
+        results = q.results || [];
+      } else if (targetUserId) {
+        // สำหรับ User ทั่วไป: แสดงเฉพาะคำขอของตนเอง (ไม่แสดงแจ้งเตือนของ Admin)
+        const q = await env.DB.prepare(`
+          SELECT notification_id as id, user_id as userId, title, description, type, link_url as linkUrl, is_read as isRead, target_role as targetRole, created_at as time
+          FROM notifications
+          WHERE user_id = ? AND (target_role IS NULL OR target_role != 'admin')
+          ORDER BY created_at DESC, notification_id DESC
+          LIMIT 50
+        `).bind(targetUserId).all().catch(() => ({ results: [] }));
         results = q.results || [];
       } else {
         const q = await env.DB.prepare(`
-          SELECT notification_id as id, user_id as userId, title, description, type, is_read as isRead, created_at as time
+          SELECT notification_id as id, user_id as userId, title, description, type, link_url as linkUrl, is_read as isRead, target_role as targetRole, created_at as time
           FROM notifications
+          WHERE target_role IS NULL OR target_role != 'admin'
           ORDER BY created_at DESC, notification_id DESC
           LIMIT 50
-        `).all();
+        `).all().catch(() => ({ results: [] }));
         results = q.results || [];
       }
 
@@ -1568,7 +1598,11 @@ export async function onRequest(context) {
         await adjustUserLeaveQuota(env.DB, userId, typeId, fiscalYear, safeDays);
       }
 
-      // สร้างการแจ้งเตือนสำหรับผู้ยื่นคำขอคนนั้น
+      // 1. ดึงชื่อผู้ยื่นคำขอ
+      const requester = await env.DB.prepare('SELECT first_name, last_name, prefix FROM users WHERE user_id = ?').bind(userId).first().catch(() => null);
+      const requesterName = requester ? `${requester.prefix || ''}${requester.first_name} ${requester.last_name || ''}`.trim() : (body.employeeName || 'เจ้าหน้าที่');
+
+      // 2. สร้างการแจ้งเตือนสำหรับผู้ยื่นคำขอคนนั้น (+7 ชั่วโมง)
       const notifType =
         mapped.displayStatus === 'อนุมัติ'
           ? 'approved'
@@ -1578,14 +1612,41 @@ export async function onRequest(context) {
           ? 'warning'
           : 'pending';
       await env.DB.prepare(`
-        INSERT INTO notifications (user_id, title, description, type, is_read, created_at)
-        VALUES (?, ?, ?, ?, 0, datetime('now', 'localtime'))
+        INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
+        VALUES (?, ?, ?, ?, 0, 'employee', datetime('now', '+7 hours'))
       `).bind(
         userId,
         `ยื่นคำขอลา${typeName ? ` (${typeName})` : ''}สำเร็จ`,
         `คำขอลา ${reqNo} (${safeStart} ถึง ${safeEnd}) สถานะ: ${mapped.displayStatus}`,
         notifType
       ).run().catch(() => {});
+
+      // 3. สร้างการแจ้งเตือนสำหรับ Admin / ผู้อนุมัติ ทันทีเมื่อมีคำขอส่งเข้ามา (+7 ชั่วโมง)
+      const adminNotifTitle = `มีคำขอ${typeName ? ` (${typeName})` : ''}ใหม่จาก ${requesterName}`;
+      const adminNotifDesc = `คำขอลา ${reqNo} วันที่ ${safeStart} ถึง ${safeEnd} (${safeDays} วัน) รอการตรวจสอบ`;
+
+      const adminUsers = await env.DB.prepare('SELECT user_id FROM users WHERE role_id IN (1, 3)').all().catch(() => ({ results: [] }));
+      const adminList = adminUsers?.results || [];
+
+      if (adminList.length > 0) {
+        for (const adm of adminList) {
+          await env.DB.prepare(`
+            INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
+            VALUES (?, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
+          `).bind(adm.user_id, adminNotifTitle, adminNotifDesc).run().catch(() => {});
+        }
+      } else {
+        await env.DB.prepare(`
+          INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
+          VALUES (1, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
+        `).bind(adminNotifTitle, adminNotifDesc).run().catch(() => {});
+      }
+
+      // บันทึกแจ้งเตือนกลางสำหรับ Role Admin เพื่อความสมบูรณ์
+      await env.DB.prepare(`
+        INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
+        VALUES (NULL, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
+      `).bind(adminNotifTitle, adminNotifDesc).run().catch(() => {});
 
       return jsonResponse({
         success: true,
