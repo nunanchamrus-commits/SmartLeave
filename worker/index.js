@@ -1043,6 +1043,8 @@ export async function onRequest(context) {
         success: true,
         user: {
           id: `usr-${user.user_id}`,
+          raw_id: user.user_id,
+          userId: user.user_id,
           name: displayName,
           prefix: user.prefix || '',
           firstName: user.first_name || '',
@@ -2996,22 +2998,109 @@ export async function onRequest(context) {
       }
       const fullEnglishName = englishName || (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
 
-      const rawId = body.id || body.userId;
-      const cleanId = rawId ? String(rawId).replace(/^usr-/, '') : '';
-      const validUid = /^\d+$/.test(cleanId) ? Number(cleanId) : null;
-      let targetUserId = null;
-      if (validUid) {
-        const u = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ?').bind(validUid).first().catch(() => null);
-        if (u) targetUserId = u.user_id;
-      }
-      if (!targetUserId && (body.oldEmail || email || employeeId)) {
-        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(email) = LOWER(?) OR LOWER(employee_code) = LOWER(?)')
-          .bind(body.oldEmail ? String(body.oldEmail).trim() : '', email ? String(email).trim() : '', employeeId ? String(employeeId).trim() : '').first().catch(() => null);
-        if (u) targetUserId = u.user_id;
+      // 1. ระบุผู้ใช้จาก Authorization Token (Bearer token-<userId>-...)
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.replace(/^Bearer\s+/, '').trim();
+      let tokenUid = null;
+      if (token && token.startsWith('token-')) {
+        const parts = token.split('-');
+        tokenUid = (parts[1] && /^\d+$/.test(parts[1])) ? Number(parts[1]) : null;
       }
 
+      // 2. ระบุผู้ใช้จากรหัส ID ใน Body (raw_id, user_id, userId, id)
+      const rawId = body.raw_id || body.user_id || body.userId || body.id;
+      const cleanId = rawId ? String(rawId).replace(/^usr-/, '').trim() : '';
+      const validUid = /^\d+$/.test(cleanId) ? Number(cleanId) : null;
+
+      let user = null;
+      if (tokenUid) {
+        user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(tokenUid).first().catch(() => null);
+      }
+      if (!user && validUid) {
+        user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(validUid).first().catch(() => null);
+      }
+
+      // 3. หากยังไม่พบ ค้นหาจาก oldEmail, email, employee_code, หรือ english_name
+      if (!user) {
+        const searchOldEmail = (body.oldEmail ? String(body.oldEmail).trim() : '') || '';
+        const searchEmail = (email ? String(email).trim() : '') || '';
+        const searchCode = (employeeId ? String(employeeId).trim() : '') || (body.employee_code ? String(body.employee_code).trim() : '') || '';
+        const searchEn = (englishName ? String(englishName).trim() : '') || '';
+
+        user = await env.DB.prepare(`
+          SELECT * FROM users 
+          WHERE (LOWER(email) = LOWER(?) AND ? != '')
+             OR (LOWER(email) = LOWER(?) AND ? != '')
+             OR (LOWER(employee_code) = LOWER(?) AND ? != '')
+             OR (LOWER(english_name) = LOWER(?) AND ? != '')
+          LIMIT 1
+        `).bind(
+          searchOldEmail, searchOldEmail,
+          searchEmail, searchEmail,
+          searchCode, searchCode,
+          searchEn, searchEn
+        ).first().catch(() => null);
+      }
+
+      // 4. กรณีผู้ใช้งานเป็นบุคลากรตั้งต้นแต่ยังไม่ถูกบันทึกลง D1 ให้แทรกเข้า D1 ทันที
+      if (!user) {
+        const defaultStaffList = [
+          { user_id: 1, employee_code: 'ADM-001', email: 'admin@smartleave.com', prefix: 'นาย', first_name: 'ผู้ดูแลระบบ', last_name: 'ส่วนกลาง', prefix_en: 'Mr.', first_name_en: 'System', last_name_en: 'Administrator', english_name: 'Mr. System Administrator', gender: 'ชาย', employment_type: 'ข้าราชการ', phone: '02-000-0000', department_id: 1, role_id: 1, position: 'System Administrator', avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' },
+          { user_id: 2, employee_code: 'EMP-001', email: 'panika.t@smartleave.com', prefix: 'นางสาว', first_name: 'พนิกา', last_name: 'ธรรมเมือง', prefix_en: 'Ms.', first_name_en: 'Panika', last_name_en: 'Thammoeang', english_name: 'Ms. Panika Thammoeang', gender: 'หญิง', employment_type: 'ข้าราชการ', phone: '081-234-5678', department_id: 6, role_id: 4, position: 'นักวิชาการสหกรณ์ปฏิบัติการ', avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80' },
+          { user_id: 3, employee_code: 'MGR-002', email: 'somchai.m@smartleave.com', prefix: 'นาย', first_name: 'สมชาย', last_name: 'มั่นคง', prefix_en: 'Mr.', first_name_en: 'Somchai', last_name_en: 'Mankhong', english_name: 'Mr. Somchai Mankhong', gender: 'ชาย', employment_type: 'ข้าราชการ', phone: '089-876-5432', department_id: 1, role_id: 3, position: 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' },
+          { user_id: 4, employee_code: 'EMP-003', email: 'nichaphat.w@smartleave.com', prefix: 'นางสาว', first_name: 'ณิชาภัทร', last_name: 'วงศ์ษา', prefix_en: 'Ms.', first_name_en: 'Nichaphat', last_name_en: 'Wongsa', english_name: 'Ms. Nichaphat Wongsa', gender: 'หญิง', employment_type: 'ข้าราชการ', phone: '086-111-2233', department_id: 4, role_id: 4, position: 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80' },
+          { user_id: 5, employee_code: 'EMP-004', email: 'akarapol.c@smartleave.com', prefix: 'นาย', first_name: 'อัครพล', last_name: 'เจริญผล', prefix_en: 'Mr.', first_name_en: 'Akarapol', last_name_en: 'Charoenphon', english_name: 'Mr. Akarapol Charoenphon', gender: 'ชาย', employment_type: 'พนักงานราชการ', phone: '082-333-4455', department_id: 5, role_id: 4, position: 'นักวิชาการมาตรฐานสหกรณ์', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80' },
+          { user_id: 6, employee_code: 'EMP-005', email: 'suda.j@smartleave.com', prefix: 'นางสาว', first_name: 'สุดา', last_name: 'ใจดี', prefix_en: 'Ms.', first_name_en: 'Suda', last_name_en: 'Jaidee', english_name: 'Ms. Suda Jaidee', gender: 'หญิง', employment_type: 'ลูกจ้างประจำ', phone: '084-555-6677', department_id: 1, role_id: 4, position: 'เจ้าหน้าที่ธุรการและสารบรรณ', avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80' },
+        ];
+        const cleanOld = (body.oldEmail ? String(body.oldEmail).trim().toLowerCase() : '');
+        const cleanEmailParam = (email ? String(email).trim().toLowerCase() : '');
+        const cleanEmpId = (employeeId ? String(employeeId).trim().toLowerCase() : '');
+        const matchedStaff = defaultStaffList.find((s) =>
+          (tokenUid && s.user_id === tokenUid) ||
+          (validUid && s.user_id === validUid) ||
+          (cleanOld && s.email.toLowerCase() === cleanOld) ||
+          (cleanEmailParam && s.email.toLowerCase() === cleanEmailParam) ||
+          (cleanEmpId && s.employee_code.toLowerCase() === cleanEmpId)
+        );
+        if (matchedStaff) {
+          await env.DB.prepare(`
+            INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+            VALUES (?, ?, ?, '12345678', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          `).bind(
+            matchedStaff.user_id,
+            matchedStaff.employee_code,
+            matchedStaff.email,
+            matchedStaff.prefix,
+            matchedStaff.first_name,
+            matchedStaff.last_name,
+            matchedStaff.prefix_en,
+            matchedStaff.first_name_en,
+            matchedStaff.last_name_en,
+            matchedStaff.english_name,
+            matchedStaff.gender,
+            matchedStaff.employment_type,
+            matchedStaff.phone,
+            matchedStaff.department_id,
+            matchedStaff.role_id,
+            matchedStaff.position,
+            matchedStaff.avatar_url
+          ).run().catch(() => {});
+          user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(matchedStaff.user_id).first().catch(() => null);
+        }
+      }
+
+      if (!user || !user.user_id) {
+        return jsonResponse({
+          success: false,
+          message: 'ไม่พบบัญชีผู้ใช้งานในระบบฐานข้อมูล Cloudflare D1 ที่ต้องการแก้ไข',
+        }, 404);
+      }
+
+      const targetUserId = user.user_id;
+
+      // ตรวจสอบความถูกต้องและไม่ซ้ำของอีเมลใหม่
       let updateEmail = (typeof email === 'string' && email.trim()) ? email.trim().toLowerCase() : null;
-      if (targetUserId && updateEmail) {
+      if (updateEmail && updateEmail !== user.email?.toLowerCase()) {
         const dupUser = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = ? AND user_id != ?')
           .bind(updateEmail, targetUserId).first().catch(() => null);
         if (dupUser) {
@@ -3019,74 +3108,111 @@ export async function onRequest(context) {
         }
       }
 
-      if (targetUserId) {
-        try {
-          await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
+      try {
+        await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
-          let deptId = null;
-          if (department && typeof department === 'string' && department.trim()) {
-            const d = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
-              .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
-            if (d) deptId = d.department_id;
-          }
-
-          await env.DB.prepare(`
-            UPDATE users 
-            SET prefix = COALESCE(?, prefix),
-                first_name = COALESCE(?, first_name),
-                last_name = COALESCE(?, last_name),
-                prefix_en = COALESCE(?, prefix_en),
-                first_name_en = COALESCE(?, first_name_en),
-                last_name_en = COALESCE(?, last_name_en),
-                english_name = COALESCE(?, english_name),
-                gender = COALESCE(?, gender),
-                employment_type = COALESCE(?, employment_type),
-                email = COALESCE(?, email),
-                phone = COALESCE(?, phone),
-                position = COALESCE(?, position),
-                department_id = COALESCE(?, department_id),
-                avatar_url = COALESCE(?, avatar_url),
-                updated_at = datetime('now', 'localtime')
-            WHERE user_id = ?
-          `).bind(
-            prefix ?? null,
-            firstName ?? null,
-            lastName ?? null,
-            prefixEn ?? null,
-            firstNameEn ?? null,
-            lastNameEn ?? null,
-            fullEnglishName ?? null,
-            gender ?? null,
-            employmentType ?? null,
-            updateEmail ?? null,
-            phone ?? null,
-            (position || title) ?? null,
-            deptId ?? null,
-            avatar ?? null,
-            targetUserId
-          ).run();
-        } catch (dbErr) {
-          console.log('[D1 Update Profile Note]:', dbErr.message);
+        let deptId = user.department_id || null;
+        if (department && typeof department === 'string' && department.trim()) {
+          const d = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
+            .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
+          if (d && d.department_id) deptId = d.department_id;
         }
-      }
 
-      return jsonResponse({
-        success: true,
-        message: 'บันทึกข้อมูลส่วนตัวลง Cloudflare D1 เรียบร้อยแล้ว',
-        user: {
-          ...body,
-          email: updateEmail || email,
-          prefix,
-          firstName,
-          lastName,
-          prefixEn,
-          firstNameEn,
-          lastNameEn,
-          englishName: fullEnglishName || '',
-          gender: gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
-          employmentType: employmentType || 'ข้าราชการ',
-        },
-      });
+        // บันทึกและแทนที่อีเมลลงในตาราง users ในฐานข้อมูล D1
+        await env.DB.prepare(`
+          UPDATE users 
+          SET prefix = COALESCE(?, prefix),
+              first_name = COALESCE(?, first_name),
+              last_name = COALESCE(?, last_name),
+              prefix_en = COALESCE(?, prefix_en),
+              first_name_en = COALESCE(?, first_name_en),
+              last_name_en = COALESCE(?, last_name_en),
+              english_name = COALESCE(?, english_name),
+              gender = COALESCE(?, gender),
+              employment_type = COALESCE(?, employment_type),
+              email = COALESCE(?, email),
+              phone = COALESCE(?, phone),
+              position = COALESCE(?, position),
+              department_id = COALESCE(?, department_id),
+              avatar_url = COALESCE(?, avatar_url),
+              updated_at = datetime('now', 'localtime')
+          WHERE user_id = ?
+        `).bind(
+          prefix || null,
+          firstName || null,
+          lastName || null,
+          prefixEn || null,
+          firstNameEn || null,
+          lastNameEn || null,
+          fullEnglishName || null,
+          gender || null,
+          employmentType || null,
+          updateEmail || null,
+          phone || null,
+          (position || title) || null,
+          deptId,
+          avatar || null,
+          targetUserId
+        ).run();
+
+        // ดึงข้อมูลผู้ใช้ล่าสุดหลังอัปเดตจาก D1 โดยตรงเพื่อส่งกลับให้ Frontend
+        const freshUser = await env.DB.prepare(`
+          SELECT u.*, d.name_th as department_name, r.code as role_code
+          FROM users u
+          LEFT JOIN departments d ON u.department_id = d.department_id
+          LEFT JOIN roles r ON u.role_id = r.role_id
+          WHERE u.user_id = ?
+        `).bind(targetUserId).first().catch(() => null);
+
+        return jsonResponse({
+          success: true,
+          message: 'บันทึกและอัปเดตข้อมูลส่วนบุคคลลงฐานข้อมูล Cloudflare D1 เรียบร้อยแล้ว',
+          user: freshUser ? {
+            id: `usr-${freshUser.user_id}`,
+            raw_id: freshUser.user_id,
+            userId: freshUser.user_id,
+            employeeId: freshUser.employee_code,
+            name: `${freshUser.prefix || ''}${freshUser.first_name} ${freshUser.last_name}`.trim(),
+            prefix: freshUser.prefix,
+            firstName: freshUser.first_name,
+            lastName: freshUser.last_name,
+            prefixEn: freshUser.prefix_en,
+            firstNameEn: freshUser.first_name_en,
+            lastNameEn: freshUser.last_name_en,
+            englishName: freshUser.english_name,
+            gender: freshUser.gender,
+            employmentType: freshUser.employment_type,
+            email: freshUser.email,
+            phone: freshUser.phone,
+            title: freshUser.position,
+            position: freshUser.position,
+            department: freshUser.department_name || department,
+            avatar: freshUser.avatar_url,
+            role: (freshUser.role_code || '').toLowerCase() === 'system_admin' ? 'admin' : (freshUser.role_code || 'employee').toLowerCase(),
+          } : {
+            ...body,
+            id: `usr-${targetUserId}`,
+            raw_id: targetUserId,
+            userId: targetUserId,
+            email: updateEmail || email,
+            prefix,
+            firstName,
+            lastName,
+            prefixEn,
+            firstNameEn,
+            lastNameEn,
+            englishName: fullEnglishName || '',
+            gender: gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย'),
+            employmentType: employmentType || 'ข้าราชการ',
+          },
+        });
+      } catch (dbErr) {
+        console.error('[D1 Update Profile Error]:', dbErr);
+        return jsonResponse({
+          success: false,
+          message: `เกิดข้อผิดพลาดในการบันทึกข้อมูลลงฐานข้อมูล D1: ${dbErr.message}`,
+        }, 500);
+      }
     }
 
     // หากไม่ตรงกับเส้นทางใดๆ

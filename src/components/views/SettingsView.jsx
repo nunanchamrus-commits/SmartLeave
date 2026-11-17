@@ -246,6 +246,11 @@ export default function SettingsView() {
 
     const payload = {
       ...formData,
+      id: currentUser?.id,
+      raw_id: currentUser?.raw_id,
+      userId: currentUser?.raw_id || currentUser?.userId,
+      employeeId: currentUser?.employeeId || formData.employeeId,
+      oldEmail: currentUser?.email,
       email: cleanEmail,
       name: fullThaiName || formData.name,
     };
@@ -253,6 +258,7 @@ export default function SettingsView() {
     if (updateUserProfile) {
       const res = await updateUserProfile(payload);
       if (res) {
+        setFormData((prev) => ({ ...prev, email: cleanEmail }));
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 3000);
       }

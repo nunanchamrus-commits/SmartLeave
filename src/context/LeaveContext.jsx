@@ -1755,28 +1755,32 @@ export function LeaveProvider({ children }) {
   // Update User Profile (Settings) - บันทึกลง Cloudflare D1 100%
   const updateUserProfile = async (updatedData) => {
     // 1. รวมข้อมูลที่แก้ไข พร้อมคำนวณชื่อเต็มไทย-อังกฤษให้สอดคล้องกันเสมอ
-    const prefix = updatedData.prefix !== undefined ? updatedData.prefix : currentUser.prefix;
-    const firstName = updatedData.firstName !== undefined ? updatedData.firstName : currentUser.firstName;
-    const lastName = updatedData.lastName !== undefined ? updatedData.lastName : currentUser.lastName;
+    const prefix = updatedData.prefix !== undefined ? updatedData.prefix : currentUser?.prefix;
+    const firstName = updatedData.firstName !== undefined ? updatedData.firstName : currentUser?.firstName;
+    const lastName = updatedData.lastName !== undefined ? updatedData.lastName : currentUser?.lastName;
     const computedThaiName = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
 
-    const prefixEn = updatedData.prefixEn !== undefined ? updatedData.prefixEn : currentUser.prefixEn;
-    const firstNameEn = updatedData.firstNameEn !== undefined ? updatedData.firstNameEn : currentUser.firstNameEn;
-    const lastNameEn = updatedData.lastNameEn !== undefined ? updatedData.lastNameEn : currentUser.lastNameEn;
+    const prefixEn = updatedData.prefixEn !== undefined ? updatedData.prefixEn : currentUser?.prefixEn;
+    const firstNameEn = updatedData.firstNameEn !== undefined ? updatedData.firstNameEn : currentUser?.firstNameEn;
+    const lastNameEn = updatedData.lastNameEn !== undefined ? updatedData.lastNameEn : currentUser?.lastNameEn;
     const computedEnName = [prefixEn, firstNameEn, lastNameEn].filter(Boolean).join(' ').trim();
+
+    const cleanNewEmail = (updatedData.email || currentUser?.email || '').trim().toLowerCase();
+    const oldEmail = (currentUser?.email || '').trim().toLowerCase();
 
     const updatedUser = {
       ...currentUser,
       ...updatedData,
+      email: cleanNewEmail,
       prefix: prefix || null,
       firstName: firstName || null,
       lastName: lastName || null,
-      name: computedThaiName || updatedData.name || currentUser.name,
+      name: computedThaiName || updatedData.name || currentUser?.name,
       prefixEn: prefixEn || null,
       firstNameEn: firstNameEn || null,
       lastNameEn: lastNameEn || null,
-      englishName: computedEnName || updatedData.englishName || currentUser.englishName,
-      gender: updatedData.gender || currentUser.gender || inferUserGender(updatedData),
+      englishName: computedEnName || updatedData.englishName || currentUser?.englishName,
+      gender: updatedData.gender || currentUser?.gender || inferUserGender(updatedData),
     };
 
     // 2. อัปเดต currentUser ใน State และ Session
@@ -1790,8 +1794,8 @@ export function LeaveProvider({ children }) {
         emp.id === updatedUser.id ||
         (emp.raw_id && updatedUser.raw_id && Number(emp.raw_id) === Number(updatedUser.raw_id)) ||
         (updatedUser.employeeId && emp.employeeId === updatedUser.employeeId) ||
-        (currentUser.email && emp.email?.toLowerCase() === currentUser.email?.toLowerCase()) ||
-        (updatedUser.email && emp.email?.toLowerCase() === updatedUser.email?.toLowerCase())
+        (oldEmail && emp.email?.toLowerCase() === oldEmail) ||
+        (cleanNewEmail && emp.email?.toLowerCase() === cleanNewEmail)
       ) {
         return {
           ...emp,
@@ -1807,7 +1811,7 @@ export function LeaveProvider({ children }) {
           title: updatedUser.title || emp.title,
           department: updatedUser.department || emp.department,
           employmentType: updatedUser.employmentType || emp.employmentType,
-          email: updatedUser.email || emp.email,
+          email: cleanNewEmail,
           phone: updatedUser.phone || emp.phone,
           avatar: updatedUser.avatar || emp.avatar,
         };
@@ -1816,15 +1820,41 @@ export function LeaveProvider({ children }) {
     });
     setEmployees(updatedEmployees);
 
-    // 4. อัปเดตคำขอลาเดิมให้แสดงชื่อและฝ่ายใหม่
+    // 4. อัปเดตรายชื่อใน DEFAULT_STAFF เพื่อให้ Fallback จำอีเมลใหม่ได้ทันที
+    const matchedStaff = DEFAULT_STAFF.find(
+      (s) =>
+        s.id === updatedUser.id ||
+        (s.raw_id && updatedUser.raw_id && Number(s.raw_id) === Number(updatedUser.raw_id)) ||
+        (updatedUser.employeeId && s.employeeId === updatedUser.employeeId) ||
+        (oldEmail && s.email?.toLowerCase() === oldEmail)
+    );
+    if (matchedStaff) {
+      matchedStaff.email = cleanNewEmail;
+      if (updatedUser.name) matchedStaff.name = updatedUser.name;
+      if (updatedUser.prefix) matchedStaff.prefix = updatedUser.prefix;
+      if (updatedUser.firstName) matchedStaff.firstName = updatedUser.firstName;
+      if (updatedUser.lastName) matchedStaff.lastName = updatedUser.lastName;
+      if (updatedUser.prefixEn) matchedStaff.prefixEn = updatedUser.prefixEn;
+      if (updatedUser.firstNameEn) matchedStaff.firstNameEn = updatedUser.firstNameEn;
+      if (updatedUser.lastNameEn) matchedStaff.lastNameEn = updatedUser.lastNameEn;
+      if (updatedUser.englishName) matchedStaff.englishName = updatedUser.englishName;
+      if (updatedUser.phone) matchedStaff.phone = updatedUser.phone;
+      if (updatedUser.department) matchedStaff.department = updatedUser.department;
+      if (updatedUser.title) matchedStaff.title = updatedUser.title;
+      if (updatedUser.avatar) matchedStaff.avatar = updatedUser.avatar;
+    }
+
+    // 5. อัปเดตคำขอลาเดิมให้แสดงชื่อ, ฝ่าย และอีเมลใหม่
     const updatedRequests = leaveRequests.map((r) => {
       if (
         r.employeeId === updatedUser.id ||
         r.employeeId === updatedUser.employeeId ||
-        (currentUser.name && r.employeeName === currentUser.name)
+        (oldEmail && r.employeeEmail?.toLowerCase() === oldEmail) ||
+        (currentUser?.name && r.employeeName === currentUser?.name)
       ) {
         return {
           ...r,
+          employeeEmail: cleanNewEmail || r.employeeEmail,
           employeeName: updatedUser.name || r.employeeName,
           department: updatedUser.department || r.department,
         };
@@ -1833,12 +1863,16 @@ export function LeaveProvider({ children }) {
     });
     setLeaveRequests(updatedRequests);
 
-    // 5. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1)
+    // 6. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1)
     try {
       if (api && api.updateProfile) {
         const updateRes = await api.updateProfile({
           ...updatedUser,
-          oldEmail: currentUser?.email,
+          oldEmail: oldEmail,
+          email: cleanNewEmail,
+          newEmail: cleanNewEmail,
+          raw_id: updatedUser.raw_id,
+          employeeId: updatedUser.employeeId,
         });
         if (updateRes && updateRes.success === false) {
           showToast(updateRes.message || 'ไม่สามารถแก้ไขข้อมูลส่วนตัวได้', 'error');
@@ -1848,6 +1882,19 @@ export function LeaveProvider({ children }) {
           localStorage.setItem('smartleave_user', JSON.stringify(currentUser));
           return null;
         }
+
+        // นำข้อมูลผู้ใช้สดจากผลลัพธ์ของฐานข้อมูล D1 มาผสานลงใน currentUser
+        if (updateRes && updateRes.user) {
+          const finalUser = {
+            ...updatedUser,
+            ...updateRes.user,
+            email: updateRes.user.email || cleanNewEmail,
+          };
+          setCurrentUser(finalUser);
+          sessionStorage.setItem('smartleave_user', JSON.stringify(finalUser));
+          localStorage.setItem('smartleave_user', JSON.stringify(finalUser));
+        }
+
         const fresh = await api.getEmployees();
         if (Array.isArray(fresh) && fresh.length > 0) {
           setEmployees(fresh.map(normalizeEmployeeQuotas));
@@ -1855,6 +1902,11 @@ export function LeaveProvider({ children }) {
       }
     } catch (e) {
       console.log('[LeaveContext Profile Sync Note]:', e.message);
+      showToast(e.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลส่วนตัว', 'error');
+      setCurrentUser(currentUser);
+      sessionStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+      localStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+      return null;
     }
 
     showToast('บันทึกข้อมูลส่วนบุคคลลง Cloudflare D1 เรียบร้อยแล้ว', 'success');
