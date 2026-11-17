@@ -2277,6 +2277,44 @@ export async function onRequest(context) {
 
       let results = [];
       if (isAdminRequest) {
+        // ซิงก์คำขอลาที่ยังรอการตรวจสอบลงในตาราง notifications อัตโนมัติ (หากยังไม่มีบันทึกไว้)
+        try {
+          await ensureTableColumns(env.DB, 'notifications', SCHEMA_COLUMNS.notifications).catch(() => { });
+          const pendingLeaves = await env.DB.prepare(`
+            SELECT lr.request_id, lr.request_no, lr.user_id, lr.start_date, lr.end_date, lr.total_days, lr.status, lr.review_stage, lr.created_at,
+                   u.prefix, u.first_name, u.last_name, lt.name_th as leave_type_name
+            FROM leave_requests lr
+            LEFT JOIN users u ON lr.user_id = u.user_id
+            LEFT JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+            WHERE lr.status IN ('pending', 'รออนุมัติ', 'อยู่ระหว่างตรวจสอบ', 'ยังไม่ยื่นเอกสาร')
+               OR lr.review_stage IN ('not_submitted', 'checking')
+            ORDER BY lr.created_at DESC
+            LIMIT 50
+          `).all().catch(() => ({ results: [] }));
+
+          for (const pl of (pendingLeaves.results || [])) {
+            const reqCode = pl.request_no || `REQ-${pl.request_id}`;
+            const empName = `${pl.prefix || ''}${pl.first_name || ''} ${pl.last_name || ''}`.trim() || 'เจ้าหน้าที่';
+            const typeName = pl.leave_type_name || 'การลา';
+            const existingNotif = await env.DB.prepare(`
+              SELECT notification_id FROM notifications 
+              WHERE description LIKE ? OR title LIKE ?
+              LIMIT 1
+            `).bind(`%${reqCode}%`, `%${reqCode}%`).first().catch(() => null);
+
+            if (!existingNotif) {
+              const notifTitle = `มีคำขอ${typeName}ใหม่จาก ${empName}`;
+              const notifDesc = `คำขอลา ${reqCode} วันที่ ${pl.start_date} ถึง ${pl.end_date} (${pl.total_days} วัน) รอการตรวจสอบ`;
+              await env.DB.prepare(`
+                INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
+                VALUES (?, ?, ?, 'pending', '/approver', 0, 'admin', COALESCE(?, datetime('now', '+7 hours')))
+              `).bind(pl.user_id || 1, notifTitle, notifDesc, pl.created_at).run().catch(() => { });
+            }
+          }
+        } catch (syncErr) {
+          console.log('[Admin Notif Sync Note]:', syncErr.message);
+        }
+
         // สำหรับหน้า Admin: แสดงรายการแจ้งเตือนคำขอลาที่ส่งเข้ามา
         const q = await env.DB.prepare(`
           SELECT notification_id as id, user_id as userId, title, description, type, link_url as linkUrl, is_read as isRead, target_role as targetRole, created_at as time
@@ -2350,7 +2388,7 @@ export async function onRequest(context) {
       const isAdminOrApprover = body.role === 'admin' || body.role === 'approver';
 
       if (isAdminOrApprover) {
-        await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE target_role IN ('admin', 'approver')").run().catch(() => { });
+        await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE target_role IN ('admin', 'approver') OR title LIKE '%มีคำขอ%'").run().catch(() => { });
         if (cleanId && /^\d+$/.test(cleanId)) {
           await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').bind(Number(cleanId)).run().catch(() => { });
         }
@@ -2486,14 +2524,16 @@ export async function onRequest(context) {
       ).run().catch(() => { });
 
       // 3. สร้างการแจ้งเตือนสำหรับ Admin / ผู้อนุมัติ ทันทีเมื่อมีคำขอส่งเข้ามา (+7 ชั่วโมง)
-      // บันทึกเพียง 1 รายการระดับกลุ่ม Admin (target_role = 'admin') เพื่อป้องกันการแจ้งเตือนซ้ำซ้อน
+      // บันทึกระดับกลุ่ม Admin (target_role = 'admin')
       const adminNotifTitle = `มีคำขอ${typeName ? ` (${typeName})` : ''}ใหม่จาก ${requesterName}`;
       const adminNotifDesc = `คำขอลา ${reqNo} วันที่ ${safeStart} ถึง ${safeEnd} (${safeDays} วัน) รอการตรวจสอบ`;
 
+      await ensureTableColumns(env.DB, 'notifications', SCHEMA_COLUMNS.notifications).catch(() => { });
+
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
-        VALUES (NULL, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
-      `).bind(adminNotifTitle, adminNotifDesc).run().catch(() => { });
+        VALUES (?, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
+      `).bind(userId || 1, adminNotifTitle, adminNotifDesc).run().catch(() => { });
 
       return jsonResponse({
         success: true,
@@ -2762,6 +2802,14 @@ export async function onRequest(context) {
 
       await createLeaveStatusNotification(env.DB, reqInfo, 'อนุมัติ', remarkText);
 
+      // ทำเครื่องหมายแจ้งเตือนคำขอนี้ในฝั่ง Admin เป็นอ่านแล้วอัตโนมัติ
+      const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
+      await env.DB.prepare(`
+        UPDATE notifications SET is_read = 1
+        WHERE (target_role IN ('admin', 'approver') OR title LIKE '%มีคำขอ%')
+          AND description LIKE ?
+      `).bind(`%${reqCode}%`).run().catch(() => { });
+
       return jsonResponse({
         success: true,
         requestId: reqInfo.request_id,
@@ -2804,6 +2852,14 @@ export async function onRequest(context) {
       }
 
       await createLeaveStatusNotification(env.DB, reqInfo, 'ไม่อนุมัติ', remarkText);
+
+      // ทำเครื่องหมายแจ้งเตือนคำขอนี้ในฝั่ง Admin เป็นอ่านแล้วอัตโนมัติ
+      const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
+      await env.DB.prepare(`
+        UPDATE notifications SET is_read = 1
+        WHERE (target_role IN ('admin', 'approver') OR title LIKE '%มีคำขอ%')
+          AND description LIKE ?
+      `).bind(`%${reqCode}%`).run().catch(() => { });
 
       return jsonResponse({
         success: true,

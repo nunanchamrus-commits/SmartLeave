@@ -334,23 +334,42 @@ export function formatThaiDateTime(inputDate = new Date()) {
 function doesNotificationBelongToUser(notif, user) {
   if (!notif || !user) return false;
 
-  const isAdminUser = user.role === 'admin' || user.role === 'approver';
+  const isAdminUser =
+    user.role === 'admin' ||
+    user.role === 'approver' ||
+    user.role_id === 1 ||
+    user.role_id === 3 ||
+    user.employeeId === 'ADM-001' ||
+    user.id === 'usr-1' ||
+    user.email === 'admin@smartleave.com';
 
-  // 1. สำหรับ Admin: ให้ขึ้นเฉพาะการแจ้งเตือนที่มีคำขอลาเข้ามาเท่านั้น 100%
+  // 1. สำหรับ Admin / ผู้อนุมัติ: ให้ขึ้นเฉพาะการแจ้งเตือนที่มีคำขอลาเข้ามาเท่านั้น 100%
   if (isAdminUser) {
     const isIncomingRequest =
       notif.forAdmin === true ||
       notif.targetRole === 'admin' ||
       notif.targetRole === 'approver' ||
+      notif.target_role === 'admin' ||
+      notif.target_role === 'approver' ||
       notif.title?.includes('มีคำขอ') ||
       notif.linkUrl === '/approver' ||
+      notif.link_url === '/approver' ||
       (notif.type === 'pending' && (notif.description?.includes('รอการตรวจสอบ') || notif.title?.includes('คำขอ')));
 
     return Boolean(isIncomingRequest);
   }
 
   // 2. สำหรับ User ทั่วไป: ให้ขึ้นเฉพาะการแจ้งเตือนของตนเอง (ไม่แสดงแจ้งเตือนรับคำขอของ Admin)
-  if (notif.forAdmin || notif.targetRole === 'admin' || notif.targetRole === 'approver' || notif.title?.includes('มีคำขอ')) {
+  if (
+    notif.forAdmin === true ||
+    notif.targetRole === 'admin' ||
+    notif.targetRole === 'approver' ||
+    notif.target_role === 'admin' ||
+    notif.target_role === 'approver' ||
+    notif.title?.includes('มีคำขอ') ||
+    notif.linkUrl === '/approver' ||
+    notif.link_url === '/approver'
+  ) {
     return false;
   }
 
@@ -378,12 +397,24 @@ function doesNotificationBelongToUser(notif, user) {
 
 function normalizeNotificationItem(notif) {
   if (!notif) return notif;
-  const isRead = Boolean(notif.read || notif.isRead);
+  const isRead =
+    notif.read === true ||
+    notif.read === 1 ||
+    notif.read === '1' ||
+    notif.read === 'true' ||
+    notif.isRead === true ||
+    notif.isRead === 1 ||
+    notif.isRead === '1' ||
+    notif.isRead === 'true' ||
+    notif.is_read === true ||
+    notif.is_read === 1 ||
+    notif.is_read === '1' ||
+    notif.is_read === 'true';
 
   // ปรับให้วันเวลาแสดงเป็นวันเวลาจริงตามรูปแบบไทย
   let normalizedTime = notif.time;
   if (!normalizedTime || normalizedTime === 'เมื่อสักครู่') {
-    normalizedTime = formatThaiDateTime(notif.createdAt || notif.timestamp || new Date());
+    normalizedTime = formatThaiDateTime(notif.createdAt || notif.timestamp || notif.created_at || new Date());
   } else if (normalizedTime === '10 นาทีที่แล้ว') {
     normalizedTime = '15 พ.ย. 2569 เวลา 14:30 น.';
   } else if (normalizedTime === '2 ชั่วโมงที่แล้ว') {
@@ -398,6 +429,8 @@ function normalizeNotificationItem(notif) {
 
   return {
     ...notif,
+    targetRole: notif.targetRole || notif.target_role || (notif.forAdmin ? 'admin' : undefined),
+    linkUrl: notif.linkUrl || notif.link_url,
     description: notif.description ? notif.description.replace(/2568/g, '2569') : notif.description,
     time: normalizedTime,
     read: isRead,
@@ -804,9 +837,14 @@ export function LeaveProvider({ children }) {
               (e.email && activeUser.email && e.email.toLowerCase() === activeUser.email.toLowerCase())
           );
           if (freshUser) {
+            const preservedRole =
+              activeUser.role === 'approver' || activeUser.role === 'admin'
+                ? activeUser.role
+                : (freshUser.role || activeUser.role);
             matchedActiveUser = {
               ...activeUser,
               ...freshUser,
+              role: preservedRole,
               gender: freshUser.gender || activeUser.gender,
             };
             const changed =
@@ -815,7 +853,6 @@ export function LeaveProvider({ children }) {
               activeUser.name !== matchedActiveUser.name ||
               activeUser.title !== matchedActiveUser.title ||
               activeUser.department !== matchedActiveUser.department ||
-              activeUser.role !== matchedActiveUser.role ||
               activeUser.phone !== matchedActiveUser.phone ||
               activeUser.vacationRem !== matchedActiveUser.vacationRem ||
               activeUser.personalRem !== matchedActiveUser.personalRem ||
@@ -825,7 +862,8 @@ export function LeaveProvider({ children }) {
               setCurrentUser((prev) => ({
                 ...prev,
                 ...freshUser,
-                gender: freshUser.gender || prev.gender,
+                role: (prev?.role === 'approver' || prev?.role === 'admin') ? prev.role : (freshUser.role || prev?.role),
+                gender: freshUser.gender || prev?.gender,
               }));
             }
           }
@@ -894,15 +932,32 @@ export function LeaveProvider({ children }) {
         const notifData = await api.getNotifications(matchedActiveUser);
         if (isStaleSync()) return;
         if (Array.isArray(notifData)) {
-          setNotifications(
-            notifData.map((item) => {
+          setNotifications((prev) => {
+            const serverNotifs = notifData.map((item) => {
               const normalized = normalizeNotificationItem(item);
               if (readNotificationIdsRef.current.has(String(normalized.id))) {
                 return { ...normalized, read: true, isRead: 1 };
               }
               return normalized;
-            })
-          );
+            });
+
+            // ป้องกันการแจ้งเตือน Admin สูญหายเมื่ออยู่ในโหมด User และสลับบทบาท
+            const isApproverOrAdmin =
+              matchedActiveUser?.role === 'approver' ||
+              matchedActiveUser?.role === 'admin' ||
+              matchedActiveUser?.employeeId === 'ADM-001';
+
+            if (!isApproverOrAdmin) {
+              const preservedAdminNotifs = prev.filter(
+                (n) =>
+                  (n.forAdmin || n.targetRole === 'admin' || n.targetRole === 'approver' || n.title?.includes('มีคำขอ')) &&
+                  !serverNotifs.some((sn) => String(sn.id) === String(n.id))
+              );
+              return [...preservedAdminNotifs, ...serverNotifs];
+            }
+
+            return serverNotifs;
+          });
         }
       }
     } catch (err) {
@@ -1056,6 +1111,9 @@ export function LeaveProvider({ children }) {
       localStorage.setItem('smartleave_user', JSON.stringify(nextUser));
       syncLeaveBaselineForUser(leaveRequests, nextUser);
       recalculateQuotas(leaveRequests, employees, true, nextUser);
+      setTimeout(() => {
+        fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      }, 50);
       return nextUser;
     });
   };
@@ -2243,9 +2301,23 @@ export function LeaveProvider({ children }) {
     if (!currentUser) return [];
     const list = notifications.filter((notif) => doesNotificationBelongToUser(notif, currentUser));
 
+    // เรียงให้อันที่ยังไม่อ่านอยู่ข้างบน และตามด้วยรายการล่าสุด
+    const sortedList = [...list].sort((a, b) => {
+      const aIsRead =
+        a.read === true || a.read === 1 || a.read === '1' || a.read === 'true' ||
+        a.isRead === true || a.isRead === 1 || a.isRead === '1' || a.isRead === 'true' ||
+        a.is_read === true || a.is_read === 1 || a.is_read === '1' || a.is_read === 'true';
+      const bIsRead =
+        b.read === true || b.read === 1 || b.read === '1' || b.read === 'true' ||
+        b.isRead === true || b.isRead === 1 || b.isRead === '1' || b.isRead === 'true' ||
+        b.is_read === true || b.is_read === 1 || b.is_read === '1' || b.is_read === 'true';
+      if (aIsRead !== bIsRead) return aIsRead ? 1 : -1;
+      return 0;
+    });
+
     // กรองการแจ้งเตือนที่ซ้ำซ้อน ไม่ให้แสดงรายการเดิมซ้ำ 2 รอบ
     const seen = new Set();
-    return list.filter((n) => {
+    return sortedList.filter((n) => {
       const idKey = n.id ? String(n.id) : null;
       const contentKey = `${(n.title || '').trim()}:::${(n.description || '').trim()}`;
       if (idKey && seen.has(`id:${idKey}`)) return false;
@@ -2257,7 +2329,22 @@ export function LeaveProvider({ children }) {
   }, [notifications, currentUser]);
 
   const unreadCount = useMemo(() => {
-    return userNotifications.filter((n) => !n.read && !n.isRead).length;
+    return userNotifications.filter((n) => {
+      const isRead =
+        n.read === true ||
+        n.read === 1 ||
+        n.read === '1' ||
+        n.read === 'true' ||
+        n.isRead === true ||
+        n.isRead === 1 ||
+        n.isRead === '1' ||
+        n.isRead === 'true' ||
+        n.is_read === true ||
+        n.is_read === 1 ||
+        n.is_read === '1' ||
+        n.is_read === 'true';
+      return !isRead;
+    }).length;
   }, [userNotifications]);
 
   return (

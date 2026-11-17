@@ -158,7 +158,19 @@ export default function Header({ onMenuClick }) {
                   </div>
                 ) : (
                   notifications.map((notif) => {
-                    const isRead = Boolean(notif.read || notif.isRead);
+                    const isRead =
+                      notif.read === true ||
+                      notif.read === 1 ||
+                      notif.read === '1' ||
+                      notif.read === 'true' ||
+                      notif.isRead === true ||
+                      notif.isRead === 1 ||
+                      notif.isRead === '1' ||
+                      notif.isRead === 'true' ||
+                      notif.is_read === true ||
+                      notif.is_read === 1 ||
+                      notif.is_read === '1' ||
+                      notif.is_read === 'true';
                     return (
                     <div
                       key={notif.id}
