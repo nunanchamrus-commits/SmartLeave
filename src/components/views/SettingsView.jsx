@@ -315,7 +315,7 @@ export default function SettingsView() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl font-prompt pb-12">
+    <div className="space-y-6 w-full font-prompt pb-12">
       {/* Page Header */}
       <div>
         <div className="flex items-center space-x-2">
