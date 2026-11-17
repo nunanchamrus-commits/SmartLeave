@@ -872,65 +872,35 @@ async function seedMasterData(db) {
     db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (4, 'maternity', 'ลาคลอดบุตร', 'Maternity Leave', 90.00, 1, 1, 15, '#ec4899')"),
     db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (5, 'ordination', 'ลาอุปสมบท / ประกอบพิธีทางศาสนา', 'Religious / Ordination Leave', 15.00, 1, 1, 30, '#8b5cf6')"),
     db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (6, 'military', 'ลารับราชการทหาร', 'Military Service Leave', 60.00, 1, 1, 15, '#64748b')"),
-    // สร้างบัญชีเจ้าหน้าที่เริ่มต้นในสำนักงานสหกรณ์จังหวัดขอนแก่น
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (1, 'ADM-001', 'admin@smartleave.com', '12345678', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'Mr.', 'System', 'Administrator', 'Mr. System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (2, 'EMP-001', 'panika.t@smartleave.com', '12345678', 'นางสาว', 'พนิกา', 'ธรรมเมือง', 'Ms.', 'Panika', 'Thammoeang', 'Ms. Panika Thammoeang', 'หญิง', 'ข้าราชการ', '081-234-5678', 6, 4, 'นักวิชาการสหกรณ์ปฏิบัติการ', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (3, 'MGR-002', 'somchai.m@smartleave.com', '12345678', 'นาย', 'สมชาย', 'มั่นคง', 'Mr.', 'Somchai', 'Mankhong', 'Mr. Somchai Mankhong', 'ชาย', 'ข้าราชการ', '089-876-5432', 1, 3, 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (4, 'EMP-003', 'nichaphat.w@smartleave.com', '12345678', 'นางสาว', 'ณิชาภัทร', 'วงศ์ษา', 'Ms.', 'Nichaphat', 'Wongsa', 'Ms. Nichaphat Wongsa', 'หญิง', 'ข้าราชการ', '086-111-2233', 7, 4, 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', '12345678', 'นาย', 'อัครพล', 'เจริญผล', 'Mr.', 'Akarapol', 'Charoenphon', 'Mr. Akarapol Charoenphon', 'ชาย', 'พนักงานราชการ', '082-333-4455', 8, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '12345678', 'นางสาว', 'สุดา', 'ใจดี', 'Ms.', 'Suda', 'Jaidee', 'Ms. Suda Jaidee', 'หญิง', 'ลูกจ้างประจำ', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-
-    // กำหนดโควตาวันลาเริ่มต้นประจำปี 2026
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (1, 1, 2026, 10.0, 0.0, 10.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (1, 2, 2026, 60.0, 0.0, 60.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (1, 3, 2026, 45.0, 0.0, 45.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (1, 4, 2026, 0.0, 0.0, 0.0)"),
-
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (2, 1, 2026, 10.0, 0.0, 10.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (2, 2, 2026, 60.0, 0.0, 60.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (2, 3, 2026, 45.0, 0.0, 45.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (2, 4, 2026, 90.0, 0.0, 90.0)"),
-
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (3, 1, 2026, 10.0, 0.0, 10.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (3, 2, 2026, 60.0, 0.0, 60.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (3, 3, 2026, 45.0, 0.0, 45.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (3, 4, 2026, 0.0, 0.0, 0.0)"),
-
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (4, 1, 2026, 10.0, 0.0, 10.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (4, 2, 2026, 60.0, 0.0, 60.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (4, 3, 2026, 45.0, 0.0, 45.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (4, 4, 2026, 90.0, 0.0, 90.0)"),
-
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (5, 1, 2026, 10.0, 0.0, 10.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (5, 2, 2026, 999.0, 0.0, 999.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (5, 3, 2026, 10.0, 0.0, 10.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (5, 4, 2026, 0.0, 0.0, 0.0)"),
-
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (6, 1, 2026, 10.0, 0.0, 10.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (6, 2, 2026, 60.0, 0.0, 60.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (6, 3, 2026, 45.0, 0.0, 45.0)"),
-    db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (6, 4, 2026, 90.0, 0.0, 90.0)"),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (2, 'EMP-001', 'panika.t@smartleave.com', '12345678', 'นางสาว', 'พนิกา', 'ธรรมเมือง', 'Ms.', 'Panika', 'Thammoeang', 'Ms. Panika Thammoeang', 'หญิง', 'ข้าราชการ', '081-234-5678', 6, 4, 'นักวิชาการสหกรณ์ปฏิบัติการ', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (3, 'MGR-002', 'somchai.m@smartleave.com', '12345678', 'นาย', 'สมชาย', 'มั่นคง', 'Mr.', 'Somchai', 'Mankhong', 'Mr. Somchai Mankhong', 'ชาย', 'ข้าราชการ', '089-876-5432', 1, 3, 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (4, 'EMP-003', 'nichaphat.w@smartleave.com', '12345678', 'นางสาว', 'ณิชาภัทร', 'วงศ์ษา', 'Ms.', 'Nichaphat', 'Wongsa', 'Ms. Nichaphat Wongsa', 'หญิง', 'ข้าราชการ', '086-111-2233', 4, 4, 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', '12345678', 'นาย', 'อัครพล', 'เจริญผล', 'Mr.', 'Akarapol', 'Charoenphon', 'Mr. Akarapol Charoenphon', 'ชาย', 'พนักงานราชการ', '082-333-4455', 5, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-      VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '12345678', 'นางสาว', 'สุดา', 'ใจดี', 'Ms.', 'Suda', 'Jaidee', 'Ms. Suda Jaidee', 'หญิง', 'ลูกจ้างประจำ', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
-    // ซิงก์สิทธิ์ของบุคลากรหลักให้ถูกต้องเสมอ
-    db.prepare("UPDATE users SET role_id = 1 WHERE user_id = 1 OR employee_code = 'ADM-001'"),
-    db.prepare("UPDATE users SET role_id = 4 WHERE user_id IN (2, 4, 5, 6) OR employee_code IN ('EMP-001', 'EMP-003', 'EMP-004', 'EMP-005')"),
-    db.prepare("UPDATE users SET role_id = 3 WHERE user_id = 3 OR employee_code = 'MGR-002'"),
   ]).catch(() => { });
+
+  // 2. นำเข้าบัญชีผู้ดูแลระบบตั้งต้น (เฉพาะกรณีที่ในระบบยังไม่มี Admin ใดๆ เลยเท่านั้น)
+  // หากมีบัญชี Admin อื่นสมัครเข้ามาแล้ว บัญชีแอดมินตั้งต้นนี้จะสามารถถูกลบออกได้และไม่ถูกสร้างซ้ำ
+  try {
+    const existingAdmin = await db.prepare(
+      "SELECT user_id FROM users WHERE (role_id = 1 OR role_id = 3) AND is_active = 1 LIMIT 1"
+    ).first().catch(() => null);
+
+    const anyUser = await db.prepare(
+      "SELECT user_id FROM users LIMIT 1"
+    ).first().catch(() => null);
+
+    if (!existingAdmin && !anyUser) {
+      await db.prepare(`
+        INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
+        VALUES (1, 'ADM-001', 'admin@smartleave.com', '12345678', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'Mr.', 'System', 'Administrator', 'Mr. System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)
+      `).run().catch(() => { });
+
+      await db.batch([
+        db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (1, 1, 2026, 10.0, 0.0, 10.0)"),
+        db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (1, 2, 2026, 60.0, 0.0, 60.0)"),
+        db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (1, 3, 2026, 45.0, 0.0, 45.0)"),
+        db.prepare("INSERT OR IGNORE INTO employee_leave_quotas (user_id, leave_type_id, fiscal_year, total_quota, used_days, remaining_days) VALUES (1, 4, 2026, 0.0, 0.0, 0.0)"),
+      ]).catch(() => { });
+    }
+  } catch (seedErr) {
+    console.log('[Seed Admin Note]:', seedErr.message);
+  }
 }
 
 // Export สำหรับ Cloudflare Workers (Worker Fetch Event)
@@ -1149,65 +1119,6 @@ export async function onRequest(context) {
             WHERE u.employee_code = 'ADM-001' OR u.user_id = 1
             LIMIT 1
           `).first().catch(() => null);
-        }
-      }
-
-      // หากยังไม่พบในตาราง users ให้ตรวจสอบกับรายชื่อบุคลากรตั้งต้น และแทรกลง D1 ทันที
-      if (!user) {
-        const defaultStaffList = [
-          { user_id: 1, employee_code: 'ADM-001', email: 'admin@smartleave.com', prefix: 'นาย', first_name: 'ผู้ดูแลระบบ', last_name: 'ส่วนกลาง', prefix_en: 'Mr.', first_name_en: 'System', last_name_en: 'Administrator', english_name: 'Mr. System Administrator', gender: 'ชาย', employment_type: 'ข้าราชการ', phone: '02-000-0000', department_id: 1, role_id: 1, position: 'System Administrator', avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 2, employee_code: 'EMP-001', email: 'panika.t@smartleave.com', prefix: 'นางสาว', first_name: 'พนิกา', last_name: 'ธรรมเมือง', prefix_en: 'Ms.', first_name_en: 'Panika', last_name_en: 'Thammoeang', english_name: 'Ms. Panika Thammoeang', gender: 'หญิง', employment_type: 'ข้าราชการ', phone: '081-234-5678', department_id: 6, role_id: 4, position: 'นักวิชาการสหกรณ์ปฏิบัติการ', avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 3, employee_code: 'MGR-002', email: 'somchai.m@smartleave.com', prefix: 'นาย', first_name: 'สมชาย', last_name: 'มั่นคง', prefix_en: 'Mr.', first_name_en: 'Somchai', last_name_en: 'Mankhong', english_name: 'Mr. Somchai Mankhong', gender: 'ชาย', employment_type: 'ข้าราชการ', phone: '089-876-5432', department_id: 1, role_id: 3, position: 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 4, employee_code: 'EMP-003', email: 'nichaphat.w@smartleave.com', prefix: 'นางสาว', first_name: 'ณิชาภัทร', last_name: 'วงศ์ษา', prefix_en: 'Ms.', first_name_en: 'Nichaphat', last_name_en: 'Wongsa', english_name: 'Ms. Nichaphat Wongsa', gender: 'หญิง', employment_type: 'ข้าราชการ', phone: '086-111-2233', department_id: 4, role_id: 4, position: 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 5, employee_code: 'EMP-004', email: 'akarapol.c@smartleave.com', prefix: 'นาย', first_name: 'อัครพล', last_name: 'เจริญผล', prefix_en: 'Mr.', first_name_en: 'Akarapol', last_name_en: 'Charoenphon', english_name: 'Mr. Akarapol Charoenphon', gender: 'ชาย', employment_type: 'พนักงานราชการ', phone: '082-333-4455', department_id: 5, role_id: 4, position: 'นักวิชาการมาตรฐานสหกรณ์', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 6, employee_code: 'EMP-005', email: 'suda.j@smartleave.com', prefix: 'นางสาว', first_name: 'สุดา', last_name: 'ใจดี', prefix_en: 'Ms.', first_name_en: 'Suda', last_name_en: 'Jaidee', english_name: 'Ms. Suda Jaidee', gender: 'หญิง', employment_type: 'ลูกจ้างประจำ', phone: '084-555-6677', department_id: 1, role_id: 4, position: 'เจ้าหน้าที่ธุรการและสารบรรณ', avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80' },
-        ];
-
-        const matchedStaff = defaultStaffList.find((s) => {
-          const sEn = (s.english_name || '').toLowerCase().replace(/^(mr\.|mrs\.|ms\.|miss)\s+/i, '').trim();
-          const sFirst = (s.first_name_en || '').toLowerCase().trim();
-          const sLast = (s.last_name_en || '').toLowerCase().trim();
-          return (
-            sEn === cleanInput.toLowerCase() ||
-            `${sFirst} ${sLast}` === cleanInput.toLowerCase() ||
-            sFirst === cleanInput.toLowerCase() ||
-            s.email.toLowerCase() === rawInput.toLowerCase() ||
-            s.employee_code.toLowerCase() === rawInput.toLowerCase()
-          );
-        });
-
-        if (matchedStaff) {
-          await env.DB.prepare(`
-            INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-            VALUES (?, ?, ?, '12345678', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-          `).bind(
-            matchedStaff.user_id,
-            matchedStaff.employee_code,
-            matchedStaff.email,
-            matchedStaff.prefix,
-            matchedStaff.first_name,
-            matchedStaff.last_name,
-            matchedStaff.prefix_en,
-            matchedStaff.first_name_en,
-            matchedStaff.last_name_en,
-            matchedStaff.english_name,
-            matchedStaff.gender,
-            matchedStaff.employment_type,
-            matchedStaff.phone,
-            matchedStaff.department_id,
-            matchedStaff.role_id,
-            matchedStaff.position,
-            matchedStaff.avatar_url
-          ).run().catch(() => { });
-
-          user = await env.DB.prepare(`
-            SELECT u.*, d.name_th as department_name, r.code as role_code
-            FROM users u
-            LEFT JOIN departments d ON u.department_id = d.department_id
-            LEFT JOIN roles r ON u.role_id = r.role_id
-            WHERE u.user_id = ?
-            LIMIT 1
-          `).bind(matchedStaff.user_id).first().catch(() => null);
         }
       }
 
@@ -1642,11 +1553,15 @@ export async function onRequest(context) {
       // ตรวจสอบและเพิ่มคอลัมน์ใหม่ใน users อัตโนมัติ (Dynamic Migration)
       await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
+      const finalRoleId = (body.role === 'admin' || body.role === 'SYSTEM_ADMIN' || body.roleId === 1 || body.role_id === 1)
+        ? 1
+        : ((body.role === 'approver' || body.role === 'APPROVER' || body.roleId === 3 || body.role_id === 3) ? 3 : 4);
+
       let insert;
       try {
         insert = await env.DB.prepare(`
           INSERT INTO users (employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, role_id, department_id, position, avatar_url, is_active)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, 1)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         `).bind(
           finalEmpCode,
           regEmail,
@@ -1661,6 +1576,7 @@ export async function onRequest(context) {
           userGender,
           empType,
           phone || '081-999-8888',
+          finalRoleId,
           deptId,
           jobPosition,
           avatarUrl
@@ -1736,9 +1652,9 @@ export async function onRequest(context) {
           lr.request_no,
           lr.user_id,
           lr.user_id as userId,
-          u.employee_code as employeeId,
-          u.email as employeeEmail,
-          ((CASE WHEN u.prefix IS NOT NULL AND u.prefix != '' THEN u.prefix ELSE '' END) || u.first_name || ' ' || u.last_name) as employeeName,
+          COALESCE(u.employee_code, ('USR-' || lr.user_id)) as employeeId,
+          COALESCE(u.email, '') as employeeEmail,
+          COALESCE(((CASE WHEN u.prefix IS NOT NULL AND u.prefix != '' THEN u.prefix ELSE '' END) || u.first_name || ' ' || u.last_name), ('ผู้ใช้งานรหัส #' || lr.user_id)) as employeeName,
           COALESCE(d.name_th, 'สำนักงานสหกรณ์จังหวัดขอนแก่น') as department,
           lt.name_th as type,
           lt.code as typeKey,
@@ -1759,7 +1675,7 @@ export async function onRequest(context) {
           COALESCE(lr.approved_at, '') as approvedDate,
           lr.created_at as appliedDate
         FROM leave_requests lr
-        JOIN users u ON lr.user_id = u.user_id
+        LEFT JOIN users u ON lr.user_id = u.user_id
         JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
         LEFT JOIN departments d ON u.department_id = d.department_id
         LEFT JOIN users sub ON lr.substitute_user_id = sub.user_id
@@ -2138,18 +2054,41 @@ export async function onRequest(context) {
 
       let user = null;
       if (/^\d+$/.test(cleanId)) {
-        user = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
+        user = await env.DB.prepare('SELECT user_id, role_id, employee_code, email FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
       }
       if (!user) {
-        user = await env.DB.prepare('SELECT user_id FROM users WHERE employee_code = ? OR LOWER(email) = LOWER(?)').bind(empIdStr, empIdStr).first().catch(() => null);
+        user = await env.DB.prepare('SELECT user_id, role_id, employee_code, email FROM users WHERE employee_code = ? OR LOWER(email) = LOWER(?)').bind(empIdStr, empIdStr).first().catch(() => null);
       }
 
-      if (user) {
-        await env.DB.prepare('UPDATE users SET is_active = 0, updated_at = datetime("now", "localtime") WHERE user_id = ?')
-          .bind(user.user_id).run();
+      if (!user) {
+        return jsonResponse({ success: false, message: 'ไม่พบข้อมูลผู้ใช้งานที่ต้องการลบในระบบ Cloudflare D1' }, 404);
       }
 
-      return jsonResponse({ success: true, message: 'ลบ/ระงับการใช้งานพนักงานใน Cloudflare D1 เรียบร้อยแล้ว' });
+      // ตรวจสอบเงื่อนไขการลบบัญชีผู้ดูแลระบบ (Admin)
+      const isAdminTarget = user.role_id === 1 || user.employee_code === 'ADM-001';
+      if (isAdminTarget) {
+        // ตรวจสอบว่ามีบัญชีผู้ดูแลระบบ (Admin) อื่นที่ยังคงเปิดใช้งานอยู่ในระบบหรือไม่
+        const otherAdmin = await env.DB.prepare(
+          'SELECT user_id FROM users WHERE (role_id = 1 OR role_id = 3) AND is_active = 1 AND user_id != ? LIMIT 1'
+        ).bind(user.user_id).first().catch(() => null);
+
+        if (!otherAdmin) {
+          return jsonResponse({
+            success: false,
+            message: 'ไม่สามารถลบบัญชีผู้ดูแลระบบ (Admin) คนเดียวในระบบได้ กรุณาสร้างหรือแต่งตั้งบัญชีผู้ดูแลระบบอื่นก่อนดำเนินการ',
+          }, 400);
+        }
+      }
+
+      // ลบข้อมูลผู้ใช้งานจริงออกจากระบบฐานข้อมูล Cloudflare D1 (โควตา, แจ้งเตือน, คำขอลา และบัญชีผู้ใช้)
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM employee_leave_quotas WHERE user_id = ?').bind(user.user_id),
+        env.DB.prepare('DELETE FROM notifications WHERE user_id = ?').bind(user.user_id),
+        env.DB.prepare('DELETE FROM leave_requests WHERE user_id = ?').bind(user.user_id),
+        env.DB.prepare('DELETE FROM users WHERE user_id = ?').bind(user.user_id),
+      ]);
+
+      return jsonResponse({ success: true, message: 'ลบข้อมูลผู้ใช้งานออกจากฐานข้อมูล Cloudflare D1 เรียบร้อยแล้ว' });
     }
 
     // -------------------------------------------------------------
@@ -3045,53 +2984,6 @@ export async function onRequest(context) {
         }
         if (tokenUid) {
           user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(tokenUid).first().catch(() => null);
-        }
-      }
-
-      // 4. กรณีผู้ใช้งานเป็นบุคลากรตั้งต้นแต่ยังไม่ถูกบันทึกลง D1 ให้แทรกเข้า D1 ทันที
-      if (!user) {
-        const defaultStaffList = [
-          { user_id: 1, employee_code: 'ADM-001', email: 'admin@smartleave.com', prefix: 'นาย', first_name: 'ผู้ดูแลระบบ', last_name: 'ส่วนกลาง', prefix_en: 'Mr.', first_name_en: 'System', last_name_en: 'Administrator', english_name: 'Mr. System Administrator', gender: 'ชาย', employment_type: 'ข้าราชการ', phone: '02-000-0000', department_id: 1, role_id: 1, position: 'System Administrator', avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 2, employee_code: 'EMP-001', email: 'panika.t@smartleave.com', prefix: 'นางสาว', first_name: 'พนิกา', last_name: 'ธรรมเมือง', prefix_en: 'Ms.', first_name_en: 'Panika', last_name_en: 'Thammoeang', english_name: 'Ms. Panika Thammoeang', gender: 'หญิง', employment_type: 'ข้าราชการ', phone: '081-234-5678', department_id: 6, role_id: 4, position: 'นักวิชาการสหกรณ์ปฏิบัติการ', avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 3, employee_code: 'MGR-002', email: 'somchai.m@smartleave.com', prefix: 'นาย', first_name: 'สมชาย', last_name: 'มั่นคง', prefix_en: 'Mr.', first_name_en: 'Somchai', last_name_en: 'Mankhong', english_name: 'Mr. Somchai Mankhong', gender: 'ชาย', employment_type: 'ข้าราชการ', phone: '089-876-5432', department_id: 1, role_id: 3, position: 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ', avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 4, employee_code: 'EMP-003', email: 'nichaphat.w@smartleave.com', prefix: 'นางสาว', first_name: 'ณิชาภัทร', last_name: 'วงศ์ษา', prefix_en: 'Ms.', first_name_en: 'Nichaphat', last_name_en: 'Wongsa', english_name: 'Ms. Nichaphat Wongsa', gender: 'หญิง', employment_type: 'ข้าราชการ', phone: '086-111-2233', department_id: 4, role_id: 4, position: 'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน', avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 5, employee_code: 'EMP-004', email: 'akarapol.c@smartleave.com', prefix: 'นาย', first_name: 'อัครพล', last_name: 'เจริญผล', prefix_en: 'Mr.', first_name_en: 'Akarapol', last_name_en: 'Charoenphon', english_name: 'Mr. Akarapol Charoenphon', gender: 'ชาย', employment_type: 'พนักงานราชการ', phone: '082-333-4455', department_id: 5, role_id: 4, position: 'นักวิชาการมาตรฐานสหกรณ์', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80' },
-          { user_id: 6, employee_code: 'EMP-005', email: 'suda.j@smartleave.com', prefix: 'นางสาว', first_name: 'สุดา', last_name: 'ใจดี', prefix_en: 'Ms.', first_name_en: 'Suda', last_name_en: 'Jaidee', english_name: 'Ms. Suda Jaidee', gender: 'หญิง', employment_type: 'ลูกจ้างประจำ', phone: '084-555-6677', department_id: 1, role_id: 4, position: 'เจ้าหน้าที่ธุรการและสารบรรณ', avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80' },
-        ];
-        const cleanOld = (body.oldEmail ? String(body.oldEmail).trim().toLowerCase() : '');
-        const cleanEmailParam = (email ? String(email).trim().toLowerCase() : '');
-        const cleanEmpId = (employeeId ? String(employeeId).trim().toLowerCase() : '');
-        const matchedStaff = defaultStaffList.find((s) =>
-          (tokenUid && s.user_id === tokenUid) ||
-          (validUid && s.user_id === validUid) ||
-          (cleanOld && s.email.toLowerCase() === cleanOld) ||
-          (cleanEmailParam && s.email.toLowerCase() === cleanEmailParam) ||
-          (cleanEmpId && s.employee_code.toLowerCase() === cleanEmpId)
-        );
-        if (matchedStaff) {
-          await env.DB.prepare(`
-            INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-            VALUES (?, ?, ?, '12345678', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-          `).bind(
-            matchedStaff.user_id,
-            matchedStaff.employee_code,
-            matchedStaff.email,
-            matchedStaff.prefix,
-            matchedStaff.first_name,
-            matchedStaff.last_name,
-            matchedStaff.prefix_en,
-            matchedStaff.first_name_en,
-            matchedStaff.last_name_en,
-            matchedStaff.english_name,
-            matchedStaff.gender,
-            matchedStaff.employment_type,
-            matchedStaff.phone,
-            matchedStaff.department_id,
-            matchedStaff.role_id,
-            matchedStaff.position,
-            matchedStaff.avatar_url
-          ).run().catch(() => { });
-          user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(matchedStaff.user_id).first().catch(() => null);
         }
       }
 
