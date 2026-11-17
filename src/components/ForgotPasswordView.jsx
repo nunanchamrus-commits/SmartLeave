@@ -321,9 +321,9 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                 <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <span className="font-medium">{error}</span>
-                  {error.includes('RESEND_API_KEY') && (
+                  {(error.includes('GOOGLE_SCRIPT_URL') || error.includes('RESEND_API_KEY')) && (
                     <p className="mt-1.5 text-[11px] text-red-700/80 leading-relaxed bg-red-100/50 p-2 rounded-xl border border-red-200/50">
-                      🔒 <strong>วิธีตั้งค่าอย่างปลอดภัย (ไม่ผ่าน GitHub):</strong> นำ API Key (ขึ้นต้นด้วย <code>re_...</code>) ไปเพิ่มใน <strong>Cloudflare Dashboard &gt; Workers &amp; Pages &gt; smartleave &gt; Settings &gt; Variables and Secrets</strong> เป็นประเภท Secret หรือส่งให้ระบบบันทึกลงฐานข้อมูล D1 ได้โดยตรงครับ
+                      💡 <strong>วิธีตั้งค่า Google Apps Script Web App URL:</strong> นำ Web App URL (เช่น <code>https://script.google.com/macros/s/.../exec</code>) ไปเพิ่มใน <strong>Cloudflare Dashboard &gt; Workers &amp; Pages &gt; smartleave &gt; Settings &gt; Variables and Secrets</strong> เป็นตัวแปรชื่อ <code>GOOGLE_SCRIPT_URL</code> หรือส่ง URL ให้ระบบบันทึกเพื่อเปิดใช้งานการส่ง OTP ฟรีถึงทุกอีเมลได้ทันทีครับ
                     </p>
                   )}
                 </div>
@@ -373,11 +373,10 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                         type="button"
                         onClick={handleSendOtp}
                         disabled={isSendingOtp || countdown > 0}
-                        className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 transition-all shadow-xs flex-shrink-0 ${
-                          countdown > 0
-                            ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed'
-                            : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-700/20 hover:shadow-md'
-                        }`}
+                        className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1.5 transition-all shadow-xs flex-shrink-0 ${countdown > 0
+                          ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-700/20 hover:shadow-md'
+                          }`}
                       >
                         {isSendingOtp ? (
                           <>
@@ -405,7 +404,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-900">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span>ส่งรหัส OTP ไปยังอีเมลผ่าน Resend สำเร็จแล้ว!</span>
+                          <span>ส่งรหัส OTP ไปยังอีเมลสำเร็จแล้ว!</span>
                         </div>
                         <span className="text-[11px] text-emerald-700 font-medium bg-emerald-100/90 px-2.5 py-0.5 rounded-full">
                           มีอายุ 5 นาที
@@ -445,11 +444,10 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                           value={digit}
                           onChange={(e) => handleDigitChange(index, e.target.value)}
                           onKeyDown={(e) => handleKeyDown(index, e)}
-                          className={`w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold font-mono rounded-2xl border transition-all outline-none ${
-                            digit
-                              ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500/20'
-                              : 'border-slate-200 bg-slate-50 text-slate-800 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20'
-                          }`}
+                          className={`w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold font-mono rounded-2xl border transition-all outline-none ${digit
+                            ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-slate-50 text-slate-800 focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20'
+                            }`}
                         />
                       ))}
                     </div>

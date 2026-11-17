@@ -11,5 +11,6 @@ database_name = "smartleave-db"
 database_id = "c5312caa-ea04-4805-8f6c-9cc319c4a149"
 
 [vars]
+GOOGLE_SCRIPT_URL = ""
 RESEND_API_KEY = ""
 RESEND_FROM_EMAIL = "SmartLeave <onboarding@resend.dev>"

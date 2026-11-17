@@ -326,13 +326,14 @@ function doesNotificationBelongToUser(notif, user) {
       notif.targetRole === 'admin' ||
       notif.targetRole === 'approver' ||
       notif.title?.includes('มีคำขอ') ||
+      notif.linkUrl === '/approver' ||
       (notif.type === 'pending' && (notif.description?.includes('รอการตรวจสอบ') || notif.title?.includes('คำขอ')));
 
     return Boolean(isIncomingRequest);
   }
 
   // 2. สำหรับ User ทั่วไป: ให้ขึ้นเฉพาะการแจ้งเตือนของตนเอง (ไม่แสดงแจ้งเตือนรับคำขอของ Admin)
-  if (notif.forAdmin || notif.targetRole === 'admin' || notif.title?.includes('มีคำขอ')) {
+  if (notif.forAdmin || notif.targetRole === 'admin' || notif.targetRole === 'approver' || notif.title?.includes('มีคำขอ')) {
     return false;
   }
 
@@ -704,6 +705,7 @@ export function LeaveProvider({ children }) {
   const pendingMutationRef = useRef(0);
   const mutationEpochRef = useRef(0);
   const knownMyLeaveStatusesRef = useRef({ userKey: null, statuses: new Map(), seeded: false });
+  const knownAdminIncomingLeaveIdsRef = useRef({ knownIds: new Set(), seeded: false });
 
   const syncLeaveBaselineForUser = (requests, targetUser) => {
     const userKey = getUserStableKey(targetUser);
@@ -858,6 +860,32 @@ export function LeaveProvider({ children }) {
             firstChanged.status === 'ไม่อนุมัติ' ? 'info' : 'success'
           );
         }
+
+        // ตรวจจับคำขอลาใหม่ส่งเข้ามาสำหรับ Admin / ผู้อนุมัติ แล้วแจ้งเตือน Toast บนหน้าจอทันที
+        const isApproverAdmin = matchedActiveUser?.role === 'admin' || matchedActiveUser?.role === 'approver';
+        if (isApproverAdmin) {
+          const adminTracker = knownAdminIncomingLeaveIdsRef.current;
+          const currentPendingLeaves = normalizedLeaves.filter((r) =>
+            r.status === 'รออนุมัติ' || r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'pending' || r.reviewStage === 'checking'
+          );
+          const nextPendingIds = new Set(currentPendingLeaves.map((r) => String(r.id)));
+
+          if (!resetBaseline && adminTracker.seeded) {
+            const newIncomingRequests = currentPendingLeaves.filter((r) => !adminTracker.knownIds.has(String(r.id)));
+            if (newIncomingRequests.length > 0 && !silent) {
+              const latestReq = newIncomingRequests[0];
+              showToast(
+                `🔔 มีคำขอ${latestReq.type || 'ลา'}ใหม่จาก ${latestReq.employeeName || 'เจ้าหน้าที่'} รอการตรวจสอบ`,
+                'info'
+              );
+            }
+          }
+
+          knownAdminIncomingLeaveIdsRef.current = {
+            knownIds: nextPendingIds,
+            seeded: true,
+          };
+        }
       }
 
       // 3. ดึงประกาศสดจาก Cloudflare D1 ผสานกับวันหยุดจริงจากปฏิทิน
@@ -899,8 +927,12 @@ export function LeaveProvider({ children }) {
       statuses: new Map(),
       seeded: false,
     };
+    knownAdminIncomingLeaveIdsRef.current = {
+      knownIds: new Set(),
+      seeded: false,
+    };
     fetchLiveDatabaseData({ resetBaseline: true, silent: true });
-  }, [isAuthenticated, currentUser?.email, currentUser?.employeeId]);
+  }, [isAuthenticated, currentUser?.email, currentUser?.employeeId, currentUser?.role]);
 
   useEffect(() => {
     if (!isAuthenticated || !isPdpaAccepted) return;
@@ -1103,11 +1135,7 @@ export function LeaveProvider({ children }) {
     });
 
     setNotifications((prev) => {
-      const itemsToAdd = [userNotif];
-      if (isAdmin) {
-        itemsToAdd.push(adminNotif);
-      }
-      return [...itemsToAdd, ...prev];
+      return [adminNotif, userNotif, ...prev];
     });
 
     setIsRequestModalOpen(false);

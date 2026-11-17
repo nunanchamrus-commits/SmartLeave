@@ -398,6 +398,241 @@ async function ensureTableColumns(db, tableName, columnSpecs) {
   }
 }
 
+/**
+ * ส่งอีเมลรหัส OTP ผ่าน Google Apps Script Web App (ส่งได้ทุกอีเมล ฟรี 100%)
+ * @param {string} scriptUrl - URL ของ Google Apps Script Web App
+ * @param {string} toEmail - อีเมลผู้รับ
+ * @param {string} otpCode - รหัส OTP 6 หลัก
+ * @param {string} userName - ชื่อผู้ใช้งาน (ถ้ามี)
+ */
+async function sendOtpEmailWithGoogleScript({ scriptUrl, toEmail, otpCode, userName }) {
+  if (!scriptUrl || scriptUrl.trim() === '') {
+    return {
+      success: false,
+      error: 'GOOGLE_SCRIPT_URL_NOT_CONFIGURED',
+      message: 'ยังไม่ได้ระบุ GOOGLE_SCRIPT_URL ในระบบ',
+    };
+  }
+
+  const greeting = userName ? `เรียน คุณ${userName}` : 'เรียน ผู้ใช้งานระบบ SmartLeave';
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รหัสยืนยัน OTP สำหรับกู้คืนรหัสผ่าน</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f5; font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7f5; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 560px; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #0F3D24 0%, #155A32 100%); padding: 36px 32px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">SmartLeave</h1>
+              <p style="margin: 6px 0 0 0; color: #a7f3d0; font-size: 13px; font-weight: 500;">สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 36px 32px;">
+              <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center;">
+                รหัสยืนยัน OTP สำหรับกู้คืนรหัสผ่าน
+              </h2>
+              <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569; text-align: center;">
+                ${greeting} มีการร้องขอตั้งรหัสผ่านใหม่สำหรับบัญชีระบบ SmartLeave ของท่าน กรุณานำรหัสยืนยันตัวตน 6 หลักด้านล่างนี้ไปกรอกในระบบ
+              </p>
+              
+              <div style="background: #f0fdf4; border: 2px dashed #16a34a; border-radius: 16px; padding: 24px; text-align: center; margin: 28px 0;">
+                <span style="font-family: 'Courier New', Courier, monospace; font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #155A32; display: inline-block;">
+                  ${otpCode}
+                </span>
+                <p style="margin: 12px 0 0 0; font-size: 12px; color: #15803d; font-weight: 600;">
+                  ⏱️ รหัสนี้มีอายุการใช้งาน 5 นาที
+                </p>
+              </div>
+
+              <div style="background-color: #f8fafc; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #64748b;">
+                  🔒 <strong>คำเตือนความปลอดภัย:</strong> โปรดอย่าเปิดเผยรหัส OTP นี้แก่ผู้อื่น เจ้าหน้าที่สำนักงานสหกรณ์จะไม่มีการสอบถามรหัสนี้จากท่านในทุกกรณี หากท่านไม่ได้ทำรายการนี้ โปรดติดต่อผู้ดูแลระบบทันที
+                </p>
+              </div>
+
+              <p style="margin: 28px 0 0 0; font-size: 13px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+                อีเมลนี้เป็นระบบอัตโนมัติ กรุณาอย่าตอบกลับ
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const response = await fetch(scriptUrl.trim(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: toEmail,
+        subject: `[SmartLeave] รหัสยืนยัน OTP: ${otpCode} สำหรับกู้คืนรหัสผ่าน`,
+        html: htmlContent,
+        text: `รหัส OTP สำหรับกู้คืนรหัสผ่าน SmartLeave ของคุณคือ ${otpCode} (มีอายุ 5 นาที)`,
+        otp: otpCode,
+      }),
+      redirect: 'follow',
+    });
+
+    const respText = await response.text();
+    let respJson = null;
+    try {
+      respJson = JSON.parse(respText);
+    } catch (e) { }
+
+    if (respJson && respJson.success === false) {
+      return {
+        success: false,
+        error: respJson.error || 'Google Apps Script ส่งอีเมลไม่สำเร็จ',
+      };
+    }
+
+    return {
+      success: true,
+      message: 'ส่งรหัส OTP ผ่าน Google Apps Script เรียบร้อยแล้ว',
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อไปยัง Google Apps Script',
+    };
+  }
+}
+
+/**
+ * ส่งอีเมลรหัส OTP ผ่าน Resend API (Fallback)
+ */
+async function sendOtpEmailWithResend({ apiKey, toEmail, otpCode, userName, fromEmail }) {
+  if (!apiKey || apiKey.trim() === '' || apiKey === 're_your_api_key_here') {
+    return {
+      success: false,
+      error: 'RESEND_API_KEY_NOT_CONFIGURED',
+      message: 'ยังไม่ได้ระบุ RESEND_API_KEY ในระบบ',
+    };
+  }
+
+  const sender = fromEmail && fromEmail.trim() ? fromEmail.trim() : 'SmartLeave <onboarding@resend.dev>';
+  const greeting = userName ? `เรียน คุณ${userName}` : 'เรียน ผู้ใช้งานระบบ SmartLeave';
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>รหัสยืนยัน OTP สำหรับกู้คืนรหัสผ่าน</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f5; font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7f5; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 560px; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #0F3D24 0%, #155A32 100%); padding: 36px 32px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">SmartLeave</h1>
+              <p style="margin: 6px 0 0 0; color: #a7f3d0; font-size: 13px; font-weight: 500;">สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 36px 32px;">
+              <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center;">
+                รหัสยืนยัน OTP สำหรับกู้คืนรหัสผ่าน
+              </h2>
+              <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569; text-align: center;">
+                ${greeting} มีการร้องขอตั้งรหัสผ่านใหม่สำหรับบัญชีระบบ SmartLeave ของท่าน กรุณานำรหัสยืนยันตัวตน 6 หลักด้านล่างนี้ไปกรอกในระบบ
+              </p>
+              
+              <div style="background: #f0fdf4; border: 2px dashed #16a34a; border-radius: 16px; padding: 24px; text-align: center; margin: 28px 0;">
+                <span style="font-family: 'Courier New', Courier, monospace; font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #155A32; display: inline-block;">
+                  ${otpCode}
+                </span>
+                <p style="margin: 12px 0 0 0; font-size: 12px; color: #15803d; font-weight: 600;">
+                  ⏱️ รหัสนี้มีอายุการใช้งาน 5 นาที
+                </p>
+              </div>
+
+              <div style="background-color: #f8fafc; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #64748b;">
+                  🔒 <strong>คำเตือนความปลอดภัย:</strong> โปรดอย่าเปิดเผยรหัส OTP นี้แก่ผู้อื่น เจ้าหน้าที่สำนักงานสหกรณ์จะไม่มีการสอบถามรหัสนี้จากท่านในทุกกรณี หากท่านไม่ได้ทำรายการนี้ โปรดติดต่อผู้ดูแลระบบทันที
+                </p>
+              </div>
+
+              <p style="margin: 28px 0 0 0; font-size: 13px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+                อีเมลนี้เป็นระบบอัตโนมัติ กรุณาอย่าตอบกลับ
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: sender,
+        to: [toEmail],
+        subject: `[SmartLeave] รหัสยืนยัน OTP: ${otpCode} สำหรับกู้คืนรหัสผ่าน`,
+        html: htmlContent,
+        text: `รหัส OTP สำหรับกู้คืนรหัสผ่าน SmartLeave ของคุณคือ ${otpCode} (มีอายุ 5 นาที)`,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.message || `Resend API Error: ${response.status}`,
+      };
+    }
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message || 'Network error while calling Resend API',
+    };
+  }
+}
+
+/**
+ * ส่งอีเมล OTP โดยเลือกระหว่าง Google Apps Script (ลำดับแรก) หรือ Resend (สำรอง)
+ */
+async function sendOtpEmail({ scriptUrl, apiKey, toEmail, otpCode, userName, fromEmail }) {
+  if (scriptUrl && scriptUrl.trim()) {
+    return await sendOtpEmailWithGoogleScript({ scriptUrl, toEmail, otpCode, userName });
+  }
+  if (apiKey && apiKey.trim() && apiKey !== 're_your_api_key_here') {
+    return await sendOtpEmailWithResend({ apiKey, toEmail, otpCode, userName, fromEmail });
+  }
+  return {
+    success: false,
+    error: 'EMAIL_SERVICE_NOT_CONFIGURED',
+    message: 'ยังไม่ได้ระบุ GOOGLE_SCRIPT_URL หรือ RESEND_API_KEY ในระบบ',
+  };
+}
+
 async function autoMigrateDatabase(db) {
   // สร้างตารางโครงสร้างพื้นฐานทั้งหมด (Core Master Tables) หากยังไม่มี
   await db.prepare(`
@@ -531,6 +766,25 @@ async function autoMigrateDatabase(db) {
     )
   `).run().catch(() => { });
 
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS password_reset_otps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      otp_code TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      is_used INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now', '+7 hours'))
+    )
+  `).run().catch(() => { });
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      setting_key TEXT PRIMARY KEY,
+      setting_value TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+  `).run().catch(() => { });
+
   for (const [table, specs] of Object.entries(SCHEMA_COLUMNS)) {
     await ensureTableColumns(db, table, specs);
   }
@@ -552,19 +806,6 @@ async function autoMigrateDatabase(db) {
     await db.prepare("UPDATE leave_requests SET review_stage = 'checking' WHERE status IN ('อยู่ระหว่างตรวจสอบ', 'รออนุมัติ') AND COALESCE(review_stage, '') != 'checking'").run().catch(() => { });
     await db.prepare("UPDATE leave_requests SET review_stage = 'not_submitted' WHERE review_stage IS NULL OR review_stage = ''").run().catch(() => { });
   } catch (stageMigErr) { }
-  // ลบการแจ้งเตือนที่ซ้ำซ้อนในตาราง notifications สำหรับ Admin/ผู้อนุมัติ ออกให้เหลือเพียงรายการเดียว
-  try {
-    await db.prepare(`
-      DELETE FROM notifications
-      WHERE target_role IN ('admin', 'approver')
-        AND notification_id NOT IN (
-          SELECT MIN(notification_id)
-          FROM notifications
-          WHERE target_role IN ('admin', 'approver')
-          GROUP BY title, description
-        )
-    `).run().catch(() => { });
-  } catch (cleanNotifErr) { }
 
   // ปรับปรุงโควตาวันลาและประเภทการลาให้ตรงตามระเบียบใหม่:
   // ข้าราชการ/ลูกจ้างประจำ: ป่วย 60 วัน, กิจส่วนตัว 45 วัน, พักผ่อน 10 วัน, คลอดบุตร 90 วัน
@@ -1034,17 +1275,166 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
-    // 1.2 รีเซ็ต/จัดการรหัสผ่าน (Reset Password - Admin & Self)
+    // 1.1 ส่งรหัส OTP ทางอีเมล (Send OTP Email via Google Script or Resend)
+    // POST /api/auth/send-otp
+    // -------------------------------------------------------------
+    if (path === '/auth/send-otp' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { email } = body;
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return jsonResponse({ success: false, message: 'กรุณากรอกอีเมลที่ถูกต้อง' }, 400);
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+
+      // ตรวจสอบว่ามีอีเมลนี้อยู่ในระบบหรือไม่
+      const user = await env.DB.prepare(
+        'SELECT user_id, prefix, first_name, last_name, display_name, email FROM users WHERE LOWER(email) = ?'
+      ).bind(cleanEmail).first().catch(() => null);
+
+      if (!user) {
+        return jsonResponse({
+          success: false,
+          message: 'ไม่พบที่อยู่อีเมลนี้ในระบบ SmartLeave กรุณาตรวจสอบอีเมลหรือติดต่อผู้ดูแลระบบ',
+        }, 404);
+      }
+
+      // ดึงค่า URL ของ Google Apps Script หรือ API key จาก env หรือ system_settings
+      let scriptUrl = env.GOOGLE_SCRIPT_URL || '';
+      let resendApiKey = env.RESEND_API_KEY || '';
+
+      try {
+        const settingRows = await env.DB.prepare(
+          "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('google_script_url', 'resend_api_key')"
+        ).all().catch(() => ({ results: [] }));
+        for (const row of (settingRows?.results || [])) {
+          if (row.setting_key === 'google_script_url' && row.setting_value) {
+            scriptUrl = row.setting_value;
+          }
+          if (row.setting_key === 'resend_api_key' && row.setting_value) {
+            resendApiKey = row.setting_value;
+          }
+        }
+      } catch (err) { }
+
+      if (!scriptUrl && !resendApiKey) {
+        return jsonResponse({
+          success: false,
+          message: 'ระบบยังไม่ได้ตั้งค่า GOOGLE_SCRIPT_URL (หรือ RESEND_API_KEY) กรุณาติดต่อผู้ดูแลระบบเพื่อเปิดใช้งานการส่ง OTP',
+        }, 500);
+      }
+
+      // สุ่มรหัส OTP 6 หลัก
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      // กำหนดหมดอายุ 5 นาที (ISO String)
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+
+      // ยกเลิกรหัส OTP เดิมที่ยังไม่ได้ใช้ของอีเมลนี้
+      await env.DB.prepare(
+        'UPDATE password_reset_otps SET is_used = 1 WHERE LOWER(email) = ? AND is_used = 0'
+      ).bind(cleanEmail).run().catch(() => {});
+
+      // บันทึก OTP ลงตาราง
+      await env.DB.prepare(
+        'INSERT INTO password_reset_otps (email, otp_code, expires_at, is_used) VALUES (?, ?, ?, 0)'
+      ).bind(cleanEmail, otpCode, expiresAt).run().catch(() => {});
+
+      const userName = user.display_name || `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim();
+
+      // ส่งอีเมลผ่าน Google Apps Script (หรือ Resend สำรอง)
+      const sendResult = await sendOtpEmail({
+        scriptUrl,
+        apiKey: resendApiKey,
+        toEmail: cleanEmail,
+        otpCode,
+        userName,
+        fromEmail: env.RESEND_FROM_EMAIL || 'SmartLeave <onboarding@resend.dev>',
+      });
+
+      if (!sendResult.success) {
+        return jsonResponse({
+          success: false,
+          message: sendResult.message || sendResult.error || 'ไม่สามารถส่งรหัส OTP ทางอีเมลได้ กรุณาลองใหม่อีกครั้ง',
+        }, 500);
+      }
+
+      return jsonResponse({
+        success: true,
+        message: `ระบบได้ส่งรหัส OTP 6 หลักไปยังอีเมล ${cleanEmail} แล้ว รหัสมีอายุ 5 นาที`,
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 1.2 ตรวจสอบรหัส OTP (Verify OTP Code)
+    // POST /api/auth/verify-otp
+    // -------------------------------------------------------------
+    if (path === '/auth/verify-otp' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { email, otp } = body;
+      if (!email || !otp) {
+        return jsonResponse({ success: false, message: 'กรุณาระบุอีเมลและรหัส OTP' }, 400);
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanOtp = String(otp).trim();
+
+      const record = await env.DB.prepare(
+        `SELECT id, email, otp_code, expires_at, is_used 
+         FROM password_reset_otps 
+         WHERE LOWER(email) = ? AND otp_code = ? AND is_used = 0
+         ORDER BY id DESC LIMIT 1`
+      ).bind(cleanEmail, cleanOtp).first().catch(() => null);
+
+      if (!record) {
+        return jsonResponse({ success: false, message: 'รหัส OTP ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' }, 400);
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(record.expires_at);
+      if (now > expiresAt) {
+        return jsonResponse({ success: false, message: 'รหัส OTP นี้หมดอายุแล้ว (อายุการใช้งาน 5 นาที) กรุณากดขอรหัสใหม่' }, 400);
+      }
+
+      return jsonResponse({ success: true, message: 'ตรวจสอบรหัส OTP ถูกต้อง' });
+    }
+
+    // -------------------------------------------------------------
+    // 1.3 รีเซ็ต/จัดการรหัสผ่าน (Reset Password - Admin & Self with OTP)
     // POST /api/auth/reset-password
     // -------------------------------------------------------------
     if (path === '/auth/reset-password' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const { email, userId, newPassword } = body;
+      const { email, userId, newPassword, otp } = body;
       if ((!email && !userId) || !newPassword) {
         return jsonResponse({ success: false, message: 'กรุณากรอกข้อมูลบัญชีผู้ใช้และรหัสผ่านใหม่' }, 400);
       }
       if (typeof newPassword !== 'string' || newPassword.trim().length < 6) {
         return jsonResponse({ success: false, message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' }, 400);
+      }
+
+      // หากส่ง otp มาด้วย ให้ตรวจสอบความถูกต้องและหมดอายุ
+      if (otp && email) {
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanOtp = String(otp).trim();
+        const record = await env.DB.prepare(
+          `SELECT id, expires_at, is_used FROM password_reset_otps 
+           WHERE LOWER(email) = ? AND otp_code = ? AND is_used = 0 
+           ORDER BY id DESC LIMIT 1`
+        ).bind(cleanEmail, cleanOtp).first().catch(() => null);
+
+        if (!record) {
+          return jsonResponse({ success: false, message: 'รหัส OTP ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' }, 400);
+        }
+        const now = new Date();
+        const expiresAt = new Date(record.expires_at);
+        if (now > expiresAt) {
+          return jsonResponse({ success: false, message: 'รหัส OTP หมดอายุแล้ว กรุณาขอรหัสใหม่' }, 400);
+        }
+
+        // ทำเครื่องหมายว่า OTP ถูกใช้งานแล้ว
+        await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE id = ?')
+          .bind(record.id).run().catch(() => {});
       }
 
       let updateResult = null;
@@ -1069,6 +1459,45 @@ export async function onRequest(context) {
         return jsonResponse({ success: false, message: 'ไม่พบบัญชีผู้ใช้นี้ในระบบ' }, 404);
       }
       return jsonResponse({ success: true, message: 'บันทึกรหัสผ่านใหม่เรียบร้อยแล้ว' });
+    }
+
+    // -------------------------------------------------------------
+    // 1.4 การตั้งค่าระบบอีเมลและ OTP (Email & OTP Settings)
+    // GET /api/settings/email-config, POST /api/settings/email-config
+    // -------------------------------------------------------------
+    if (path === '/settings/email-config' && method === 'GET') {
+      let googleScriptUrl = env.GOOGLE_SCRIPT_URL || '';
+      let resendApiKey = env.RESEND_API_KEY ? 'configured' : '';
+      try {
+        const rows = await env.DB.prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('google_script_url', 'resend_api_key')").all().catch(() => ({ results: [] }));
+        for (const r of (rows.results || [])) {
+          if (r.setting_key === 'google_script_url' && r.setting_value) googleScriptUrl = r.setting_value;
+          if (r.setting_key === 'resend_api_key' && r.setting_value) resendApiKey = 'configured';
+        }
+      } catch (err) {}
+      return jsonResponse({
+        success: true,
+        googleScriptUrl: googleScriptUrl ? `${googleScriptUrl.slice(0, 35)}...` : '',
+        isGoogleScriptConfigured: Boolean(googleScriptUrl),
+        isResendConfigured: Boolean(resendApiKey),
+        activeProvider: googleScriptUrl ? 'google_script' : (resendApiKey ? 'resend' : 'none'),
+      });
+    }
+
+    if (path === '/settings/email-config' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { googleScriptUrl, resendApiKey } = body;
+      if (googleScriptUrl !== undefined) {
+        await env.DB.prepare(
+          "INSERT INTO system_settings (setting_key, setting_value, updated_at) VALUES ('google_script_url', ?, datetime('now', 'localtime')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at"
+        ).bind(String(googleScriptUrl).trim()).run().catch(() => {});
+      }
+      if (resendApiKey !== undefined) {
+        await env.DB.prepare(
+          "INSERT INTO system_settings (setting_key, setting_value, updated_at) VALUES ('resend_api_key', ?, datetime('now', 'localtime')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at"
+        ).bind(String(resendApiKey).trim()).run().catch(() => {});
+      }
+      return jsonResponse({ success: true, message: 'บันทึกการตั้งค่าระบบอีเมลเรียบร้อยแล้ว' });
     }
 
     // -------------------------------------------------------------
@@ -1578,8 +2007,18 @@ export async function onRequest(context) {
       let {
         prefix, firstName, lastName, name, fullName,
         prefixEn, firstNameEn, lastNameEn, englishName,
-        phone, title, position, department, gender, employmentType, role, avatar
+        phone, title, position, department, gender, employmentType, role, avatar, email
       } = body;
+
+      // จัดการตรวจสอบและอัปเดตอีเมล (หากแอดมินแก้ไขอีเมลพนักงาน)
+      let updateEmail = (typeof email === 'string' && email.trim()) ? email.trim().toLowerCase() : null;
+      if (updateEmail && updateEmail !== user.email?.toLowerCase()) {
+        const dupUser = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = ? AND user_id != ?')
+          .bind(updateEmail, uId).first().catch(() => null);
+        if (dupUser) {
+          return jsonResponse({ error: 'อีเมลนี้ถูกใช้งานโดยบัญชีอื่นในระบบแล้ว' }, 400);
+        }
+      }
 
       const rawThai = (typeof name === 'string' && name.trim()) || (typeof fullName === 'string' && fullName.trim()) || '';
       if (firstName || lastName) {
@@ -1633,6 +2072,7 @@ export async function onRequest(context) {
             english_name = COALESCE(?, english_name),
             gender = COALESCE(?, gender),
             employment_type = COALESCE(?, employment_type),
+            email = COALESCE(?, email),
             phone = COALESCE(?, phone),
             position = COALESCE(?, position),
             department_id = COALESCE(?, department_id),
@@ -1650,6 +2090,7 @@ export async function onRequest(context) {
         fullEn ?? null,
         gender ?? null,
         employmentType ?? null,
+        updateEmail ?? null,
         phone ?? null,
         (position || title) ?? null,
         deptId ?? null,
@@ -1836,7 +2277,7 @@ export async function onRequest(context) {
 
       let results = [];
       if (isAdminRequest) {
-        // สำหรับหน้า Admin: แสดงเฉพาะการแจ้งเตือนที่มีคำขอลาส่งเข้ามาเท่านั้น 100%
+        // สำหรับหน้า Admin: แสดงรายการแจ้งเตือนคำขอลาที่ส่งเข้ามา
         const q = await env.DB.prepare(`
           SELECT notification_id as id, user_id as userId, title, description, type, link_url as linkUrl, is_read as isRead, target_role as targetRole, created_at as time
           FROM notifications
@@ -1845,10 +2286,49 @@ export async function onRequest(context) {
           LIMIT 100
         `).all().catch(() => ({ results: [] }));
 
+        // ดึงคำขอลาที่ยังรอการอนุมัติ/ตรวจสอบ เพื่อให้แน่ใจว่า Admin จะไม่พลาดคำขอใดๆ แม้ตาราง notifications จะว่าง
+        const pendingLeaves = await env.DB.prepare(`
+          SELECT lr.request_id, lr.request_no, lr.start_date, lr.end_date, lr.total_days, lr.status, lr.review_stage, lr.created_at,
+                 u.prefix, u.first_name, u.last_name, lt.name_th as leave_type_name
+          FROM leave_requests lr
+          LEFT JOIN users u ON lr.user_id = u.user_id
+          LEFT JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
+          WHERE lr.status IN ('pending', 'รออนุมัติ', 'อยู่ระหว่างตรวจสอบ')
+             OR lr.review_stage IN ('not_submitted', 'checking')
+          ORDER BY lr.created_at DESC
+          LIMIT 20
+        `).all().catch(() => ({ results: [] }));
+
+        const rawList = [...(q.results || [])];
+
+        // เติมคำขอลาที่รอตรวจสอบที่ยังไม่มีในการแจ้งเตือน
+        for (const pl of (pendingLeaves.results || [])) {
+          const reqCode = pl.request_no || `REQ-${pl.request_id}`;
+          const empName = `${pl.prefix || ''}${pl.first_name || ''} ${pl.last_name || ''}`.trim() || 'เจ้าหน้าที่';
+          const typeName = pl.leave_type_name || 'การลา';
+          const exists = rawList.some(item =>
+            (item.description && item.description.includes(reqCode)) ||
+            (item.title && item.title.includes(reqCode))
+          );
+          if (!exists) {
+            rawList.push({
+              id: `leave-pending-${pl.request_id}`,
+              userId: null,
+              title: `มีคำขอ${typeName}ใหม่จาก ${empName}`,
+              description: `คำขอลา ${reqCode} วันที่ ${pl.start_date} ถึง ${pl.end_date} (${pl.total_days} วัน) รอการตรวจสอบ`,
+              type: 'pending',
+              linkUrl: '/approver',
+              isRead: 0,
+              targetRole: 'admin',
+              time: pl.created_at || new Date().toISOString()
+            });
+          }
+        }
+
         // กรองรายการแจ้งเตือนซ้ำ (Deduplicate) ไม่ให้แสดงคำขอเดิมซ้ำ 2 รอบ
         const seen = new Set();
         const uniqueResults = [];
-        for (const item of (q.results || [])) {
+        for (const item of rawList) {
           const dedupeKey = `${(item.title || '').trim()}:::${(item.description || '').trim()}`;
           if (!seen.has(dedupeKey)) {
             seen.add(dedupeKey);
@@ -2492,10 +2972,19 @@ export async function onRequest(context) {
         const u = await env.DB.prepare('SELECT user_id FROM users WHERE user_id = ?').bind(validUid).first().catch(() => null);
         if (u) targetUserId = u.user_id;
       }
-      if (!targetUserId && (email || employeeId)) {
-        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(employee_code) = LOWER(?)')
-          .bind(email ? String(email).trim() : '', employeeId ? String(employeeId).trim() : '').first().catch(() => null);
+      if (!targetUserId && (body.oldEmail || email || employeeId)) {
+        const u = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(email) = LOWER(?) OR LOWER(employee_code) = LOWER(?)')
+          .bind(body.oldEmail ? String(body.oldEmail).trim() : '', email ? String(email).trim() : '', employeeId ? String(employeeId).trim() : '').first().catch(() => null);
         if (u) targetUserId = u.user_id;
+      }
+
+      let updateEmail = (typeof email === 'string' && email.trim()) ? email.trim().toLowerCase() : null;
+      if (targetUserId && updateEmail) {
+        const dupUser = await env.DB.prepare('SELECT user_id FROM users WHERE LOWER(email) = ? AND user_id != ?')
+          .bind(updateEmail, targetUserId).first().catch(() => null);
+        if (dupUser) {
+          return jsonResponse({ success: false, message: 'อีเมลนี้ถูกใช้งานโดยบัญชีอื่นในระบบแล้ว' }, 400);
+        }
       }
 
       if (targetUserId) {
@@ -2520,6 +3009,7 @@ export async function onRequest(context) {
                 english_name = COALESCE(?, english_name),
                 gender = COALESCE(?, gender),
                 employment_type = COALESCE(?, employment_type),
+                email = COALESCE(?, email),
                 phone = COALESCE(?, phone),
                 position = COALESCE(?, position),
                 department_id = COALESCE(?, department_id),
@@ -2536,6 +3026,7 @@ export async function onRequest(context) {
             fullEnglishName ?? null,
             gender ?? null,
             employmentType ?? null,
+            updateEmail ?? null,
             phone ?? null,
             (position || title) ?? null,
             deptId ?? null,
@@ -2552,6 +3043,7 @@ export async function onRequest(context) {
         message: 'บันทึกข้อมูลส่วนตัวลง Cloudflare D1 เรียบร้อยแล้ว',
         user: {
           ...body,
+          email: updateEmail || email,
           prefix,
           firstName,
           lastName,
