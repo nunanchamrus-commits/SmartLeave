@@ -903,6 +903,8 @@ async function seedMasterData(db) {
   }
 }
 
+let isDbInitialized = false;
+
 // Export สำหรับ Cloudflare Workers (Worker Fetch Event)
 export default {
   async fetch(request, env, ctx) {
@@ -942,12 +944,15 @@ export async function onRequest(context) {
     );
   }
 
-  // 1. ตรวจสอบและทำ Auto-Migration โครงสร้างตารางใน Cloudflare D1 อัตโนมัติ 100%
-  try {
-    await autoMigrateDatabase(env.DB);
-    await seedMasterData(env.DB);
-  } catch (initErr) {
-    console.log('[D1 Auto-Migration Note]:', initErr.message);
+  // 1. ตรวจสอบและทำ Auto-Migration โครงสร้างตารางใน Cloudflare D1 (รันครั้งแรกเพียงครั้งเดียวต่อ Worker Instance เพื่อประหยัดโควตาการเขียน D1 100%)
+  if (!isDbInitialized) {
+    try {
+      await autoMigrateDatabase(env.DB);
+      await seedMasterData(env.DB);
+      isDbInitialized = true;
+    } catch (initErr) {
+      console.log('[D1 Auto-Migration Note]:', initErr.message);
+    }
   }
 
   try {
