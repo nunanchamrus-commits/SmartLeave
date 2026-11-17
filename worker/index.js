@@ -926,6 +926,10 @@ async function seedMasterData(db) {
       VALUES (5, 'EMP-004', 'akarapol.c@smartleave.com', '12345678', 'นาย', 'อัครพล', 'เจริญผล', 'Mr.', 'Akarapol', 'Charoenphon', 'Mr. Akarapol Charoenphon', 'ชาย', 'พนักงานราชการ', '082-333-4455', 5, 4, 'นักวิชาการมาตรฐานสหกรณ์', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
     db.prepare(`INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
       VALUES (6, 'EMP-005', 'suda.j@smartleave.com', '12345678', 'นางสาว', 'สุดา', 'ใจดี', 'Ms.', 'Suda', 'Jaidee', 'Ms. Suda Jaidee', 'หญิง', 'ลูกจ้างประจำ', '084-555-6677', 1, 4, 'เจ้าหน้าที่ธุรการและสารบรรณ', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&h=256&q=80', 1)`),
+    // ซิงก์สิทธิ์ของบุคลากรหลักให้ถูกต้องเสมอ
+    db.prepare("UPDATE users SET role_id = 1 WHERE user_id = 1 OR employee_code = 'ADM-001'"),
+    db.prepare("UPDATE users SET role_id = 4 WHERE user_id IN (2, 4, 5, 6) OR employee_code IN ('EMP-001', 'EMP-003', 'EMP-004', 'EMP-005')"),
+    db.prepare("UPDATE users SET role_id = 3 WHERE user_id = 3 OR employee_code = 'MGR-002'"),
   ]).catch(() => { });
 }
 
@@ -1058,7 +1062,7 @@ export async function onRequest(context) {
           email: user.email,
           phone: user.phone || '081-234-5678',
           title: user.position || (user.role_id === 3 ? 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ' : 'นักวิชาการสหกรณ์ปฏิบัติการ'),
-          role: user.role_id === 3 || user.role_id === 1 ? 'approver' : 'employee',
+          role: user.role_id === 1 ? 'admin' : (user.role_id === 3 ? 'approver' : 'employee'),
           department: user.department_name || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
           employeeId: user.employee_code,
           avatar: user.avatar_url || (gender === 'ชาย' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80'),
@@ -1268,7 +1272,7 @@ export async function onRequest(context) {
           email: user.email,
           phone: user.phone || '081-234-5678',
           title: user.position || (user.role_id === 3 ? 'ผู้อำนวยการกลุ่มงานบริหาร / ผู้อนุมัติ' : 'นักวิชาการสหกรณ์ปฏิบัติการ'),
-          role: user.role_id === 3 || user.role_id === 1 ? 'approver' : 'employee',
+          role: user.role_id === 1 ? 'admin' : (user.role_id === 3 ? 'approver' : 'employee'),
           department: user.department_name || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
           employeeId: user.employee_code,
           avatar: user.avatar_url || (gender === 'ชาย' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80'),
@@ -1335,12 +1339,12 @@ export async function onRequest(context) {
       // ยกเลิกรหัส OTP เดิมที่ยังไม่ได้ใช้ของอีเมลนี้
       await env.DB.prepare(
         'UPDATE password_reset_otps SET is_used = 1 WHERE LOWER(email) = ? AND is_used = 0'
-      ).bind(cleanEmail).run().catch(() => {});
+      ).bind(cleanEmail).run().catch(() => { });
 
       // บันทึก OTP ลงตาราง
       await env.DB.prepare(
         'INSERT INTO password_reset_otps (email, otp_code, expires_at, is_used) VALUES (?, ?, ?, 0)'
-      ).bind(cleanEmail, otpCode, expiresAt).run().catch(() => {});
+      ).bind(cleanEmail, otpCode, expiresAt).run().catch(() => { });
 
       const userName = user.display_name || `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim();
 
@@ -1436,7 +1440,7 @@ export async function onRequest(context) {
 
         // ทำเครื่องหมายว่า OTP ถูกใช้งานแล้ว
         await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE id = ?')
-          .bind(record.id).run().catch(() => {});
+          .bind(record.id).run().catch(() => { });
       }
 
       let updateResult = null;
@@ -1476,7 +1480,7 @@ export async function onRequest(context) {
           if (r.setting_key === 'google_script_url' && r.setting_value) googleScriptUrl = r.setting_value;
           if (r.setting_key === 'resend_api_key' && r.setting_value) resendApiKey = 'configured';
         }
-      } catch (err) {}
+      } catch (err) { }
       return jsonResponse({
         success: true,
         googleScriptUrl: googleScriptUrl ? `${googleScriptUrl.slice(0, 35)}...` : '',
@@ -1492,12 +1496,12 @@ export async function onRequest(context) {
       if (googleScriptUrl !== undefined) {
         await env.DB.prepare(
           "INSERT INTO system_settings (setting_key, setting_value, updated_at) VALUES ('google_script_url', ?, datetime('now', 'localtime')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at"
-        ).bind(String(googleScriptUrl).trim()).run().catch(() => {});
+        ).bind(String(googleScriptUrl).trim()).run().catch(() => { });
       }
       if (resendApiKey !== undefined) {
         await env.DB.prepare(
           "INSERT INTO system_settings (setting_key, setting_value, updated_at) VALUES ('resend_api_key', ?, datetime('now', 'localtime')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at"
-        ).bind(String(resendApiKey).trim()).run().catch(() => {});
+        ).bind(String(resendApiKey).trim()).run().catch(() => { });
       }
       return jsonResponse({ success: true, message: 'บันทึกการตั้งค่าระบบอีเมลเรียบร้อยแล้ว' });
     }
@@ -1802,7 +1806,7 @@ export async function onRequest(context) {
           COALESCE(u.position, 'เจ้าหน้าที่สหกรณ์') as title,
           COALESCE(d.name_th, 'สำนักงานสหกรณ์จังหวัดขอนแก่น') as department,
           COALESCE(u.avatar_url, 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80') as avatar,
-          CASE WHEN u.role_id = 3 OR u.role_id = 1 THEN 'approver' ELSE 'employee' END as role,
+          CASE WHEN u.role_id = 1 THEN 'admin' WHEN u.role_id = 3 THEN 'approver' ELSE 'employee' END as role,
           COALESCE(q_vacation.total_quota, 10.0) as vacationLimit,
           COALESCE(q_vacation.used_days, 0.0) as vacationUsed,
           COALESCE(q_vacation.remaining_days, 10.0) as vacationRem,
@@ -2998,29 +3002,17 @@ export async function onRequest(context) {
       }
       const fullEnglishName = englishName || (firstNameEn ? `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn} ${lastNameEn || ''}`.trim() : null);
 
-      // 1. ระบุผู้ใช้จาก Authorization Token (Bearer token-<userId>-...)
-      const authHeader = request.headers.get('Authorization') || '';
-      const token = authHeader.replace(/^Bearer\s+/, '').trim();
-      let tokenUid = null;
-      if (token && token.startsWith('token-')) {
-        const parts = token.split('-');
-        tokenUid = (parts[1] && /^\d+$/.test(parts[1])) ? Number(parts[1]) : null;
-      }
-
-      // 2. ระบุผู้ใช้จากรหัส ID ใน Body (raw_id, user_id, userId, id)
+      // 1. ระบุผู้ใช้จากรหัส ID ใน Body เป็นหลัก (raw_id, user_id, userId, id)
       const rawId = body.raw_id || body.user_id || body.userId || body.id;
       const cleanId = rawId ? String(rawId).replace(/^usr-/, '').trim() : '';
       const validUid = /^\d+$/.test(cleanId) ? Number(cleanId) : null;
 
       let user = null;
-      if (tokenUid) {
-        user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(tokenUid).first().catch(() => null);
-      }
-      if (!user && validUid) {
+      if (validUid) {
         user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(validUid).first().catch(() => null);
       }
 
-      // 3. หากยังไม่พบ ค้นหาจาก oldEmail, email, employee_code, หรือ english_name
+      // 2. หากยังไม่พบ ค้นหาจาก oldEmail, email, employee_code, หรือ english_name
       if (!user) {
         const searchOldEmail = (body.oldEmail ? String(body.oldEmail).trim() : '') || '';
         const searchEmail = (email ? String(email).trim() : '') || '';
@@ -3040,6 +3032,20 @@ export async function onRequest(context) {
           searchCode, searchCode,
           searchEn, searchEn
         ).first().catch(() => null);
+      }
+
+      // 3. Fallback: หากยังไม่พบ จึงค้นหาจาก Authorization Token (Bearer token-<userId>-...)
+      if (!user) {
+        const authHeader = request.headers.get('Authorization') || '';
+        const token = authHeader.replace(/^Bearer\s+/, '').trim();
+        let tokenUid = null;
+        if (token && token.startsWith('token-')) {
+          const parts = token.split('-');
+          tokenUid = (parts[1] && /^\d+$/.test(parts[1])) ? Number(parts[1]) : null;
+        }
+        if (tokenUid) {
+          user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(tokenUid).first().catch(() => null);
+        }
       }
 
       // 4. กรณีผู้ใช้งานเป็นบุคลากรตั้งต้นแต่ยังไม่ถูกบันทึกลง D1 ให้แทรกเข้า D1 ทันที
@@ -3084,7 +3090,7 @@ export async function onRequest(context) {
             matchedStaff.role_id,
             matchedStaff.position,
             matchedStaff.avatar_url
-          ).run().catch(() => {});
+          ).run().catch(() => { });
           user = await env.DB.prepare('SELECT * FROM users WHERE user_id = ?').bind(matchedStaff.user_id).first().catch(() => null);
         }
       }

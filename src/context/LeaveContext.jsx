@@ -837,14 +837,11 @@ export function LeaveProvider({ children }) {
               (e.email && activeUser.email && e.email.toLowerCase() === activeUser.email.toLowerCase())
           );
           if (freshUser) {
-            const preservedRole =
-              activeUser.role === 'approver' || activeUser.role === 'admin'
-                ? activeUser.role
-                : (freshUser.role || activeUser.role);
+            const actualRole = freshUser.role || (freshUser.employeeId === 'ADM-001' ? 'admin' : (freshUser.employeeId === 'MGR-002' ? 'approver' : 'employee'));
             matchedActiveUser = {
               ...activeUser,
               ...freshUser,
-              role: preservedRole,
+              role: actualRole,
               gender: freshUser.gender || activeUser.gender,
             };
             const changed =
@@ -854,6 +851,7 @@ export function LeaveProvider({ children }) {
               activeUser.title !== matchedActiveUser.title ||
               activeUser.department !== matchedActiveUser.department ||
               activeUser.phone !== matchedActiveUser.phone ||
+              activeUser.role !== matchedActiveUser.role ||
               activeUser.vacationRem !== matchedActiveUser.vacationRem ||
               activeUser.personalRem !== matchedActiveUser.personalRem ||
               activeUser.sickRem !== matchedActiveUser.sickRem ||
@@ -862,9 +860,11 @@ export function LeaveProvider({ children }) {
               setCurrentUser((prev) => ({
                 ...prev,
                 ...freshUser,
-                role: (prev?.role === 'approver' || prev?.role === 'admin') ? prev.role : (freshUser.role || prev?.role),
+                role: actualRole,
                 gender: freshUser.gender || prev?.gender,
               }));
+              sessionStorage.setItem('smartleave_user', JSON.stringify({ ...matchedActiveUser, role: actualRole }));
+              localStorage.setItem('smartleave_user', JSON.stringify({ ...matchedActiveUser, role: actualRole }));
             }
           }
         }
@@ -1070,8 +1070,8 @@ export function LeaveProvider({ children }) {
     const maternityUsed = isMale
       ? 0
       : userApprovedRequests
-          .filter((r) => r.typeKey === 'maternity')
-          .reduce((sum, r) => sum + Number(r.days || 0), 0);
+        .filter((r) => r.typeKey === 'maternity')
+        .reduce((sum, r) => sum + Number(r.days || 0), 0);
 
     const vacationRem = Math.max(0, vacLimit - vacationUsed);
     const personalRem = Math.max(0, perLimit - personalUsed);
@@ -1888,6 +1888,7 @@ export function LeaveProvider({ children }) {
           const finalUser = {
             ...updatedUser,
             ...updateRes.user,
+            role: currentUser?.role || updateRes.user.role || 'employee',
             email: updateRes.user.email || cleanNewEmail,
           };
           setCurrentUser(finalUser);
@@ -1924,14 +1925,19 @@ export function LeaveProvider({ children }) {
 
     // Helper: ดำเนินการเข้าสู่ระบบและบันทึก State
     const completeLogin = (user) => {
+      const actualRole = user.role || (user.employeeId === 'ADM-001' ? 'admin' : (user.employeeId === 'MGR-002' ? 'approver' : 'employee'));
       const dbUser = {
         ...user,
+        role: actualRole,
         gender: user.gender || inferUserGender(user),
       };
       const userKey = getUserStableKey(dbUser);
       const hasAcceptedPdpa =
         localStorage.getItem(`smartleave_pdpa_accepted_${userKey}`) === 'true' ||
         Boolean(dbUser.pdpaAccepted || dbUser.pdpa_accepted);
+
+      const numericId = dbUser.raw_id || (dbUser.id ? String(dbUser.id).replace(/^usr-/, '') : '1');
+      localStorage.setItem('smartleave_token', `token-${numericId}-${Date.now()}`);
 
       setCurrentUser(dbUser);
       setIsAuthenticated(true);
@@ -2321,11 +2327,15 @@ export function LeaveProvider({ children }) {
 
   // Logout action
   const logout = () => {
+    setCurrentUser(null);
     setIsAuthenticated(false);
     setIsPdpaAccepted(false);
     sessionStorage.removeItem('smartleave_auth');
     sessionStorage.removeItem('smartleave_pdpa');
+    sessionStorage.removeItem('smartleave_user');
     localStorage.removeItem('smartleave_auth');
+    localStorage.removeItem('smartleave_user');
+    localStorage.removeItem('smartleave_token');
     setActiveTab('dashboard');
   };
 
