@@ -881,11 +881,8 @@ async function seedMasterData(db) {
       "SELECT user_id FROM users WHERE (role_id = 1 OR role_id = 3) AND is_active = 1 LIMIT 1"
     ).first().catch(() => null);
 
-    const anyUser = await db.prepare(
-      "SELECT user_id FROM users LIMIT 1"
-    ).first().catch(() => null);
-
-    if (!existingAdmin && !anyUser) {
+    // หากไม่มีผู้ดูแลระบบ (Admin) หรือผู้อนุมัติใดๆ หลงเหลืออยู่ในระบบเลย ให้กู้คืนบัญชีผู้ดูแลระบบหลัก ADM-001 ทันที
+    if (!existingAdmin) {
       await db.prepare(`
         INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
         VALUES (1, 'ADM-001', 'admin@smartleave.com', '12345678', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'Mr.', 'System', 'Administrator', 'Mr. System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)
@@ -1106,24 +1103,45 @@ export async function onRequest(context) {
         cleanInput
       ).first().catch(() => null);
 
-      // จัดการ Alias สำหรับ Admin
+      // จัดการ Alias สำหรับ Admin และระบบกู้คืนบัญชีผู้ดูแลระบบฉุกเฉิน
       if (!user) {
         const lower = rawInput.toLowerCase();
-        if (
+        const isAdminAttempt = (
           lower === 'system administrator' ||
           lower === 'administrator' ||
           lower === 'admin' ||
           lower === 'admin@smartleave.com' ||
           lower === 'adm-001'
-        ) {
+        );
+
+        if (isAdminAttempt) {
           user = await env.DB.prepare(`
             SELECT u.*, d.name_th as department_name, r.code as role_code
             FROM users u
             LEFT JOIN departments d ON u.department_id = d.department_id
             LEFT JOIN roles r ON u.role_id = r.role_id
-            WHERE u.employee_code = 'ADM-001' OR u.user_id = 1
+            WHERE (u.employee_code = 'ADM-001' OR u.role_id = 1) AND u.is_active = 1
             LIMIT 1
           `).first().catch(() => null);
+
+          // กรณีฉุกเฉิน: หากระบบไม่มี Admin ใดๆ หลงเหลืออยู่เลย (0 Admin) ให้กู้คืนบัญชี ADM-001 อัตโนมัติทันที
+          if (!user) {
+            const anyActiveAdmin = await env.DB.prepare(
+              "SELECT user_id FROM users WHERE (role_id = 1 OR role_id = 3) AND is_active = 1 LIMIT 1"
+            ).first().catch(() => null);
+
+            if (!anyActiveAdmin) {
+              await seedMasterData(env.DB);
+              user = await env.DB.prepare(`
+                SELECT u.*, d.name_th as department_name, r.code as role_code
+                FROM users u
+                LEFT JOIN departments d ON u.department_id = d.department_id
+                LEFT JOIN roles r ON u.role_id = r.role_id
+                WHERE u.employee_code = 'ADM-001' AND u.is_active = 1
+                LIMIT 1
+              `).first().catch(() => null);
+            }
+          }
         }
       }
 
