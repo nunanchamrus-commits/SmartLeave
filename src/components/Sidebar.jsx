@@ -136,19 +136,21 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
               <button
                 key={item.id}
                 onClick={() => handleNavClick(item)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                className={`group w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive
                     ? 'bg-[#2A6A48] text-white shadow-md shadow-emerald-950/20 translate-x-1'
                     : 'text-emerald-100/75 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <div className="flex items-center space-x-3.5">
+                <div className="flex items-center space-x-3.5 transition-transform duration-200 ease-out group-hover:translate-x-1.5">
                   <Icon
                     className={`w-5 h-5 transition-transform duration-200 ${
-                      isActive ? 'scale-110 text-emerald-300' : 'text-emerald-200/80'
+                      isActive ? 'scale-110 text-emerald-300' : 'text-emerald-200/80 group-hover:scale-110 group-hover:text-emerald-200'
                     }`}
                   />
-                  <span>{item.label}</span>
+                  <span className="transition-transform duration-200 ease-out group-hover:translate-x-1 inline-block">
+                    {item.label}
+                  </span>
                 </div>
                 {item.badge && (
                   <span className="bg-amber-400 text-amber-950 text-xs font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
@@ -180,10 +182,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
                 logout();
               }
             }}
-            className="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-sm font-medium text-emerald-200/80 hover:bg-white/10 hover:text-white transition-colors relative z-10"
+            className="group w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium text-emerald-200/80 hover:bg-white/10 hover:text-white transition-all duration-200 relative z-10"
           >
-            <LogOut className="w-5 h-5 text-emerald-300" />
-            <span>ออกจากระบบ</span>
+            <div className="flex items-center space-x-3.5 transition-transform duration-200 ease-out group-hover:translate-x-1.5">
+              <LogOut className="w-5 h-5 text-emerald-300 transition-transform duration-200 group-hover:scale-110" />
+              <span className="transition-transform duration-200 ease-out group-hover:translate-x-1 inline-block">
+                ออกจากระบบ
+              </span>
+            </div>
           </button>
         </div>
       </aside>
