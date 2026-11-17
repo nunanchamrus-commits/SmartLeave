@@ -277,7 +277,10 @@ class ApiService {
   async markAllNotificationsRead(userParam) {
     return this.request('/notifications/read-all', {
       method: 'POST',
-      body: JSON.stringify({ userId: userParam?.id || userParam?.raw_id || userParam }),
+      body: JSON.stringify({
+        userId: userParam?.id || userParam?.raw_id || userParam,
+        role: userParam?.role,
+      }),
     });
   }
 }

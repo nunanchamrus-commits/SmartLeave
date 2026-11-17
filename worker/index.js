@@ -2286,49 +2286,10 @@ export async function onRequest(context) {
           LIMIT 100
         `).all().catch(() => ({ results: [] }));
 
-        // ดึงคำขอลาที่ยังรอการอนุมัติ/ตรวจสอบ เพื่อให้แน่ใจว่า Admin จะไม่พลาดคำขอใดๆ แม้ตาราง notifications จะว่าง
-        const pendingLeaves = await env.DB.prepare(`
-          SELECT lr.request_id, lr.request_no, lr.start_date, lr.end_date, lr.total_days, lr.status, lr.review_stage, lr.created_at,
-                 u.prefix, u.first_name, u.last_name, lt.name_th as leave_type_name
-          FROM leave_requests lr
-          LEFT JOIN users u ON lr.user_id = u.user_id
-          LEFT JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id
-          WHERE lr.status IN ('pending', 'รออนุมัติ', 'อยู่ระหว่างตรวจสอบ')
-             OR lr.review_stage IN ('not_submitted', 'checking')
-          ORDER BY lr.created_at DESC
-          LIMIT 20
-        `).all().catch(() => ({ results: [] }));
-
-        const rawList = [...(q.results || [])];
-
-        // เติมคำขอลาที่รอตรวจสอบที่ยังไม่มีในการแจ้งเตือน
-        for (const pl of (pendingLeaves.results || [])) {
-          const reqCode = pl.request_no || `REQ-${pl.request_id}`;
-          const empName = `${pl.prefix || ''}${pl.first_name || ''} ${pl.last_name || ''}`.trim() || 'เจ้าหน้าที่';
-          const typeName = pl.leave_type_name || 'การลา';
-          const exists = rawList.some(item =>
-            (item.description && item.description.includes(reqCode)) ||
-            (item.title && item.title.includes(reqCode))
-          );
-          if (!exists) {
-            rawList.push({
-              id: `leave-pending-${pl.request_id}`,
-              userId: null,
-              title: `มีคำขอ${typeName}ใหม่จาก ${empName}`,
-              description: `คำขอลา ${reqCode} วันที่ ${pl.start_date} ถึง ${pl.end_date} (${pl.total_days} วัน) รอการตรวจสอบ`,
-              type: 'pending',
-              linkUrl: '/approver',
-              isRead: 0,
-              targetRole: 'admin',
-              time: pl.created_at || new Date().toISOString()
-            });
-          }
-        }
-
         // กรองรายการแจ้งเตือนซ้ำ (Deduplicate) ไม่ให้แสดงคำขอเดิมซ้ำ 2 รอบ
         const seen = new Set();
         const uniqueResults = [];
-        for (const item of rawList) {
+        for (const item of (q.results || [])) {
           const dedupeKey = `${(item.title || '').trim()}:::${(item.description || '').trim()}`;
           if (!seen.has(dedupeKey)) {
             seen.add(dedupeKey);
@@ -2386,7 +2347,14 @@ export async function onRequest(context) {
     if (path === '/notifications/read-all' && (method === 'PUT' || method === 'POST')) {
       const body = await request.json().catch(() => ({}));
       const cleanId = body.userId ? String(body.userId).replace(/^usr-/, '') : null;
-      if (cleanId && /^\d+$/.test(cleanId)) {
+      const isAdminOrApprover = body.role === 'admin' || body.role === 'approver';
+
+      if (isAdminOrApprover) {
+        await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE target_role IN ('admin', 'approver')").run().catch(() => { });
+        if (cleanId && /^\d+$/.test(cleanId)) {
+          await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').bind(Number(cleanId)).run().catch(() => { });
+        }
+      } else if (cleanId && /^\d+$/.test(cleanId)) {
         const user = await env.DB.prepare('SELECT role_id FROM users WHERE user_id = ?').bind(Number(cleanId)).first().catch(() => null);
         if (user && (user.role_id === 1 || user.role_id === 3)) {
           await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? OR target_role IN ('admin', 'approver')").bind(Number(cleanId)).run().catch(() => { });
@@ -2402,7 +2370,15 @@ export async function onRequest(context) {
     if (path.match(/^\/notifications\/([^/]+)\/read$/) && (method === 'PUT' || method === 'POST')) {
       const idMatch = path.match(/^\/notifications\/([^/]+)\/read$/);
       const notifId = idMatch[1];
-      await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ?').bind(notifId).run().catch(() => { });
+      const cleanNumId = notifId.replace(/^notif-admin-/, '').replace(/^notif-user-/, '').replace(/^notif-/, '');
+      if (/^\d+$/.test(notifId)) {
+        await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ?').bind(Number(notifId)).run().catch(() => { });
+      } else if (/^\d+$/.test(cleanNumId)) {
+        await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ?').bind(Number(cleanNumId)).run().catch(() => { });
+      } else {
+        await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ? OR target_role = ?')
+          .bind(notifId, notifId).run().catch(() => { });
+      }
       return jsonResponse({ success: true });
     }
 
@@ -2461,9 +2437,9 @@ export async function onRequest(context) {
       const insertRes = await env.DB.prepare(`
         INSERT INTO leave_requests (
           request_no, user_id, leave_type_id, start_date, end_date, total_days, reason,
-          substitute_user_id, substitute_name, status, review_stage, approved_at
+          substitute_user_id, substitute_name, status, review_stage, approved_at, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'approved' THEN datetime('now', 'localtime') ELSE NULL END)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'approved' THEN datetime('now', '+7 hours') ELSE NULL END, datetime('now', '+7 hours'), datetime('now', '+7 hours'))
       `).bind(
         reqNo,
         userId,

@@ -302,16 +302,33 @@ export function formatThaiDateTime(inputDate = new Date()) {
     return typeof inputDate === 'string' ? inputDate : '';
   }
 
-  // ปรับให้เป็น UTC+7 (เวลาประเทศไทย) เสมอ
-  const utcMs = dateObj.getTime() + (dateObj.getTimezoneOffset() * 60000);
-  const thDate = new Date(utcMs + (7 * 3600000));
-
-  const day = thDate.getDate();
-  const month = thaiMonths[thDate.getMonth()];
-  const year = thDate.getFullYear() + 543;
-  const hours = String(thDate.getHours()).padStart(2, '0');
-  const minutes = String(thDate.getMinutes()).padStart(2, '0');
-  return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+  // ปรับให้เป็น UTC+7 (เวลาประเทศไทย) เสมอ โดยใช้ Intl.DateTimeFormat
+  try {
+    const formatter = new Intl.DateTimeFormat('th-TH', {
+      timeZone: 'Asia/Bangkok',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(dateObj);
+    const p = {};
+    for (const part of parts) {
+      p[part.type] = part.value;
+    }
+    return `${p.day} ${p.month} ${p.year} เวลา ${p.hour}:${p.minute} น.`;
+  } catch (e) {
+    const utcMs = dateObj.getTime() + (dateObj.getTimezoneOffset() * 60000);
+    const thDate = new Date(utcMs + (7 * 3600000));
+    const day = thDate.getDate();
+    const month = thaiMonths[thDate.getMonth()];
+    const year = thDate.getFullYear() + 543;
+    const hours = String(thDate.getHours()).padStart(2, '0');
+    const minutes = String(thDate.getMinutes()).padStart(2, '0');
+    return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+  }
 }
 
 function doesNotificationBelongToUser(notif, user) {
@@ -706,6 +723,7 @@ export function LeaveProvider({ children }) {
   const mutationEpochRef = useRef(0);
   const knownMyLeaveStatusesRef = useRef({ userKey: null, statuses: new Map(), seeded: false });
   const knownAdminIncomingLeaveIdsRef = useRef({ knownIds: new Set(), seeded: false });
+  const readNotificationIdsRef = useRef(new Set());
 
   const syncLeaveBaselineForUser = (requests, targetUser) => {
     const userKey = getUserStableKey(targetUser);
@@ -911,7 +929,15 @@ export function LeaveProvider({ children }) {
         const notifData = await api.getNotifications(matchedActiveUser);
         if (isStaleSync()) return;
         if (Array.isArray(notifData)) {
-          setNotifications(notifData.map(normalizeNotificationItem));
+          setNotifications(
+            notifData.map((item) => {
+              const normalized = normalizeNotificationItem(item);
+              if (readNotificationIdsRef.current.has(String(normalized.id))) {
+                return { ...normalized, read: true, isRead: 1 };
+              }
+              return normalized;
+            })
+          );
         }
       }
     } catch (err) {
@@ -1676,6 +1702,11 @@ export function LeaveProvider({ children }) {
 
   // Mark all notifications read
   const markAllNotificationsRead = async () => {
+    notifications.forEach((n) => {
+      if (doesNotificationBelongToUser(n, currentUser) && n.id) {
+        readNotificationIdsRef.current.add(String(n.id));
+      }
+    });
     setNotifications((prev) =>
       prev.map((n) =>
         doesNotificationBelongToUser(n, currentUser) ? { ...n, read: true, isRead: 1 } : n
@@ -1689,6 +1720,9 @@ export function LeaveProvider({ children }) {
   };
 
   const markNotificationRead = async (id) => {
+    if (id) {
+      readNotificationIdsRef.current.add(String(id));
+    }
     setNotifications((prev) =>
       prev.map((n) => (String(n.id) === String(id) ? { ...n, read: true, isRead: 1 } : n))
     );
