@@ -740,6 +740,9 @@ export function LeaveProvider({ children }) {
           ...r,
           type: typeof r.type === 'string' ? r.type.replace(/พักร้อน/g, 'พักผ่อน') : r.type,
           status: normalizeLeaveStatus(r.status),
+          attachment: r.attachment || r.attachmentName || (r.attachmentUrl ? 'เอกสารแนบ.pdf' : ''),
+          attachmentName: r.attachmentName || r.attachment || '',
+          attachmentUrl: r.attachmentUrl || '',
         }));
         setLeaveRequests(normalizedLeaves);
         setSelectedLeaveDetail((prev) => {

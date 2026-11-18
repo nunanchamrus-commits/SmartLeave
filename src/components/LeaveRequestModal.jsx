@@ -36,7 +36,32 @@ export default function LeaveRequestModal() {
   const [reason, setReason] = useState('');
   const [substitute, setSubstitute] = useState('');
   const [fileName, setFileName] = useState('');
+  const [fileData, setFileData] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.size > 3 * 1024 * 1024) {
+        setErrorMsg('ขนาดไฟล์ต้องไม่เกิน 3 MB เพื่อประสิทธิภาพของระบบ');
+        return;
+      }
+      setErrorMsg('');
+      setFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFileData(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveFile = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFileName('');
+    setFileData('');
+  };
   const [isSuccess, setIsSuccess] = useState(false);
 
   // If user is male and leaveType was set to maternity, auto-reset to vacation
@@ -127,6 +152,8 @@ export default function LeaveRequestModal() {
       reason,
       substitute,
       attachment: fileName,
+      attachmentName: fileName,
+      attachmentUrl: fileData,
     });
 
     // Fire confetti effect
@@ -140,6 +167,8 @@ export default function LeaveRequestModal() {
     setTimeout(() => {
       setIsSuccess(false);
       setIsRequestModalOpen(false);
+      setFileName('');
+      setFileData('');
     }, 1500);
   };
 
@@ -315,26 +344,38 @@ export default function LeaveRequestModal() {
 
             {/* Attachment */}
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">เอกสารแนบ (ถ้ามี)</label>
-              <div className="relative border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-2xl p-3 text-center transition-colors cursor-pointer bg-slate-50/50">
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-slate-700">เอกสารแนบ (PDF / รูปภาพ)</label>
+                <span className="text-[11px] text-slate-400">ขนาดไม่เกิน 3 MB</span>
+              </div>
+              <div className="relative border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-2xl p-3 text-center transition-colors bg-slate-50/50">
                 <input
                   type="file"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setFileName(e.target.files[0].name);
-                    }
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  accept=".pdf,application/pdf,image/png,image/jpeg,image/webp"
+                  onChange={handleFileChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-0"
                 />
-                <div className="flex items-center justify-center space-x-2 text-xs text-slate-500">
-                  <UploadCloud className="w-4 h-4 text-emerald-600" />
-                  <span>
-                    {fileName ? (
-                      <span className="font-semibold text-emerald-700">{fileName}</span>
-                    ) : (
-                      'คลิกเพื่อเลือกไฟล์ หรือ ลากไฟล์มาวางที่นี่'
-                    )}
-                  </span>
+                <div className="flex items-center justify-between px-2 text-xs text-slate-500 relative z-10 pointer-events-none">
+                  <div className="flex items-center space-x-2 truncate max-w-[85%]">
+                    <UploadCloud className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span className="truncate">
+                      {fileName ? (
+                        <span className="font-semibold text-emerald-700">{fileName}</span>
+                      ) : (
+                        'คลิกเพื่อเลือกไฟล์ PDF หรือรูปภาพ (ไม่เกิน 3 MB)'
+                      )}
+                    </span>
+                  </div>
+                  {fileName && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveFile}
+                      className="text-rose-500 hover:text-rose-700 p-1 pointer-events-auto transition-colors"
+                      title="ลบไฟล์แนบ"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

@@ -14,6 +14,8 @@ import {
   RotateCcw,
   Calendar,
   User,
+  Download,
+  Eye,
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 import { downloadLeaveSlipPdf } from '../utils/exportPdf';
@@ -389,15 +391,45 @@ export default function LeaveDetailModal() {
               </div>
 
               {/* Attachment */}
-              {req.attachment && (
+              {(req.attachment || req.attachmentUrl) && (
                 <div className="p-3 bg-white rounded-xl border border-slate-100 flex items-center justify-between text-xs">
-                  <div className="flex items-center space-x-2 text-slate-600">
-                    <FileText className="w-4 h-4 text-emerald-600" />
-                    <span>{req.attachment}</span>
+                  <div className="flex items-center space-x-2 text-slate-600 truncate max-w-[65%]">
+                    <FileText className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span className="truncate font-medium">{req.attachmentName || req.attachment || 'เอกสารแนบ'}</span>
                   </div>
-                  <span className="text-emerald-700 font-medium cursor-pointer hover:underline">
-                    ดาวน์โหลด
-                  </span>
+                  {req.attachmentUrl ? (
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const w = window.open('');
+                          if (w) {
+                            if (req.attachmentUrl.startsWith('data:application/pdf')) {
+                              w.document.write(`<iframe src="${req.attachmentUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                              w.document.title = req.attachmentName || req.attachment || 'เอกสารแนบ.pdf';
+                            } else {
+                              w.location.href = req.attachmentUrl;
+                            }
+                          }
+                        }}
+                        className="text-emerald-700 hover:text-emerald-900 font-semibold cursor-pointer hover:underline flex items-center space-x-1"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>เปิดดู</span>
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <a
+                        href={req.attachmentUrl}
+                        download={req.attachmentName || req.attachment || 'เอกสารแนบ.pdf'}
+                        className="text-emerald-700 hover:text-emerald-900 font-semibold cursor-pointer hover:underline flex items-center space-x-1"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>ดาวน์โหลด</span>
+                      </a>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 text-[11px]">(มีเฉพาะชื่อไฟล์)</span>
+                  )}
                 </div>
               )}
 

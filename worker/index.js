@@ -39,6 +39,8 @@ const SCHEMA_COLUMNS = {
     substitute_user_id: 'INTEGER',
     substitute_name: 'TEXT',
     review_stage: "TEXT DEFAULT 'not_submitted'",
+    attachment_url: 'TEXT',
+    attachment_name: 'TEXT',
   },
   employee_leave_quotas: {
     carry_over_days: 'REAL DEFAULT 0.0',
@@ -777,6 +779,7 @@ async function autoMigrateDatabase(db) {
       contact_address TEXT,
       contact_phone TEXT,
       attachment_url TEXT,
+      attachment_name TEXT,
       status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'cancelled')),
       review_stage TEXT DEFAULT 'not_submitted',
       approver_id INTEGER,
@@ -1776,6 +1779,9 @@ export async function onRequest(context) {
           lr.review_stage as reviewStage,
           lr.reason,
           COALESCE(lr.rejection_reason, '') as note,
+          COALESCE(lr.attachment_url, '') as attachmentUrl,
+          COALESCE(lr.attachment_name, '') as attachmentName,
+          COALESCE(lr.attachment_name, CASE WHEN lr.attachment_url IS NOT NULL AND lr.attachment_url != '' THEN 'เอกสารแนบ.pdf' ELSE '' END) as attachment,
           COALESCE(
             CASE WHEN sub.user_id IS NOT NULL THEN ((CASE WHEN sub.prefix IS NOT NULL AND sub.prefix != '' THEN sub.prefix ELSE '' END) || sub.first_name || ' ' || sub.last_name) END,
             NULLIF(lr.substitute_name, ''),
@@ -2466,7 +2472,7 @@ export async function onRequest(context) {
     // -------------------------------------------------------------
     if (path === '/leaves' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const { typeKey, startDate, endDate, days, reason, substitute, status } = body;
+      const { typeKey, startDate, endDate, days, reason, substitute, status, attachment, attachmentName, attachmentUrl } = body;
 
       const reqNo = `LV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -2512,12 +2518,22 @@ export async function onRequest(context) {
       const substituteUserId = substitute ? await resolveSubstituteUserId(env.DB, substitute) : null;
       const substituteName = substitute && String(substitute).trim() ? String(substitute).trim() : null;
 
+      const safeAttachmentUrl = (typeof attachmentUrl === 'string' && attachmentUrl.trim())
+        ? attachmentUrl.trim()
+        : ((typeof attachment === 'string' && attachment.startsWith('data:')) ? attachment.trim() : null);
+      const safeAttachmentName = (typeof attachmentName === 'string' && attachmentName.trim())
+        ? attachmentName.trim()
+        : ((typeof attachment === 'string' && !attachment.startsWith('data:')) ? attachment.trim() : null);
+
+      await ensureTableColumns(env.DB, 'leave_requests', SCHEMA_COLUMNS.leave_requests).catch(() => { });
+
       const insertRes = await env.DB.prepare(`
         INSERT INTO leave_requests (
           request_no, user_id, leave_type_id, start_date, end_date, total_days, reason,
-          substitute_user_id, substitute_name, status, review_stage, approved_at, created_at, updated_at
+          substitute_user_id, substitute_name, status, review_stage, attachment_url, attachment_name,
+          approved_at, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'approved' THEN datetime('now', '+7 hours') ELSE NULL END, datetime('now', '+7 hours'), datetime('now', '+7 hours'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'approved' THEN datetime('now', '+7 hours') ELSE NULL END, datetime('now', '+7 hours'), datetime('now', '+7 hours'))
       `).bind(
         reqNo,
         userId,
@@ -2530,6 +2546,8 @@ export async function onRequest(context) {
         substituteName,
         mapped.dbStatus,
         mapped.reviewStage,
+        safeAttachmentUrl,
+        safeAttachmentName,
         mapped.dbStatus
       ).run();
 
@@ -2591,7 +2609,7 @@ export async function onRequest(context) {
       const idMatch = path.match(/^\/leaves\/([^/]+)$/);
       const leaveId = idMatch[1];
       const body = await request.json().catch(() => ({}));
-      const { typeKey, startDate, endDate, days, reason, substitute, status, note } = body;
+      const { typeKey, startDate, endDate, days, reason, substitute, status, note, attachment, attachmentName, attachmentUrl } = body;
 
       const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (!reqInfo) {
@@ -2649,6 +2667,13 @@ export async function onRequest(context) {
 
       const safeDbStatus = VALID_DB_STATUSES.has(mappedStatus.dbStatus) ? mappedStatus.dbStatus : 'pending';
 
+      let nextAttachmentUrl = reqInfo.attachment_url ?? null;
+      let nextAttachmentName = reqInfo.attachment_name ?? null;
+      if (attachmentUrl !== undefined) nextAttachmentUrl = (typeof attachmentUrl === 'string' && attachmentUrl.trim()) ? attachmentUrl.trim() : null;
+      else if (attachment !== undefined && typeof attachment === 'string' && attachment.startsWith('data:')) nextAttachmentUrl = attachment.trim();
+      if (attachmentName !== undefined) nextAttachmentName = (typeof attachmentName === 'string' && attachmentName.trim()) ? attachmentName.trim() : null;
+      else if (attachment !== undefined && typeof attachment === 'string' && !attachment.startsWith('data:')) nextAttachmentName = attachment.trim();
+
       await env.DB.prepare(`
         UPDATE leave_requests
         SET leave_type_id = ?,
@@ -2661,6 +2686,8 @@ export async function onRequest(context) {
             rejection_reason = ?,
             status = ?,
             review_stage = ?,
+            attachment_url = COALESCE(?, attachment_url),
+            attachment_name = COALESCE(?, attachment_name),
             approved_at = CASE WHEN ? = 1 THEN COALESCE(approved_at, datetime('now', 'localtime')) ELSE NULL END,
             updated_at = datetime('now', 'localtime')
         WHERE request_id = ?
@@ -2675,6 +2702,8 @@ export async function onRequest(context) {
         safeNote,
         safeDbStatus,
         mappedStatus.reviewStage,
+        nextAttachmentUrl,
+        nextAttachmentName,
         isFinalDecision ? 1 : 0,
         reqInfo.request_id
       ).run();
