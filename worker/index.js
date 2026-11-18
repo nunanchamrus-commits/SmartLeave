@@ -42,6 +42,65 @@ function formatThaiDateRangeBE(startDate, endDate, totalDays = null) {
   return e ? `${s} – ${e}` : s;
 }
 
+function enumerateIsoDatesWorker(startIso, endIso, maxDays = 120) {
+  if (!startIso || typeof startIso !== 'string') return [];
+  const sMatch = startIso.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!sMatch) return [];
+  const start = new Date(Date.UTC(parseInt(sMatch[1], 10), parseInt(sMatch[2], 10) - 1, parseInt(sMatch[3], 10)));
+  let end = start;
+  if (endIso && typeof endIso === 'string') {
+    const eMatch = endIso.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (eMatch) {
+      end = new Date(Date.UTC(parseInt(eMatch[1], 10), parseInt(eMatch[2], 10) - 1, parseInt(eMatch[3], 10)));
+    }
+  }
+  if (end < start) end = start;
+  const out = [];
+  const cur = new Date(start.getTime());
+  while (cur <= end && out.length < maxDays) {
+    out.push(`${cur.getUTCFullYear()}-${String(cur.getUTCMonth() + 1).padStart(2, '0')}-${String(cur.getUTCDate()).padStart(2, '0')}`);
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function parseCancelDatesList(rawCancelDates, cancelStartDate, cancelEndDate) {
+  let arr = [];
+  if (Array.isArray(rawCancelDates)) {
+    arr = rawCancelDates.filter((d) => typeof d === 'string' && /^\d{4}-\d{1,2}-\d{1,2}/.test(d));
+  } else if (typeof rawCancelDates === 'string' && rawCancelDates.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(rawCancelDates);
+      if (Array.isArray(parsed)) {
+        arr = parsed.filter((d) => typeof d === 'string' && /^\d{4}-\d{1,2}-\d{1,2}/.test(d));
+      }
+    } catch (e) { }
+  }
+  if (arr.length === 0 && cancelStartDate) {
+    arr = enumerateIsoDatesWorker(cancelStartDate, cancelEndDate || cancelStartDate);
+  }
+  return [...new Set(arr)].sort();
+}
+
+function formatCancelDatesBEWorker(rawCancelDates, cancelStartDate, cancelEndDate, cancelDays = null) {
+  const arr = parseCancelDatesList(rawCancelDates, cancelStartDate, cancelEndDate);
+  if (arr.length === 1) {
+    const label = formatThaiDateBE(arr[0]);
+    return Number(cancelDays) === 0.5 ? `${label} (ครึ่งวัน)` : label;
+  }
+  if (arr.length > 1) {
+    const fullSpan = enumerateIsoDatesWorker(arr[0], arr[arr.length - 1]);
+    if (fullSpan.length === arr.length) {
+      return `${formatThaiDateBE(arr[0])} – ${formatThaiDateBE(arr[arr.length - 1])}`;
+    }
+    return arr.map((d) => formatThaiDateBE(d)).join(', ');
+  }
+  if (cancelStartDate) {
+    return formatThaiDateRangeBE(cancelStartDate, cancelEndDate || cancelStartDate, cancelDays);
+  }
+  return '';
+}
+
 // -------------------------------------------------------------
 // DYNAMIC SQL SCHEMA MIGRATION: ตรวจสอบและสร้างคอลัมน์อัตโนมัติหากยังไม่มีใน D1
 // -------------------------------------------------------------
@@ -72,6 +131,10 @@ const SCHEMA_COLUMNS = {
     cancel_requested_at: 'TEXT',
     cancel_decided_at: 'TEXT',
     cancel_remark: 'TEXT',
+    cancel_start_date: 'TEXT',
+    cancel_end_date: 'TEXT',
+    cancel_dates: 'TEXT',
+    cancel_days: 'REAL',
   },
   employee_leave_quotas: {
     carry_over_days: 'REAL DEFAULT 0.0',
@@ -1821,6 +1884,10 @@ export async function onRequest(context) {
           COALESCE(lr.cancel_requested_at, '') as cancelRequestedAt,
           COALESCE(lr.cancel_decided_at, '') as cancelDecidedAt,
           COALESCE(lr.cancel_remark, '') as cancelRemark,
+          COALESCE(lr.cancel_start_date, '') as cancelStartDate,
+          COALESCE(lr.cancel_end_date, '') as cancelEndDate,
+          COALESCE(lr.cancel_dates, '') as cancelDates,
+          COALESCE(lr.cancel_days, 0) as cancelDays,
           COALESCE(
             CASE WHEN sub.user_id IS NOT NULL THEN ((CASE WHEN sub.prefix IS NOT NULL AND sub.prefix != '' THEN sub.prefix ELSE '' END) || sub.first_name || ' ' || sub.last_name) END,
             NULLIF(lr.substitute_name, ''),
@@ -1841,8 +1908,11 @@ export async function onRequest(context) {
       const formattedLeaves = (results || []).map((row) => {
         const displayStatus = mapDbRowToDisplayStatus(row.dbStatus, row.reviewStage);
         const { dbStatus, reviewStage, ...rest } = row;
+        const cancelDatesArr = parseCancelDatesList(rest.cancelDates, rest.cancelStartDate, rest.cancelEndDate);
         return {
           ...rest,
+          cancelDates: cancelDatesArr,
+          cancelDateRange: formatCancelDatesBEWorker(cancelDatesArr, rest.cancelStartDate, rest.cancelEndDate, rest.cancelDays),
           dateRange: formatThaiDateRangeBE(rest.startDate, rest.endDate, rest.days) || rest.dateRange,
           approvedDate: rest.approvedDate || null,
           status: displayStatus,
@@ -3029,6 +3099,16 @@ export async function onRequest(context) {
         return jsonResponse({ error: 'ไม่พบคำขอลางานที่ต้องการยกเลิก' }, 404);
       }
 
+      const origDays = Number(reqInfo.total_days || 1);
+      const rawDates = parseCancelDatesList(body.cancelDates, body.cancelStartDate || reqInfo.start_date, body.cancelEndDate || reqInfo.end_date);
+      const safeCancelStart = rawDates.length > 0 ? rawDates[0] : (body.cancelStartDate || reqInfo.start_date);
+      const safeCancelEnd = rawDates.length > 0 ? rawDates[rawDates.length - 1] : (body.cancelEndDate || reqInfo.end_date);
+      const parsedCancelDays = Number(body.cancelDays);
+      const safeCancelDays = Number.isFinite(parsedCancelDays) && parsedCancelDays > 0
+        ? Math.min(origDays, parsedCancelDays)
+        : (origDays === 0.5 ? 0.5 : (rawDates.length > 0 ? Math.min(origDays, rawDates.length) : origDays));
+      const cancelDatesJson = rawDates.length > 0 ? JSON.stringify(rawDates) : null;
+
       await ensureTableColumns(env.DB, 'leave_requests', SCHEMA_COLUMNS.leave_requests).catch(() => { });
 
       await env.DB.prepare(`
@@ -3037,6 +3117,10 @@ export async function onRequest(context) {
             cancel_reason = ?,
             cancel_attachment_url = ?,
             cancel_attachment_name = ?,
+            cancel_start_date = ?,
+            cancel_end_date = ?,
+            cancel_dates = ?,
+            cancel_days = ?,
             cancel_requested_at = datetime('now', '+7 hours'),
             cancel_decided_at = NULL,
             cancel_remark = NULL,
@@ -3046,6 +3130,10 @@ export async function onRequest(context) {
         cancelReason,
         cancelAttachmentUrl || null,
         cancelAttachmentName || null,
+        safeCancelStart || null,
+        safeCancelEnd || null,
+        cancelDatesJson,
+        safeCancelDays,
         reqInfo.request_id
       ).run();
 
@@ -3057,7 +3145,8 @@ export async function onRequest(context) {
       const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
       const typeName = (reqInfo.type_name || 'การลา').replace(/พักร้อน/g, 'พักผ่อน');
 
-      const rangeBE = formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, reqInfo.total_days);
+      const cancelRangeBE = formatCancelDatesBEWorker(rawDates, safeCancelStart, safeCancelEnd, safeCancelDays)
+        || formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, reqInfo.total_days);
 
       // แจ้งเตือนผู้ยื่นคำขอ
       await env.DB.prepare(`
@@ -3066,7 +3155,7 @@ export async function onRequest(context) {
       `).bind(
         reqInfo.user_id,
         `ยื่นคำขอยกเลิกวันลา (${typeName}) สำเร็จ`,
-        `คำขอยกเลิกวันลา ${reqCode} (${rangeBE}) อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`
+        `คำขอยกเลิกวันลา ${reqCode} วันที่ ${cancelRangeBE} (${safeCancelDays} วัน) อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`
       ).run().catch(() => { });
 
       // แจ้งเตือน Admin / ผู้อนุมัติ
@@ -3076,19 +3165,21 @@ export async function onRequest(context) {
       `).bind(
         reqInfo.user_id || 1,
         `มีคำขอยกเลิกวันลาใหม่จาก ${requesterName}`,
-        `คำขอยกเลิกวันลา ${reqCode} (${typeName}) วันที่ ${rangeBE} รอการพิจารณา`
+        `คำขอยกเลิกวันลา ${reqCode} (${typeName}) วันที่ ${cancelRangeBE} (${safeCancelDays} วัน) รอการพิจารณา`
       ).run().catch(() => { });
 
       return jsonResponse({
         success: true,
         requestId: reqInfo.request_id,
         cancelStatus: 'pending',
+        cancelDays: safeCancelDays,
+        cancelDateRange: cancelRangeBE,
         message: 'ส่งคำขอยกเลิกวันลาเรียบร้อยแล้ว รอผู้ดูแลระบบพิจารณา',
       });
     }
 
     // -------------------------------------------------------------
-    // 6.3 อนุมัติคำขอยกเลิกวันลา (Admin Approve Leave Cancellation)
+    // 6.3 อนุญาตคำขอยกเลิกวันลา (Admin Approve Leave Cancellation — รองรับทั้งยกเลิกทั้งหมดและยกเลิกบางวัน)
     // POST /api/leaves/:id/cancel-approve
     // -------------------------------------------------------------
     if (path.match(/^\/leaves\/([^/]+)\/cancel-approve$/) && method === 'POST') {
@@ -3106,28 +3197,65 @@ export async function onRequest(context) {
 
       const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
       const wasApproved = prevDisplayStatus === 'อนุมัติ';
+      const origDays = Number(reqInfo.total_days || 0);
+      const cancelDatesArr = parseCancelDatesList(reqInfo.cancel_dates, reqInfo.cancel_start_date, reqInfo.cancel_end_date);
+      const storedCancelDays = Number(reqInfo.cancel_days || 0);
+      const effectiveCancelDays = storedCancelDays > 0
+        ? Math.min(origDays, storedCancelDays)
+        : (cancelDatesArr.length > 0 ? Math.min(origDays, cancelDatesArr.length) : origDays);
 
-      await env.DB.prepare(`
-        UPDATE leave_requests
-        SET status = 'cancelled',
-            review_stage = 'cancelled',
-            cancel_status = 'approved',
-            cancel_remark = ?,
-            cancel_decided_at = datetime('now', '+7 hours'),
-            updated_at = datetime('now', '+7 hours')
-        WHERE request_id = ?
-      `).bind(remarkText, reqInfo.request_id).run();
+      const remainingDays = Math.max(0, Number((origDays - effectiveCancelDays).toFixed(2)));
+      const isPartialCancel = remainingDays > 0 && effectiveCancelDays > 0 && effectiveCancelDays < origDays;
 
-      // หากเดิมคำขอลานี้เคยถูกอนุมัติไปแล้ว ให้คืนโควตาวันลาให้พนักงานอัตโนมัติ
-      if (wasApproved) {
-        const year = extractFiscalYear(reqInfo.start_date);
-        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -Number(reqInfo.total_days || 0));
+      const cancelRangeBE = formatCancelDatesBEWorker(cancelDatesArr, reqInfo.cancel_start_date, reqInfo.cancel_end_date, effectiveCancelDays)
+        || formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, reqInfo.total_days);
+
+      if (isPartialCancel) {
+        // ยกเลิกเฉพาะบางวัน: คงสถานะลาเดิมไว้ ปรับช่วงวันที่และจำนวนวันคงเหลือ
+        const allDates = enumerateIsoDatesWorker(reqInfo.start_date, reqInfo.end_date);
+        const cancelSet = new Set(cancelDatesArr);
+        const remDates = allDates.filter((d) => !cancelSet.has(d));
+        const nextStart = remDates.length > 0 ? remDates[0] : reqInfo.start_date;
+        const nextEnd = remDates.length > 0 ? remDates[remDates.length - 1] : reqInfo.end_date;
+
+        await env.DB.prepare(`
+          UPDATE leave_requests
+          SET start_date = ?,
+              end_date = ?,
+              total_days = ?,
+              cancel_status = 'approved',
+              cancel_remark = ?,
+              cancel_decided_at = datetime('now', '+7 hours'),
+              updated_at = datetime('now', '+7 hours')
+          WHERE request_id = ?
+        `).bind(nextStart, nextEnd, remainingDays, remarkText, reqInfo.request_id).run();
+
+        // คืนเฉพาะจำนวนวันที่ยกเลิก (ถ้าเดิมเคยอนุมัติแล้ว)
+        if (wasApproved && effectiveCancelDays > 0) {
+          const year = extractFiscalYear(reqInfo.start_date);
+          await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -effectiveCancelDays);
+        }
+      } else {
+        // ยกเลิกทั้งหมด
+        await env.DB.prepare(`
+          UPDATE leave_requests
+          SET status = 'cancelled',
+              review_stage = 'cancelled',
+              cancel_status = 'approved',
+              cancel_remark = ?,
+              cancel_decided_at = datetime('now', '+7 hours'),
+              updated_at = datetime('now', '+7 hours')
+          WHERE request_id = ?
+        `).bind(remarkText, reqInfo.request_id).run();
+
+        if (wasApproved && origDays > 0) {
+          const year = extractFiscalYear(reqInfo.start_date);
+          await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -origDays);
+        }
       }
 
       const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
       const typeName = (reqInfo.type_name || 'การลา').replace(/พักร้อน/g, 'พักผ่อน');
-
-      const rangeBE = formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, reqInfo.total_days);
 
       // แจ้งเตือน User เจ้าของคำขอ
       await env.DB.prepare(`
@@ -3136,7 +3264,9 @@ export async function onRequest(context) {
       `).bind(
         reqInfo.user_id,
         `อนุญาตคำขอยกเลิกวันลา (${typeName}) แล้ว`,
-        `คำขอยกเลิกวันลา ${reqCode} (${rangeBE}) ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
+        isPartialCancel
+          ? `อนุญาตยกเลิกวันลา ${reqCode} เฉพาะวันที่ ${cancelRangeBE} (${effectiveCancelDays} วัน) คงเหลือวันลาเดิม ${remainingDays} วัน${wasApproved ? ` และคืนสิทธิ์ ${effectiveCancelDays} วันเรียบร้อย` : ''} (${remarkText})`
+          : `คำขอยกเลิกวันลา ${reqCode} (${cancelRangeBE}) ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
       ).run().catch(() => { });
 
       // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
@@ -3149,8 +3279,11 @@ export async function onRequest(context) {
       return jsonResponse({
         success: true,
         requestId: reqInfo.request_id,
-        status: 'ยกเลิกวันลา',
+        status: isPartialCancel ? prevDisplayStatus : 'ยกเลิกวันลา',
         cancelStatus: 'approved',
+        isPartialCancel,
+        cancelledDays: effectiveCancelDays,
+        remainingDays,
         quotaRefunded: wasApproved,
         message: 'อนุญาตให้ยกเลิกวันลาเรียบร้อยแล้ว',
       });

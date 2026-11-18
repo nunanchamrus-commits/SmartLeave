@@ -196,8 +196,13 @@ export default function AdminCancelApprovalsView() {
 
                           <div className="text-xs text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
                             <span>
-                              <strong className="text-slate-700">ช่วงวันที่ลา:</strong> {req.dateRange} ({req.days} วัน)
+                              <strong className="text-slate-700">ช่วงวันที่ลาเดิม:</strong> {req.dateRange} ({req.days} วัน)
                             </span>
+                            {(req.cancelDateRange || req.cancelDays > 0) && (
+                              <span className="text-rose-700 font-semibold">
+                                <strong>วันที่ขอยกเลิก:</strong> {req.cancelDateRange || req.dateRange} ({req.cancelDays || req.days} วัน)
+                              </span>
+                            )}
                             {req.cancelRequestedAt && (
                               <span>
                                 <strong className="text-slate-700">วันที่ยื่นขอยกเลิก:</strong> {req.cancelRequestedAt}
@@ -259,14 +264,27 @@ export default function AdminCancelApprovalsView() {
                           </div>
 
                           {/* Quota Refund Info if original leave was approved */}
-                          {req.status === 'อนุมัติ' && (
-                            <div className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-medium">
-                              <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span>
-                                คำขอลานี้เคยได้รับอนุมัติแล้ว — หากอนุญาตให้ยกเลิก ระบบจะคืนสิทธิ์วันลา <strong>{req.days} วัน</strong> ให้อัตโนมัติ
-                              </span>
-                            </div>
-                          )}
+                          {req.status === 'อนุมัติ' && (() => {
+                            const cancelDays = Number(req.cancelDays || 0) > 0 ? Math.min(Number(req.days || 0), Number(req.cancelDays)) : Number(req.days || 0);
+                            const remDays = Math.max(0, Number((Number(req.days || 0) - cancelDays).toFixed(2)));
+                            const isPartial = remDays > 0 && cancelDays > 0 && cancelDays < Number(req.days || 0);
+                            return (
+                              <div className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-medium">
+                                <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>
+                                  {isPartial ? (
+                                    <>
+                                      คำขอลานี้เคยได้รับอนุมัติแล้ว — หากอนุญาตให้ยกเลิกเฉพาะวันที่ <strong>{req.cancelDateRange}</strong> ระบบจะคืนสิทธิ์วันลา <strong>{cancelDays} วัน</strong> (คงเหลือวันลาเดิม {remDays} วัน) ให้อัตโนมัติ
+                                    </>
+                                  ) : (
+                                    <>
+                                      คำขอลานี้เคยได้รับอนุมัติแล้ว — หากอนุญาตให้ยกเลิก ระบบจะคืนสิทธิ์วันลา <strong>{cancelDays} วัน</strong> ให้อัตโนมัติ
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Actions */}
@@ -339,7 +357,8 @@ export default function AdminCancelApprovalsView() {
                             </span>
                           </div>
                           <div className="text-xs text-slate-500">
-                            {req.type} • {req.dateRange} ({req.days} วัน)
+                            {req.type} • ช่วงลา: {req.dateRange} ({req.days} วัน)
+                            {req.cancelDateRange ? ` • วันที่ยกเลิก: ${req.cancelDateRange} (${req.cancelDays || req.days} วัน)` : ''}
                             {req.cancelDecidedAt ? ` • พิจารณาเมื่อ: ${req.cancelDecidedAt}` : ''}
                           </div>
                           {req.cancelReason && (
@@ -431,11 +450,19 @@ export default function AdminCancelApprovalsView() {
                   <span className="font-semibold text-emerald-800">{confirmModal.req.type}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">ช่วงวันที่ลา:</span>
+                  <span className="text-slate-500">ช่วงวันที่ลาเดิม:</span>
                   <span className="font-medium text-slate-700">
                     {confirmModal.req.dateRange} ({confirmModal.req.days} วัน)
                   </span>
                 </div>
+                {(confirmModal.req.cancelDateRange || confirmModal.req.cancelDays > 0) && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">วันที่ขอยกเลิก:</span>
+                    <span className="font-bold text-rose-700">
+                      {confirmModal.req.cancelDateRange || confirmModal.req.dateRange} ({confirmModal.req.cancelDays || confirmModal.req.days} วัน)
+                    </span>
+                  </div>
+                )}
                 {confirmModal.req.cancelReason && (
                   <div className="pt-2 border-t border-slate-200/70">
                     <span className="text-slate-500 block mb-0.5">เหตุผลขอยกเลิก:</span>
@@ -444,15 +471,30 @@ export default function AdminCancelApprovalsView() {
                 )}
               </div>
 
-              {confirmModal.action === 'approve' && confirmModal.req.status === 'อนุมัติ' && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start space-x-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>
-                    เมื่อยืนยัน ระบบจะเปลี่ยนสถานะเป็น <strong>"ยกเลิกวันลา"</strong> และคืนสิทธิ์วันลาจำนวน{' '}
-                    <strong>{confirmModal.req.days} วัน</strong> กลับไปยังโควตาของพนักงานอัตโนมัติ
-                  </span>
-                </div>
-              )}
+              {confirmModal.action === 'approve' && confirmModal.req.status === 'อนุมัติ' && (() => {
+                const origD = Number(confirmModal.req.days || 0);
+                const cDays = Number(confirmModal.req.cancelDays || 0) > 0 ? Math.min(origD, Number(confirmModal.req.cancelDays)) : origD;
+                const remD = Math.max(0, Number((origD - cDays).toFixed(2)));
+                const isPartial = remD > 0 && cDays > 0 && cDays < origD;
+                return (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>
+                      {isPartial ? (
+                        <>
+                          เมื่อยืนยัน ระบบจะยกเลิกเฉพาะวันที่ <strong>{confirmModal.req.cancelDateRange}</strong> (คงเหลือวันลาเดิม {remD} วัน) และคืนสิทธิ์วันลาจำนวน{' '}
+                          <strong>{cDays} วัน</strong> กลับไปยังโควตาของพนักงานอัตโนมัติ
+                        </>
+                      ) : (
+                        <>
+                          เมื่อยืนยัน ระบบจะเปลี่ยนสถานะเป็น <strong>"ยกเลิกวันลา"</strong> และคืนสิทธิ์วันลาจำนวน{' '}
+                          <strong>{cDays} วัน</strong> กลับไปยังโควตาของพนักงานอัตโนมัติ
+                        </>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1 text-xs">

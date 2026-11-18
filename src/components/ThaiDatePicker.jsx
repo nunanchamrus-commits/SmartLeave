@@ -31,6 +31,7 @@ export default function ThaiDatePicker({
   value,
   onChange,
   min,
+  max,
   disabled = false,
   className = '',
   placeholder = 'เลือกวันที่ (พ.ศ.)',
@@ -96,12 +97,14 @@ export default function ThaiDatePicker({
   const handleSelectDay = (day) => {
     const iso = toISO(viewYear, viewMonth, day);
     if (min && iso < min) return;
+    if (max && iso > max) return;
     if (onChange) onChange(iso);
     setOpen(false);
   };
 
   const handleSelectToday = () => {
     if (min && todayISO < min) return;
+    if (max && todayISO > max) return;
     setViewYear(now.getFullYear());
     setViewMonth(now.getMonth());
     if (onChange) onChange(todayISO);
@@ -197,7 +200,7 @@ export default function ThaiDatePicker({
               const iso = toISO(viewYear, viewMonth, day);
               const isSelected = value === iso;
               const isToday = todayISO === iso;
-              const isDisabled = Boolean(min && iso < min);
+              const isDisabled = Boolean((min && iso < min) || (max && iso > max));
               return (
                 <button
                   type="button"
@@ -223,7 +226,7 @@ export default function ThaiDatePicker({
             <button
               type="button"
               onClick={handleSelectToday}
-              disabled={Boolean(min && todayISO < min)}
+              disabled={Boolean((min && todayISO < min) || (max && todayISO > max))}
               className="text-emerald-700 hover:text-emerald-900 font-bold disabled:opacity-40"
             >
               วันนี้ ({formatThaiDateBE(todayISO)})

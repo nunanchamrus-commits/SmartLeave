@@ -2,7 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useRef 
 import { initialQuotas, initialPDPAPolicy } from '../data/mockData';
 import { generateHolidayAnnouncements } from '../data/holidays';
 import api from '../services/api';
-import { formatThaiDateRangeBE, replaceIsoDatesWithThaiBE } from '../utils/thaiDate';
+import {
+  formatThaiDateRangeBE,
+  replaceIsoDatesWithThaiBE,
+  formatCancelDatesBE,
+  computeRemainingDatesAfterCancel,
+} from '../utils/thaiDate';
 
 const LeaveContext = createContext();
 
@@ -751,6 +756,13 @@ export function LeaveProvider({ children }) {
           approvedDate: r.approvedDate ? formatThaiDateTime(r.approvedDate) : null,
           cancelRequestedAt: r.cancelRequestedAt ? formatThaiDateTime(r.cancelRequestedAt) : '',
           cancelDecidedAt: r.cancelDecidedAt ? formatThaiDateTime(r.cancelDecidedAt) : '',
+          cancelDates: Array.isArray(r.cancelDates)
+            ? r.cancelDates
+            : (typeof r.cancelDates === 'string' && r.cancelDates.trim().startsWith('[')
+              ? (() => { try { return JSON.parse(r.cancelDates); } catch { return []; } })()
+              : []),
+          cancelDays: Number(r.cancelDays || 0),
+          cancelDateRange: r.cancelDateRange || formatCancelDatesBE(r.cancelDates, r.cancelStartDate, r.cancelEndDate, r.cancelDays),
           status: normalizeLeaveStatus(r.status),
           attachment: r.attachment || r.attachmentName || (r.attachmentUrl ? 'เอกสารแนบ.pdf' : ''),
           attachmentName: r.attachmentName || r.attachment || '',
@@ -1235,8 +1247,19 @@ export function LeaveProvider({ children }) {
     showToast(`ปรับสถานะคำขอเป็น "${normalizedStatus}" เรียบร้อยแล้ว`, 'success');
   };
 
-  // User submits a leave cancellation request (ยกเลิกวันลา พร้อมแนบเอกสาร)
-  const submitCancelLeaveRequest = async (requestId, { cancelReason = '', cancelAttachmentName = '', cancelAttachmentUrl = '' } = {}) => {
+  // User submits a leave cancellation request (ยกเลิกวันลา รองรับเลือกเฉพาะบางวัน + แนบเอกสาร)
+  const submitCancelLeaveRequest = async (
+    requestId,
+    {
+      cancelReason = '',
+      cancelAttachmentName = '',
+      cancelAttachmentUrl = '',
+      cancelStartDate = '',
+      cancelEndDate = '',
+      cancelDates = [],
+      cancelDays = null,
+    } = {}
+  ) => {
     mutationEpochRef.current += 1;
     const baseRequests = leaveRequestsRef.current;
     const target = baseRequests.find((r) => String(r.id) === String(requestId));
@@ -1245,39 +1268,41 @@ export function LeaveProvider({ children }) {
       return { success: false };
     }
 
+    const sortedDates = Array.isArray(cancelDates) ? [...new Set(cancelDates)].sort() : [];
+    const effStart = cancelStartDate || sortedDates[0] || target.startDate || '';
+    const effEnd = cancelEndDate || sortedDates[sortedDates.length - 1] || target.endDate || effStart;
+    const origDays = Number(target.days || 1);
+    const effCancelDays =
+      cancelDays !== null && cancelDays !== undefined && Number(cancelDays) > 0
+        ? Math.min(origDays, Number(cancelDays))
+        : (sortedDates.length > 0 ? Math.min(origDays, sortedDates.length) : origDays);
+    const cancelDateRange =
+      formatCancelDatesBE(sortedDates, effStart, effEnd, effCancelDays) || target.dateRange;
+
     const nowThai = formatThaiDateTime(new Date());
+    const cancelPatch = {
+      cancelStatus: 'pending',
+      cancelReason,
+      cancelAttachmentName,
+      cancelAttachmentUrl,
+      cancelStartDate: effStart,
+      cancelEndDate: effEnd,
+      cancelDates: sortedDates,
+      cancelDays: effCancelDays,
+      cancelDateRange,
+      cancelRequestedAt: nowThai,
+      cancelDecidedAt: '',
+      cancelRemark: '',
+    };
+
     const updated = baseRequests.map((r) =>
-      String(r.id) === String(requestId)
-        ? {
-          ...r,
-          cancelStatus: 'pending',
-          cancelReason,
-          cancelAttachmentName,
-          cancelAttachmentUrl,
-          cancelRequestedAt: nowThai,
-          cancelDecidedAt: '',
-          cancelRemark: '',
-        }
-        : r
+      String(r.id) === String(requestId) ? { ...r, ...cancelPatch } : r
     );
     setLeaveRequests(updated);
     leaveRequestsRef.current = updated;
 
     if (selectedLeaveDetail && String(selectedLeaveDetail.id) === String(requestId)) {
-      setSelectedLeaveDetail((prev) =>
-        prev
-          ? {
-            ...prev,
-            cancelStatus: 'pending',
-            cancelReason,
-            cancelAttachmentName,
-            cancelAttachmentUrl,
-            cancelRequestedAt: nowThai,
-            cancelDecidedAt: '',
-            cancelRemark: '',
-          }
-          : null
-      );
+      setSelectedLeaveDetail((prev) => (prev ? { ...prev, ...cancelPatch } : null));
     }
 
     // แจ้งเตือนฝั่ง User และ Admin
@@ -1289,7 +1314,7 @@ export function LeaveProvider({ children }) {
       employeeName: currentUser?.name,
       targetRole: 'employee',
       title: `ยื่นคำยกเลิกวันลา (${target.type}) สำเร็จ`,
-      description: `คำยกเลิกวันลาวันที่ ${target.dateRange} อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`,
+      description: `คำยกเลิกวันลาวันที่ ${cancelDateRange} (${effCancelDays} วัน) อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`,
       time: nowThai,
       read: false,
       isRead: 0,
@@ -1305,7 +1330,7 @@ export function LeaveProvider({ children }) {
       forAdmin: true,
       linkUrl: '/cancel-approvals',
       title: `มีคำยกเลิกวันลาใหม่จาก ${currentUser?.name || target.employeeName}`,
-      description: `คำยกเลิกวันลา (${target.type}) วันที่ ${target.dateRange} รอการพิจารณา`,
+      description: `คำยกเลิกวันลา (${target.type}) วันที่ ${cancelDateRange} (${effCancelDays} วัน) รอการพิจารณา`,
       time: nowThai,
       read: false,
       isRead: 0,
@@ -1323,6 +1348,10 @@ export function LeaveProvider({ children }) {
           cancelReason,
           cancelAttachmentName,
           cancelAttachmentUrl,
+          cancelStartDate: effStart,
+          cancelEndDate: effEnd,
+          cancelDates: sortedDates,
+          cancelDays: effCancelDays,
         });
         apiSynced = true;
       }
@@ -1347,54 +1376,73 @@ export function LeaveProvider({ children }) {
     return { success: true };
   };
 
-  // Admin approves a leave cancellation request (อนุมัติการยกเลิกวันลา + คืนโควตาอัตโนมัติหากเคยอนุมัติ)
+  // Admin approves a leave cancellation request (รองรับทั้งยกเลิกทั้งหมดและยกเลิกเฉพาะบางวัน + คืนโควตาตามจำนวนวันที่ยกเลิก)
   const approveCancelLeaveRequest = async (requestId, remark = 'อนุญาตให้ยกเลิกวันลาเรียบร้อย') => {
     mutationEpochRef.current += 1;
     const baseRequests = leaveRequestsRef.current;
     const baseEmployees = employeesRef.current;
     const target = baseRequests.find((r) => String(r.id) === String(requestId));
     const wasApproved = target?.status === 'อนุมัติ';
+    const origDays = Number(target?.days || 0);
+    const effCancelDays =
+      Number(target?.cancelDays || 0) > 0
+        ? Math.min(origDays, Number(target.cancelDays))
+        : (Array.isArray(target?.cancelDates) && target.cancelDates.length > 0
+          ? Math.min(origDays, target.cancelDates.length)
+          : origDays);
+    const remainingDays = Math.max(0, Number((origDays - effCancelDays).toFixed(2)));
+    const isPartialCancel = remainingDays > 0 && effCancelDays > 0 && effCancelDays < origDays;
     const nowThai = formatThaiDateTime(new Date());
 
+    let approvedPatch = {
+      status: 'ยกเลิกวันลา',
+      cancelStatus: 'approved',
+      cancelRemark: remark,
+      cancelDecidedAt: nowThai,
+    };
+
+    if (target && isPartialCancel) {
+      const { nextStartDate, nextEndDate } = computeRemainingDatesAfterCancel(
+        target.startDate,
+        target.endDate,
+        target.cancelDates,
+        target.cancelStartDate,
+        target.cancelEndDate
+      );
+      approvedPatch = {
+        startDate: nextStartDate,
+        endDate: nextEndDate,
+        days: remainingDays,
+        dateRange: formatThaiDateRangeBE(nextStartDate, nextEndDate, target.dateRange, remainingDays),
+        cancelStatus: 'approved',
+        cancelRemark: remark,
+        cancelDecidedAt: nowThai,
+      };
+    }
+
     const updated = baseRequests.map((r) =>
-      String(r.id) === String(requestId)
-        ? {
-          ...r,
-          status: 'ยกเลิกวันลา',
-          cancelStatus: 'approved',
-          cancelRemark: remark,
-          cancelDecidedAt: nowThai,
-        }
-        : r
+      String(r.id) === String(requestId) ? { ...r, ...approvedPatch } : r
     );
     setLeaveRequests(updated);
     leaveRequestsRef.current = updated;
     syncLeaveBaselineForUser(updated, currentUserRef.current);
 
-    // หากคำขอลาเดิมเคยได้รับอนุมัติไปแล้ว ให้คืนวันลาให้พนักงานทันที
+    // หากคำขอลาเดิมเคยได้รับอนุมัติไปแล้ว ให้คืนวันลาตามจำนวนวันที่ยกเลิกทันที
     let nextEmployees = baseEmployees;
-    if (target && wasApproved) {
-      nextEmployees = applyEmployeeQuotaDelta(baseEmployees, target, null, -Number(target.days || 0));
+    const refundDays = isPartialCancel ? effCancelDays : origDays;
+    if (target && wasApproved && refundDays > 0) {
+      nextEmployees = applyEmployeeQuotaDelta(baseEmployees, target, null, -refundDays);
       setEmployees(nextEmployees);
       employeesRef.current = nextEmployees;
     }
     recalculateQuotas(updated, nextEmployees, true);
 
     if (selectedLeaveDetail && String(selectedLeaveDetail.id) === String(requestId)) {
-      setSelectedLeaveDetail((prev) =>
-        prev
-          ? {
-            ...prev,
-            status: 'ยกเลิกวันลา',
-            cancelStatus: 'approved',
-            cancelRemark: remark,
-            cancelDecidedAt: nowThai,
-          }
-          : null
-      );
+      setSelectedLeaveDetail((prev) => (prev ? { ...prev, ...approvedPatch } : null));
     }
 
     if (target) {
+      const cancelLabel = target.cancelDateRange || target.dateRange;
       const userNotif = normalizeNotificationItem({
         id: `notif-cancel-ok-${Date.now()}`,
         userId: target.userId ?? target.user_id,
@@ -1403,7 +1451,9 @@ export function LeaveProvider({ children }) {
         employeeName: target.employeeName,
         targetRole: 'employee',
         title: `อนุญาตคำยกเลิกวันลา (${target.type}) แล้ว`,
-        description: `คำยกเลิกวันลาวันที่ ${target.dateRange} ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} • ${remark}`,
+        description: isPartialCancel
+          ? `อนุญาตยกเลิกเฉพาะวันที่ ${cancelLabel} (${effCancelDays} วัน) คงเหลือวันลาเดิม ${remainingDays} วัน${wasApproved ? ` และคืนสิทธิ์ ${effCancelDays} วันเรียบร้อย` : ''} • ${remark}`
+          : `คำยกเลิกวันลาวันที่ ${cancelLabel} ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} • ${remark}`,
         time: nowThai,
         read: false,
         isRead: 0,

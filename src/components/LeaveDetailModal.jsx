@@ -481,6 +481,12 @@ export default function LeaveDetailModal() {
                       </span>
                     )}
                   </div>
+                  {(req.cancelDateRange || req.cancelDays > 0) && (
+                    <p className="text-rose-800 font-semibold">
+                      <span className="font-semibold text-slate-600">วันที่ยกเลิก: </span>
+                      {req.cancelDateRange || req.dateRange} ({req.cancelDays || req.days} วัน)
+                    </p>
+                  )}
                   {req.cancelReason && (
                     <p className="text-slate-700">
                       <span className="font-semibold text-slate-600">เหตุผลยกเลิกวันลา: </span>

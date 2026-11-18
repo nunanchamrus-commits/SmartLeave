@@ -7,12 +7,18 @@ import {
   UploadCloud,
   AlertCircle,
   CheckCircle2,
+  Check,
   Clock,
   FileText,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
 import ThaiDatePicker from './ThaiDatePicker';
+import {
+  enumerateIsoDates,
+  formatThaiDateBE,
+  formatCancelDatesBE,
+} from '../utils/thaiDate';
 
 export default function LeaveRequestModal() {
   const {
@@ -63,8 +69,11 @@ export default function LeaveRequestModal() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // --- State สำหรับแท็บ "ขอยกเลิกการลา" ---
+  // --- State สำหรับแท็บ "ยกเลิกวันลา" ---
   const [selectedCancelId, setSelectedCancelId] = useState('');
+  const [selectedCancelDates, setSelectedCancelDates] = useState([]);
+  const [cancelRangeStart, setCancelRangeStart] = useState('');
+  const [cancelRangeEnd, setCancelRangeEnd] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelFileName, setCancelFileName] = useState('');
   const [cancelFileData, setCancelFileData] = useState('');
@@ -72,15 +81,21 @@ export default function LeaveRequestModal() {
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false);
   const [isCancelSuccess, setIsCancelSuccess] = useState(false);
 
-  // รายการลาของฉันที่สามารถยื่นขอยกเลิกได้
+  // รายการลาของฉันที่สามารถยื่นขอยกเลิกได้ (รองรับรายการที่เคยยกเลิกบางส่วนแล้วยังเหลือวันลาอยู่)
   const cancellableLeaves = (myLeaveRequests || []).filter(
     (r) =>
       r.status !== 'ไม่อนุมัติ' &&
       r.status !== 'ยกเลิกการลา' &&
       r.status !== 'ยกเลิกวันลา' &&
       r.cancelStatus !== 'pending' &&
-      r.cancelStatus !== 'approved'
+      Number(r.days || 0) > 0
   );
+
+  const selectedLeave = cancellableLeaves.find((r) => String(r.id) === String(selectedCancelId)) || null;
+  const selectedLeaveAllDates = selectedLeave
+    ? enumerateIsoDates(selectedLeave.startDate, selectedLeave.endDate)
+    : [];
+  const useRangePickerForCancel = selectedLeaveAllDates.length > 31;
 
   // รายการที่ยื่นขอยกเลิกไปแล้วและอยู่ระหว่างรอพิจารณา
   const pendingCancelLeaves = (myLeaveRequests || []).filter(
@@ -106,6 +121,39 @@ export default function LeaveRequestModal() {
       }
     }
   }, [modalTab, cancellableLeaves.length]);
+
+  // Sync selectable dates whenever selected leave changes
+  useEffect(() => {
+    if (selectedLeave) {
+      const allDates = enumerateIsoDates(selectedLeave.startDate, selectedLeave.endDate);
+      setSelectedCancelDates(allDates);
+      setCancelRangeStart(selectedLeave.startDate || '');
+      setCancelRangeEnd(selectedLeave.endDate || selectedLeave.startDate || '');
+    } else {
+      setSelectedCancelDates([]);
+      setCancelRangeStart('');
+      setCancelRangeEnd('');
+    }
+  }, [selectedCancelId, selectedLeave?.startDate, selectedLeave?.endDate]);
+
+  const toggleCancelDate = (isoDate) => {
+    setCancelErrorMsg('');
+    setSelectedCancelDates((prev) =>
+      prev.includes(isoDate) ? prev.filter((d) => d !== isoDate) : [...prev, isoDate].sort()
+    );
+  };
+
+  const activeCancelDates = useRangePickerForCancel
+    ? enumerateIsoDates(cancelRangeStart, cancelRangeEnd)
+    : [...selectedCancelDates].sort();
+
+  const origSelectedDays = Number(selectedLeave?.days || 0);
+  const computedCancelDays = selectedLeave
+    ? origSelectedDays === 0.5
+      ? (activeCancelDates.length > 0 ? 0.5 : 0)
+      : Math.min(origSelectedDays, activeCancelDates.length)
+    : 0;
+  const remainingAfterCancel = Math.max(0, Number((origSelectedDays - computedCancelDays).toFixed(2)));
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -266,8 +314,12 @@ export default function LeaveRequestModal() {
 
   const handleCancelSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedCancelId) {
+    if (!selectedCancelId || !selectedLeave) {
       setCancelErrorMsg('กรุณาเลือกรายการลาที่ต้องการขอยกเลิก');
+      return;
+    }
+    if (activeCancelDates.length === 0 || computedCancelDays <= 0) {
+      setCancelErrorMsg('กรุณาเลือกอย่างน้อย 1 วันที่ต้องการยกเลิกวันลา');
       return;
     }
     if (!cancelReason.trim()) {
@@ -282,6 +334,10 @@ export default function LeaveRequestModal() {
         cancelReason: cancelReason.trim(),
         cancelAttachmentName: cancelFileName,
         cancelAttachmentUrl: cancelFileData,
+        cancelStartDate: activeCancelDates[0] || selectedLeave.startDate,
+        cancelEndDate: activeCancelDates[activeCancelDates.length - 1] || selectedLeave.endDate,
+        cancelDates: activeCancelDates,
+        cancelDays: computedCancelDays,
       });
       if (res?.success) {
         setIsCancelSuccess(true);
@@ -291,6 +347,7 @@ export default function LeaveRequestModal() {
           setCancelFileName('');
           setCancelFileData('');
           setSelectedCancelId('');
+          setSelectedCancelDates([]);
           setIsRequestModalOpen(false);
         }, 1500);
       }
@@ -686,6 +743,124 @@ export default function LeaveRequestModal() {
                     </div>
                   )}
                 </div>
+
+                {/* เลือกวันที่เฉพาะที่ต้องการยกเลิกวันลา (เช่น ลา 18-21 เลือกยกเลิกเฉพาะวันที่ 21) */}
+                {selectedLeave && selectedLeaveAllDates.length > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50/50 border border-rose-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="font-semibold text-slate-800 text-xs">
+                        เลือกวันที่ต้องการยกเลิกวันลา <span className="text-red-500">*</span>
+                      </label>
+                      {!useRangePickerForCancel && selectedLeaveAllDates.length > 1 && (
+                        <div className="flex items-center space-x-2 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCancelDates(selectedLeaveAllDates);
+                              setCancelErrorMsg('');
+                            }}
+                            className="text-emerald-700 hover:text-emerald-900 font-semibold hover:underline"
+                          >
+                            เลือกทั้งหมด
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCancelDates([])}
+                            className="text-rose-600 hover:text-rose-800 font-semibold hover:underline"
+                          >
+                            ล้างที่เลือก
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {useRangePickerForCancel ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <span className="block text-[11px] font-medium text-slate-600 mb-1">
+                            ยกเลิกตั้งแต่วันที่
+                          </span>
+                          <ThaiDatePicker
+                            value={cancelRangeStart}
+                            min={selectedLeave.startDate}
+                            max={selectedLeave.endDate}
+                            onChange={(val) => {
+                              setCancelRangeStart(val);
+                              if (val > cancelRangeEnd) setCancelRangeEnd(val);
+                              setCancelErrorMsg('');
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <span className="block text-[11px] font-medium text-slate-600 mb-1">
+                            ถึงวันที่
+                          </span>
+                          <ThaiDatePicker
+                            value={cancelRangeEnd}
+                            min={cancelRangeStart || selectedLeave.startDate}
+                            max={selectedLeave.endDate}
+                            onChange={(val) => {
+                              setCancelRangeEnd(val);
+                              setCancelErrorMsg('');
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {selectedLeaveAllDates.map((iso) => {
+                          const isChecked = selectedCancelDates.includes(iso);
+                          return (
+                            <button
+                              type="button"
+                              key={iso}
+                              onClick={() => toggleCancelDate(iso)}
+                              className={`px-2.5 py-2 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
+                                isChecked
+                                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-rose-300 hover:bg-rose-50/40'
+                              }`}
+                            >
+                              <span className="truncate">{formatThaiDateBE(iso)}</span>
+                              <span
+                                className={`w-4 h-4 rounded-md flex items-center justify-center flex-shrink-0 ml-1 ${
+                                  isChecked
+                                    ? 'bg-white/25 text-white'
+                                    : 'border border-slate-300 bg-slate-50'
+                                }`}
+                              >
+                                {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Summary of selected cancellation dates */}
+                    <div className="pt-2 border-t border-rose-200/70 flex items-center justify-between flex-wrap gap-1.5 text-[11px]">
+                      {computedCancelDays > 0 ? (
+                        <>
+                          <span className="text-rose-800 font-semibold">
+                            {remainingAfterCancel > 0
+                              ? `ยกเลิกบางส่วน: ${formatCancelDatesBE(activeCancelDates, activeCancelDates[0], activeCancelDates[activeCancelDates.length - 1], computedCancelDays)} (${computedCancelDays} วัน)`
+                              : `ยกเลิกทั้งหมด ${computedCancelDays} วัน`}
+                          </span>
+                          {remainingAfterCancel > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-white border border-rose-200 text-slate-600 font-medium">
+                              คงเหลือวันลาเดิม {remainingAfterCancel} วัน
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-rose-600 font-medium">
+                          กรุณาคลิกเลือกวันที่ต้องการยกเลิกอย่างน้อย 1 วัน
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Cancel Reason */}
                 <div>
