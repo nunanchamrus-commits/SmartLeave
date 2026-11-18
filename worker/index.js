@@ -884,6 +884,7 @@ async function autoMigrateDatabase(db) {
   try {
     await db.prepare("UPDATE leave_types SET default_days_per_year = 60.00 WHERE code = 'sick'").run().catch(() => { });
     await db.prepare("UPDATE leave_types SET default_days_per_year = 45.00 WHERE code = 'personal'").run().catch(() => { });
+    await db.prepare("UPDATE leave_types SET name_th = 'ลาพักผ่อน (ประจำปี)' WHERE code = 'vacation' AND name_th LIKE '%พักร้อน%'").run().catch(() => { });
 
     await db.prepare(`
       UPDATE employee_leave_quotas

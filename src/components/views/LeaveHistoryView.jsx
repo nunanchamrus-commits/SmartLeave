@@ -240,7 +240,7 @@ export default function LeaveHistoryView() {
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none text-slate-700"
             >
               <option value="all">ประเภทการลาทั้งหมด</option>
-              <option value="vacation">ลาพักร้อน</option>
+              <option value="vacation">ลาพักผ่อน</option>
               <option value="personal">ลากิจส่วนตัว</option>
               <option value="sick">ลาป่วย</option>
               <option value="maternity">ลาคลอดบุตร</option>

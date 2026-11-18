@@ -254,7 +254,7 @@ export default function RegisterView({ onSwitchToLogin }) {
               </div>
               <div className="text-xs">
                 <p className="font-semibold text-white">รับสิทธิวันลาทันที</p>
-                <p className="text-emerald-200/70 text-[11px]">ได้รับโควตาลาพักร้อน ลากิจ ลาป่วย และลาคลอดอัตโนมัติ</p>
+                <p className="text-emerald-200/70 text-[11px]">ได้รับโควตาลาพักผ่อน ลากิจ ลาป่วย และลาคลอดอัตโนมัติ</p>
               </div>
             </div>
 

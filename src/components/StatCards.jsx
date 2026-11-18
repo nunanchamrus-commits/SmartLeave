@@ -46,7 +46,7 @@ export default function StatCards() {
     },
     {
       id: 'vacation',
-      title: 'ลาพักร้อน',
+      title: 'ลาพักผ่อน',
       value: `${quotas.vacation?.remaining ?? 10} วัน`,
       subtext: `จาก ${quotas.vacation?.limit ?? 10} วัน`,
       icon: (

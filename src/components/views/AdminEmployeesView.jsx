@@ -28,7 +28,7 @@ import { useLeave } from '../../context/LeaveContext';
 import { JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } from '../RegisterView';
 
 const LEAVE_QUOTA_TYPES = [
-  { key: 'vacation', label: 'ลาพักร้อน', dotColor: 'bg-emerald-500', textColor: 'text-emerald-700' },
+  { key: 'vacation', label: 'ลาพักผ่อน', dotColor: 'bg-emerald-500', textColor: 'text-emerald-700' },
   { key: 'personal', label: 'ลากิจส่วนตัว', dotColor: 'bg-teal-500', textColor: 'text-teal-700' },
   { key: 'sick', label: 'ลาป่วย', dotColor: 'bg-rose-500', textColor: 'text-rose-600' },
   { key: 'maternity', label: 'ลาคลอดบุตร', dotColor: 'bg-pink-500', textColor: 'text-pink-600' },
@@ -449,7 +449,7 @@ export default function AdminEmployeesView() {
       'ฝ่าย/กลุ่มงาน',
       'ลาไปแล้ว (ครั้ง)',
       'ใช้ไปรวม (วัน)',
-      'พักร้อนคงเหลือ/สิทธิ์ (วัน)',
+      'ลาพักผ่อนคงเหลือ/สิทธิ์ (วัน)',
       'ลากิจคงเหลือ/สิทธิ์ (วัน)',
       'ลาป่วยคงเหลือ/สิทธิ์ (วัน)',
       'ลาคลอดคงเหลือ/สิทธิ์ (วัน)',
@@ -592,7 +592,7 @@ export default function AdminEmployeesView() {
                 <th className="py-3 px-4">พนักงาน</th>
                 <th className="py-3 px-4">ฝ่าย / แผนก</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลาไปแล้ว</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">ลาพักร้อน</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">ลาพักผ่อน</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลากิจ</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลาป่วย</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลาคลอด</th>
@@ -1216,7 +1216,7 @@ export default function AdminEmployeesView() {
                   <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
                     <span>
                       <strong>
-                        สรุปสิทธิ์ลารวม {isEditingMale ? '(พักร้อน + ลากิจ + ลาป่วย)' : '(พักร้อน + ลากิจ + ลาป่วย + ลาคลอด)'}:
+                        สรุปสิทธิ์ลารวม {isEditingMale ? '(ลาพักผ่อน + ลากิจ + ลาป่วย)' : '(ลาพักผ่อน + ลากิจ + ลาป่วย + ลาคลอด)'}:
                       </strong>{' '}
                       ใช้ไปแล้ว <strong>{previewGeneralUsed}</strong> วัน
                     </span>
@@ -1490,7 +1490,7 @@ export default function AdminEmployeesView() {
                 </label>
                 <div className={`grid gap-2.5 ${addForm.gender === 'ชาย' ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="block text-[11px] font-bold text-emerald-700 mb-1">ลาพักร้อน</span>
+                    <span className="block text-[11px] font-bold text-emerald-700 mb-1">ลาพักผ่อน</span>
                     <input
                       type="number"
                       min="0"

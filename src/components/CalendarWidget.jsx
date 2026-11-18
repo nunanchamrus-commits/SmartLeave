@@ -334,7 +334,7 @@ export default function CalendarWidget() {
         </div>
         <div className="flex items-center space-x-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span>พักร้อน</span>
+          <span>ลาพักผ่อน</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <span className="w-2 h-2 rounded-full bg-sky-500" />

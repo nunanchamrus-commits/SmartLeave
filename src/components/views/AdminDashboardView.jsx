@@ -550,7 +550,7 @@ export default function AdminDashboardView() {
               <tr>
                 <th className="py-2.5 px-4">พนักงาน</th>
                 <th className="py-2.5 px-4">ฝ่าย / แผนก</th>
-                <th className="py-2.5 px-4 text-center">พักร้อนคงเหลือ</th>
+                <th className="py-2.5 px-4 text-center">ลาพักผ่อนคงเหลือ</th>
                 <th className="py-2.5 px-4 text-center">กิจส่วนตัว</th>
                 <th className="py-2.5 px-4 text-center">ลาป่วย</th>
                 <th className="py-2.5 px-4 text-center">สถานะ</th>

@@ -257,7 +257,8 @@ function normalizeNotificationItem(notif) {
     ...notif,
     targetRole: notif.targetRole || notif.target_role || (notif.forAdmin ? 'admin' : undefined),
     linkUrl: notif.linkUrl || notif.link_url,
-    description: notif.description ? notif.description.replace(/2568/g, '2569') : notif.description,
+    title: typeof notif.title === 'string' ? notif.title.replace(/พักร้อน/g, 'พักผ่อน') : notif.title,
+    description: notif.description ? notif.description.replace(/2568/g, '2569').replace(/พักร้อน/g, 'พักผ่อน') : notif.description,
     time: normalizedTime,
     read: isRead,
     isRead: isRead ? 1 : 0,
@@ -737,6 +738,7 @@ export function LeaveProvider({ children }) {
       if (Array.isArray(leavesData)) {
         const normalizedLeaves = leavesData.map((r) => ({
           ...r,
+          type: typeof r.type === 'string' ? r.type.replace(/พักร้อน/g, 'พักผ่อน') : r.type,
           status: normalizeLeaveStatus(r.status),
         }));
         setLeaveRequests(normalizedLeaves);

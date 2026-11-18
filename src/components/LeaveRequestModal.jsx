@@ -15,7 +15,7 @@ export default function LeaveRequestModal() {
     Boolean(currentUser?.englishName?.startsWith('Mr.'));
 
   const availableLeaveTypes = [
-    { id: 'vacation', label: 'ลาพักร้อน' },
+    { id: 'vacation', label: 'ลาพักผ่อน' },
     { id: 'personal', label: 'ลากิจ' },
     { id: 'sick', label: 'ลาป่วย' },
     ...(!isMale ? [{ id: 'maternity', label: 'ลาคลอดบุตร' }] : []),
@@ -66,7 +66,7 @@ export default function LeaveRequestModal() {
     const isSickAsActual = currentUser?.employmentType === 'พนักงานราชการ' || quotas.sick?.isSickAsActual;
     switch (leaveType) {
       case 'vacation':
-        return { name: 'ลาพักร้อน', remaining: Number(quotas.vacation?.remaining ?? 10), isActual: false };
+        return { name: 'ลาพักผ่อน', remaining: Number(quotas.vacation?.remaining ?? 10), isActual: false };
       case 'personal':
         return { name: 'ลากิจ', remaining: Number(quotas.personal?.remaining ?? (currentUser?.employmentType === 'พนักงานราชการ' ? 10 : 45)), isActual: false };
       case 'sick':
@@ -106,7 +106,7 @@ export default function LeaveRequestModal() {
     }
 
     const typeLabels = {
-      vacation: 'ลาพักร้อน',
+      vacation: 'ลาพักผ่อน',
       personal: 'ลากิจ',
       sick: 'ลาป่วย',
       maternity: 'ลาคลอดบุตร',

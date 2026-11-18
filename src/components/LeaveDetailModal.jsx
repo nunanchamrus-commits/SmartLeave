@@ -40,7 +40,7 @@ export default function LeaveDetailModal() {
 
   const [editForm, setEditForm] = useState({
     typeKey: 'vacation',
-    type: 'ลาพักร้อน',
+    type: 'ลาพักผ่อน',
     startDate: '',
     endDate: '',
     days: 1,
@@ -58,7 +58,7 @@ export default function LeaveDetailModal() {
       setPendingStatusConfirm(null);
       setEditForm({
         typeKey: selectedLeaveDetail.typeKey || 'vacation',
-        type: selectedLeaveDetail.type || 'ลาพักร้อน',
+        type: selectedLeaveDetail.type || 'ลาพักผ่อน',
         startDate: selectedLeaveDetail.startDate || '',
         endDate: selectedLeaveDetail.endDate || '',
         days: selectedLeaveDetail.days || 1,
@@ -113,7 +113,7 @@ export default function LeaveDetailModal() {
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     const typeNames = {
-      vacation: 'ลาพักร้อน',
+      vacation: 'ลาพักผ่อน',
       personal: 'ลากิจส่วนตัว',
       sick: 'ลาป่วย',
       maternity: 'ลาคลอดบุตร',
@@ -202,7 +202,7 @@ export default function LeaveDetailModal() {
                   onChange={(e) => setEditForm({ ...editForm, typeKey: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-800 cursor-pointer"
                 >
-                  <option value="vacation">ลาพักร้อน</option>
+                  <option value="vacation">ลาพักผ่อน</option>
                   <option value="personal">ลากิจส่วนตัว</option>
                   <option value="sick">ลาป่วย</option>
                   {(!isReqMale || editForm.typeKey === 'maternity') && (

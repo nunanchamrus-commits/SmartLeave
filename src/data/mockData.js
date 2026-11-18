@@ -11,7 +11,7 @@ export const initialQuotas = {
   totalRemaining: 0,
   totalLimit: 0,
   vacation: {
-    name: 'ลาพักร้อน',
+    name: 'ลาพักผ่อน',
     remaining: 0,
     limit: 10,
     unit: 'วัน',
