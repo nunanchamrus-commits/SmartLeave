@@ -47,8 +47,8 @@ export default function AdminCancelApprovalsView() {
       action,
       remark:
         action === 'approve'
-          ? 'อนุมัติการยกเลิกการลาเรียบร้อย'
-          : 'ไม่อนุมัติการยกเลิกการลา',
+          ? 'อนุญาตให้ยกเลิกการลาเรียบร้อย'
+          : 'ไม่อนุญาตให้ยกเลิกการลา',
     });
   };
 
@@ -69,12 +69,12 @@ export default function AdminCancelApprovalsView() {
       if (confirmModal.action === 'approve') {
         await approveCancelLeaveRequest(
           confirmModal.req.id,
-          confirmModal.remark.trim() || 'อนุมัติการยกเลิกการลาเรียบร้อย'
+          confirmModal.remark.trim() || 'อนุญาตให้ยกเลิกการลาเรียบร้อย'
         );
       } else {
         await rejectCancelLeaveRequest(
           confirmModal.req.id,
-          confirmModal.remark.trim() || 'ไม่อนุมัติการยกเลิกการลา'
+          confirmModal.remark.trim() || 'ไม่อนุญาตให้ยกเลิกการลา'
         );
       }
       closeConfirm();
@@ -108,10 +108,10 @@ export default function AdminCancelApprovalsView() {
             </span>
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mt-1">
-            พิจารณาอนุมัติการยกเลิกการลา
+            พิจารณาคำขอยกเลิกการลา
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ตรวจสอบเอกสารประกอบและพิจารณาอนุมัติหรือไม่อนุมัติคำขอยกเลิกการลาของเจ้าหน้าที่
+            ตรวจสอบเอกสารประกอบและพิจารณาอนุญาตหรือไม่อนุญาตคำขอยกเลิกการลาของเจ้าหน้าที่
           </p>
         </div>
 
@@ -263,7 +263,7 @@ export default function AdminCancelApprovalsView() {
                             <div className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-medium">
                               <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
                               <span>
-                                คำขอลานี้เคยได้รับอนุมัติแล้ว — หากอนุมัติการยกเลิก ระบบจะคืนสิทธิ์วันลา <strong>{req.days} วัน</strong> ให้อัตโนมัติ
+                                คำขอลานี้เคยได้รับอนุมัติแล้ว — หากอนุญาตให้ยกเลิก ระบบจะคืนสิทธิ์วันลา <strong>{req.days} วัน</strong> ให้อัตโนมัติ
                               </span>
                             </div>
                           )}
@@ -286,7 +286,7 @@ export default function AdminCancelApprovalsView() {
                             className="px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors flex items-center space-x-1.5"
                           >
                             <X className="w-3.5 h-3.5" />
-                            <span>ไม่อนุมัติ</span>
+                            <span>ไม่อนุญาต</span>
                           </button>
 
                           <button
@@ -295,7 +295,7 @@ export default function AdminCancelApprovalsView() {
                             className="px-4 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-sm flex items-center space-x-1.5"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            <span>อนุมัติการยกเลิกลา</span>
+                            <span>อนุญาต</span>
                           </button>
                         </div>
                       </div>
@@ -335,7 +335,7 @@ export default function AdminCancelApprovalsView() {
                                   : 'bg-red-100 text-red-700'
                               }`}
                             >
-                              {isCancelApproved ? 'อนุมัติการยกเลิกลาแล้ว' : 'ไม่อนุมัติการยกเลิกลา'}
+                              {isCancelApproved ? 'อนุญาตยกเลิกการลาแล้ว' : 'ไม่อนุญาตยกเลิกการลา'}
                             </span>
                           </div>
                           <div className="text-xs text-slate-500">
@@ -407,8 +407,8 @@ export default function AdminCancelApprovalsView() {
                 </div>
                 <h3 className="font-bold text-base">
                   {confirmModal.action === 'approve'
-                    ? 'ยืนยันอนุมัติการยกเลิกการลา'
-                    : 'ยืนยันไม่อนุมัติการยกเลิกการลา'}
+                    ? 'ยืนยันอนุญาตการยกเลิกการลา'
+                    : 'ยืนยันไม่อนุญาตการยกเลิกการลา'}
                 </h3>
               </div>
               <button
@@ -489,8 +489,8 @@ export default function AdminCancelApprovalsView() {
                   {isSubmitting
                     ? 'กำลังบันทึก...'
                     : confirmModal.action === 'approve'
-                      ? 'ยืนยันอนุมัติยกเลิกลา'
-                      : 'ยืนยันไม่อนุมัติ'}
+                      ? 'ยืนยันอนุญาต'
+                      : 'ยืนยันไม่อนุญาต'}
                 </button>
               </div>
             </form>

@@ -3069,7 +3069,7 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const remarkText = (typeof body.remark === 'string' && body.remark.trim())
         ? body.remark.trim()
-        : 'อนุมัติการยกเลิกการลาเรียบร้อย';
+        : 'อนุญาตให้ยกเลิกการลาเรียบร้อย';
 
       const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (!reqInfo) {
@@ -3105,8 +3105,8 @@ export async function onRequest(context) {
         VALUES (?, ?, ?, 'approved', 0, 'employee', datetime('now', '+7 hours'))
       `).bind(
         reqInfo.user_id,
-        `อนุมัติคำขอยกเลิกการลา (${typeName}) แล้ว`,
-        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ได้รับการอนุมัติแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
+        `อนุญาตคำขอยกเลิกการลา (${typeName}) แล้ว`,
+        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
       ).run().catch(() => { });
 
       // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
@@ -3122,12 +3122,12 @@ export async function onRequest(context) {
         status: 'ยกเลิกการลา',
         cancelStatus: 'approved',
         quotaRefunded: wasApproved,
-        message: 'อนุมัติการยกเลิกการลาเรียบร้อยแล้ว',
+        message: 'อนุญาตให้ยกเลิกการลาเรียบร้อยแล้ว',
       });
     }
 
     // -------------------------------------------------------------
-    // 6.4 ไม่อนุมัติคำขอยกเลิกการลา (Admin Reject Leave Cancellation)
+    // 6.4 ไม่อนุญาตคำขอยกเลิกการลา (Admin Reject Leave Cancellation)
     // POST /api/leaves/:id/cancel-reject
     // -------------------------------------------------------------
     if (path.match(/^\/leaves\/([^/]+)\/cancel-reject$/) && method === 'POST') {
@@ -3136,7 +3136,7 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const remarkText = (typeof body.remark === 'string' && body.remark.trim())
         ? body.remark.trim()
-        : 'ไม่อนุมัติการยกเลิกการลา';
+        : 'ไม่อนุญาตให้ยกเลิกการลา';
 
       const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (!reqInfo) {
@@ -3161,8 +3161,8 @@ export async function onRequest(context) {
         VALUES (?, ?, ?, 'rejected', 0, 'employee', datetime('now', '+7 hours'))
       `).bind(
         reqInfo.user_id,
-        `ไม่อนุมัติคำขอยกเลิกการลา (${typeName})`,
-        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ไม่ได้รับการอนุมัติ (${remarkText})`
+        `ไม่อนุญาตคำขอยกเลิกการลา (${typeName})`,
+        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ไม่ได้รับอนุญาต (${remarkText})`
       ).run().catch(() => { });
 
       // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
@@ -3176,7 +3176,7 @@ export async function onRequest(context) {
         success: true,
         requestId: reqInfo.request_id,
         cancelStatus: 'rejected',
-        message: 'ไม่อนุมัติคำขอยกเลิกการลาเรียบร้อยแล้ว',
+        message: 'ไม่อนุญาตให้ยกเลิกการลาเรียบร้อยแล้ว',
       });
     }
 

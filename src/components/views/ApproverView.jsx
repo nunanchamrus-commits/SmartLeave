@@ -126,24 +126,6 @@ export default function ApproverView() {
 
   return (
     <div className="space-y-6">
-      {/* Banner if currently viewing as employee */}
-      {currentUser.role !== 'approver' && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-900">
-          <div className="flex items-center space-x-3">
-            <UserCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
-            <div className="text-xs sm:text-sm">
-              <span className="font-bold">โหมดทดสอบระบบสำหรับผู้จัดการ (Admin):</span> ปัจจุบันคุณเข้าสู่ระบบในชื่อพนักงาน (นางสาวพนิกา) คลิกปุ่มด้านขวาเพื่อสลับเป็นผู้จัดการ (นายสมชาย) เพื่ออนุมัติคำขอ
-            </div>
-          </div>
-          <button
-            onClick={() => switchRole('approver')}
-            className="flex-shrink-0 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
-          >
-            สลับเป็นผู้จัดการ (นายสมชาย)
-          </button>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

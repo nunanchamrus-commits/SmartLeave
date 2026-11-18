@@ -605,7 +605,7 @@ export default function LeaveRequestModal() {
                 </div>
                 <h4 className="text-xl font-bold text-slate-800">ส่งคำขอยกเลิกการลาเรียบร้อยแล้ว!</h4>
                 <p className="text-sm text-slate-500">
-                  คำขอยกเลิกการลาของคุณถูกส่งไปยังผู้ดูแลระบบเพื่อพิจารณาอนุมัติแล้ว
+                  คำขอยกเลิกการลาของคุณถูกส่งไปยังผู้ดูแลระบบเพื่อพิจารณาอนุญาตแล้ว
                 </p>
               </div>
             ) : (
@@ -663,7 +663,7 @@ export default function LeaveRequestModal() {
                                 </span>
                                 {req.cancelStatus === 'rejected' && (
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
-                                    เคยไม่อนุมัติยกเลิก
+                                    เคยไม่อนุญาตยกเลิก
                                   </span>
                                 )}
                               </div>
@@ -755,7 +755,7 @@ export default function LeaveRequestModal() {
                       {pendingCancelLeaves.map((p) => (
                         <div key={p.id} className="text-[11px] text-amber-900/80 flex items-center justify-between">
                           <span className="truncate">{p.type} ({p.dateRange})</span>
-                          <span className="font-semibold text-amber-700 flex-shrink-0 ml-2">รอ Admin อนุมัติ</span>
+                          <span className="font-semibold text-amber-700 flex-shrink-0 ml-2">รอ Admin พิจารณา</span>
                         </div>
                       ))}
                     </div>

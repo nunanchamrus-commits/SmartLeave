@@ -310,7 +310,7 @@ export default function LeaveHistoryView() {
                         )}
                         {req.cancelStatus === 'rejected' && req.status !== 'ยกเลิกการลา' && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200">
-                            ไม่อนุมัติยกเลิกลา
+                            ไม่อนุญาตยกเลิกลา
                           </span>
                         )}
                       </div>

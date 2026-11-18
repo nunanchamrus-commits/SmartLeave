@@ -54,7 +54,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
     },
     {
       id: 'cancel-approvals',
-      label: 'อนุมัติยกเลิกการลา',
+      label: 'ยกเลิกการลา',
       icon: CalendarX2,
       badge: pendingCancellationsCount > 0 ? pendingCancellationsCount : null,
     },
