@@ -275,8 +275,8 @@ function inferUserGender(user) {
 
 function isMaleEmployee(emp) {
   if (!emp) return false;
-  if (emp.gender === 'ชาย') return true;
-  if (emp.gender === 'หญิง') return false;
+  if (emp.gender === 'ชาย' || emp.gender === 'male') return true;
+  if (emp.gender === 'หญิง' || emp.gender === 'female') return false;
   const str = `${emp.prefix || ''} ${emp.name || ''} ${emp.prefixEn || ''} ${emp.englishName || ''}`.trim();
   if (/นาย|Mr\./i.test(str)) return true;
   return false;
@@ -503,8 +503,15 @@ export function LeaveProvider({ children }) {
         (currentUser.email && nextEmp.email?.toLowerCase() === currentUser.email.toLowerCase()))
     ) {
       const isSickActual = nextEmp.isSickAsActual || nextEmp.employmentType === 'พนักงานราชการ';
-      const totalRem = isSickActual ? (nextEmp.vacationRem + nextEmp.personalRem) : (nextEmp.vacationRem + nextEmp.personalRem + nextEmp.sickRem);
-      const totalLim = isSickActual ? (nextEmp.vacationLimit + nextEmp.personalLimit) : (nextEmp.vacationLimit + nextEmp.personalLimit + nextEmp.sickLimit);
+      const isMale = isMaleEmployee(nextEmp) || nextEmp.gender === 'ชาย' || nextEmp.gender === 'male';
+      const matRem = isMale ? 0 : (Number(nextEmp.maternityRem) || 0);
+      const matLim = isMale ? 0 : (Number(nextEmp.maternityLimit) || 0);
+      const totalRem = isSickActual
+        ? (nextEmp.vacationRem + nextEmp.personalRem + matRem)
+        : (nextEmp.vacationRem + nextEmp.personalRem + nextEmp.sickRem + matRem);
+      const totalLim = isSickActual
+        ? (nextEmp.vacationLimit + nextEmp.personalLimit + matLim)
+        : (nextEmp.vacationLimit + nextEmp.personalLimit + nextEmp.sickLimit + matLim);
       setQuotas((prev) => ({
         ...prev,
         totalRemaining: totalRem,
@@ -842,7 +849,13 @@ export function LeaveProvider({ children }) {
         (targetUser?.email && e.email?.toLowerCase() === targetUser.email.toLowerCase())
     );
     const empType = targetUser?.employmentType || matchedEmp?.employmentType || 'ข้าราชการ';
-    const isMale = isMaleEmployee(targetUser || matchedEmp) || targetUser?.gender === 'ชาย' || matchedEmp?.gender === 'ชาย';
+    const effectiveGender = targetUser?.gender || matchedEmp?.gender;
+    const isMale =
+      effectiveGender === 'ชาย' || effectiveGender === 'male'
+        ? true
+        : effectiveGender === 'หญิง' || effectiveGender === 'female'
+          ? false
+          : isMaleEmployee(targetUser || matchedEmp);
     const typeDefaults = getQuotaDefaultsForType(empType, isMale ? 'ชาย' : 'หญิง');
 
     const vacLimit = matchedEmp?.vacationLimit !== undefined && matchedEmp?.vacationLimit !== null ? Number(matchedEmp.vacationLimit) : typeDefaults.vacation;
@@ -864,9 +877,15 @@ export function LeaveProvider({ children }) {
       const personalRem = Number(matchedEmp.personalRem ?? Math.max(0, perLimit - personalUsed));
       const sickRem = isSickActual ? 'เท่าที่ป่วยจริง' : Number(matchedEmp.sickRem ?? Math.max(0, sicLimit - sickUsed));
       const maternityRem = isMale ? 0 : Number(matchedEmp.maternityRem ?? Math.max(0, matLimit - maternityUsed));
+      const totalRem = isSickActual
+        ? (vacationRem + personalRem + maternityRem)
+        : (vacationRem + personalRem + (typeof sickRem === 'number' ? sickRem : 0) + maternityRem);
+      const totalLim = isSickActual
+        ? (vacLimit + perLimit + matLimit)
+        : (vacLimit + perLimit + sicLimit + matLimit);
       setQuotas({
-        totalRemaining: isSickActual ? (vacationRem + personalRem) : (vacationRem + personalRem + (typeof sickRem === 'number' ? sickRem : 0)),
-        totalLimit: isSickActual ? (vacLimit + perLimit) : (vacLimit + perLimit + sicLimit),
+        totalRemaining: totalRem,
+        totalLimit: totalLim,
         vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: vacLimit },
         personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: perLimit, name: 'ลากิจ' },
         sick: {
@@ -903,11 +922,16 @@ export function LeaveProvider({ children }) {
     const personalRem = Math.max(0, perLimit - personalUsed);
     const sickRem = isSickActual ? 'เท่าที่ป่วยจริง' : Math.max(0, sicLimit - sickUsed);
     const maternityRem = isMale ? 0 : Math.max(0, matLimit - maternityUsed);
-    const totalRem = isSickActual ? (vacationRem + personalRem) : (vacationRem + personalRem + (typeof sickRem === 'number' ? sickRem : 0));
+    const totalRem = isSickActual
+      ? (vacationRem + personalRem + maternityRem)
+      : (vacationRem + personalRem + (typeof sickRem === 'number' ? sickRem : 0) + maternityRem);
+    const totalLim = isSickActual
+      ? (vacLimit + perLimit + matLimit)
+      : (vacLimit + perLimit + sicLimit + matLimit);
 
     setQuotas({
       totalRemaining: totalRem,
-      totalLimit: isSickActual ? (vacLimit + perLimit) : (vacLimit + perLimit + sicLimit),
+      totalLimit: totalLim,
       vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: vacLimit },
       personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: perLimit, name: 'ลากิจ' },
       sick: {
