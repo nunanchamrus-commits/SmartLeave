@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Clock,
   Users,
@@ -36,7 +36,15 @@ export default function AdminDashboardView() {
     setActiveTab,
     employees,
     showToast,
+    fetchLiveDatabaseData,
   } = useLeave();
+
+  // ซิงก์ข้อมูลล่าสุดจากฐานข้อมูลเมื่อเข้าสู่หน้าแดชบอร์ด
+  useEffect(() => {
+    if (fetchLiveDatabaseData) {
+      fetchLiveDatabaseData({ silent: true });
+    }
+  }, []);
 
   const [searchEmployee, setSearchEmployee] = useState('');
 
@@ -84,11 +92,67 @@ export default function AdminDashboardView() {
   const now = new Date();
   const currentYearBE = now.getFullYear() + 543;
   const currentMonthYearBE = `${THAI_MONTHS_SHORT[now.getMonth()]} ${currentYearBE}`;
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const pendingRequests = leaveRequests.filter(
-    (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ'
+    (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ' || r.status === 'รออนุมัติ'
   );
-  const approvedRequests = leaveRequests.filter((r) => r.status === 'อนุมัติ');
+  const approvedRequests = leaveRequests.filter((r) => r.status === 'อนุมัติ' || r.status === 'approved');
+
+  // คำนวณพนักงานที่ลางานในวันนี้จากข้อมูลจริงในฐานข้อมูล 100%
+  const leavesToday = useMemo(() => {
+    return (leaveRequests || []).filter((req) => {
+      if (req.status !== 'อนุมัติ' && req.status !== 'approved') return false;
+      if (!req.startDate || !req.endDate) return false;
+      const start = String(req.startDate).slice(0, 10);
+      const end = String(req.endDate).slice(0, 10);
+      return todayStr >= start && todayStr <= end;
+    });
+  }, [leaveRequests, todayStr]);
+
+  // สร้าง Map สำหรับตรวจสอบสถานะพนักงานวันนี้
+  const leavesTodayMap = useMemo(() => {
+    const map = new Map();
+    leavesToday.forEach((req) => {
+      if (req.userId) map.set(String(req.userId), req);
+      if (req.employeeId) map.set(String(req.employeeId).toLowerCase(), req);
+      if (req.employeeName) map.set(req.employeeName.trim().toLowerCase(), req);
+    });
+    return map;
+  }, [leavesToday]);
+
+  // คำนวณอัตราการใช้วันลาทั้งองค์กรจากฐานข้อมูลจริง
+  const totalApprovedDays = useMemo(() => {
+    return approvedRequests.reduce((sum, r) => sum + (Number(r.days) || 0), 0);
+  }, [approvedRequests]);
+
+  const totalUsedDays = useMemo(() => {
+    return employees.reduce((sum, e) => {
+      const vac = Number(e.vacationUsed) || 0;
+      const per = Number(e.personalUsed) || 0;
+      const sic = Number(e.sickUsed) || 0;
+      return sum + vac + per + sic;
+    }, 0);
+  }, [employees]);
+
+  const totalAllocatedQuota = useMemo(() => {
+    return employees.reduce((sum, e) => {
+      const vac = Number(e.vacationLimit) || 10;
+      const per = Number(e.personalLimit) || (e.employmentType === 'พนักงานราชการ' ? 10 : 45);
+      const sic = e.employmentType === 'พนักงานราชการ' || e.isSickAsActual || Number(e.sickLimit) === 999 ? 60 : (Number(e.sickLimit) || 60);
+      return sum + vac + per + sic;
+    }, 0);
+  }, [employees]);
+
+  const daysUsedForRate = totalUsedDays > 0 ? totalUsedDays : totalApprovedDays;
+  const orgUtilizationRate = totalAllocatedQuota > 0
+    ? ((daysUsedForRate / totalAllocatedQuota) * 100).toFixed(1)
+    : '0.0';
+
+  const workingTodayCount = Math.max(0, employees.length - leavesToday.length);
+  const workingTodayPercent = employees.length > 0
+    ? ((workingTodayCount / employees.length) * 100).toFixed(1)
+    : '100.0';
 
   // Filter employees
   const filteredEmployees = searchEmployee
@@ -116,7 +180,7 @@ export default function AdminDashboardView() {
               <span className="text-xs text-emerald-200/80">Executive HR Portal</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-prompt">
-              ยินดีต้อนรับ คุณสมชาย มั่นคง 👋
+              ยินดีต้อนรับ {currentUser?.name || 'ผู้ดูแลระบบ'} 👋
             </h2>
             <p className="text-xs sm:text-sm text-emerald-100/80 font-normal max-w-xl">
               ศูนย์กลางควบคุมการบริหารจัดการวันลา กำลังพล และการอนุมัติคำขอของบุคลากรทั้งองค์กร
@@ -169,7 +233,7 @@ export default function AdminDashboardView() {
           </div>
         </div>
 
-        {/* Card 2: On leave today */}
+        {/* Card 2: On leave today (จากฐานข้อมูลจริง) */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
@@ -182,10 +246,15 @@ export default function AdminDashboardView() {
           <div className="mt-4">
             <p className="text-xs font-medium text-slate-500">พนักงานที่ลาวันนี้</p>
             <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
-              2 คน
+              {leavesToday.length} คน
             </h3>
-            <p className="text-[11px] text-slate-400 mt-1 truncate">
-              พนิกา (พักร้อน), อัครพล (พักร้อน)
+            <p
+              className="text-[11px] text-slate-400 mt-1 truncate"
+              title={leavesToday.length > 0 ? leavesToday.map((r) => `${r.employeeName || 'เจ้าหน้าที่'} (${r.type || 'ลา'})`).join(', ') : 'ไม่มีพนักงานลางานวันนี้'}
+            >
+              {leavesToday.length > 0
+                ? leavesToday.map((r) => `${r.employeeName || 'เจ้าหน้าที่'} (${r.type || 'ลา'})`).join(', ')
+                : 'ไม่มีพนักงานลางานในวันนี้'}
             </p>
           </div>
         </div>
@@ -209,12 +278,12 @@ export default function AdminDashboardView() {
               {employees.length} คน
             </h3>
             <p className="text-[11px] text-emerald-700 font-medium mt-1">
-              เข้างานปกติ {employees.length - 2} คน (92.8%)
+              เข้างานปกติ {workingTodayCount} คน ({workingTodayPercent}%)
             </p>
           </div>
         </div>
 
-        {/* Card 4: Org Utilization */}
+        {/* Card 4: Org Utilization (คำนวณจากฐานข้อมูลจริง) */}
         <div
           onClick={() => setActiveTab('reports')}
           className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group flex flex-col justify-between"
@@ -230,10 +299,10 @@ export default function AdminDashboardView() {
           <div className="mt-4">
             <p className="text-xs font-medium text-slate-500">อัตราการใช้วันลาทั้งองค์กร</p>
             <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
-              41.2%
+              {orgUtilizationRate}%
             </h3>
             <p className="text-[11px] text-slate-400 mt-1">
-              อนุมัติไปแล้ว {approvedRequests.length} คำขอ
+              อนุมัติไปแล้ว {approvedRequests.length} คำขอ ({daysUsedForRate.toFixed(1)} วัน)
             </p>
           </div>
         </div>
@@ -359,7 +428,7 @@ export default function AdminDashboardView() {
           )}
         </div>
 
-        {/* Right Column (5 of 12 cols): On Leave Today & Dept Summary */}
+        {/* Right Column (5 of 12 cols): On Leave Today & Dept Summary (ดึงจากฐานข้อมูลจริง 100%) */}
         <div className="lg:col-span-5 bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -373,39 +442,67 @@ export default function AdminDashboardView() {
             </div>
 
             <div className="mt-3 space-y-3">
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center space-x-3">
-                <img
-                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=128&h=128&q=80"
-                  alt="พนิกา"
-                  className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-800 truncate">
-                    นางสาวพนิกา ธรรมเมือง
-                  </p>
-                  <p className="text-[11px] text-slate-500">UI/UX Designer</p>
+              {leavesToday.length === 0 ? (
+                <div className="py-8 text-center flex flex-col items-center justify-center space-y-2">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-700">ไม่มีพนักงานลางานในวันนี้</p>
+                  <p className="text-[11px] text-slate-400">บุคลากรทุกคนปฏิบัติหน้าที่ตามปกติ (เข้างานครบ 100%)</p>
                 </div>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-200/60 text-emerald-800">
-                  ลาพักร้อน (2 วัน)
-                </span>
-              </div>
+              ) : (
+                leavesToday.map((req) => {
+                  const emp = employees.find(
+                    (e) =>
+                      (req.userId && (e.id === req.userId || e.raw_id === req.userId || String(e.raw_id) === String(req.userId))) ||
+                      (req.employeeId && e.employeeId && e.employeeId.toLowerCase() === req.employeeId.toLowerCase()) ||
+                      (req.employeeName && e.name && e.name.trim() === req.employeeName.trim())
+                  );
+                  const avatar =
+                    emp?.avatar ||
+                    req.avatar ||
+                    (emp?.gender === 'ชาย'
+                      ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=128&h=128&q=80'
+                      : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=128&h=128&q=80');
+                  const dept = req.department || emp?.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น';
+                  const title = emp?.title || emp?.position || req.position || 'เจ้าหน้าที่สหกรณ์';
+                  const typeBadgeColor =
+                    req.typeKey === 'sick'
+                      ? 'bg-rose-100 text-rose-800'
+                      : req.typeKey === 'personal'
+                      ? 'bg-teal-100 text-teal-800'
+                      : req.typeKey === 'maternity'
+                      ? 'bg-purple-100 text-purple-800'
+                      : 'bg-emerald-100 text-emerald-800';
 
-              <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-100 flex items-center space-x-3">
-                <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=128&h=128&q=80"
-                  alt="อัครพล"
-                  className="w-10 h-10 rounded-full object-cover ring-2 ring-teal-500/20"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-800 truncate">
-                    นายอัครพล เจริญผล
-                  </p>
-                  <p className="text-[11px] text-slate-500">Frontend Engineer</p>
-                </div>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-teal-200/60 text-teal-800">
-                  ลาพักร้อน (3 วัน)
-                </span>
-              </div>
+                  return (
+                    <div
+                      key={req.id}
+                      onClick={() => {
+                        if (setSelectedLeaveDetail) setSelectedLeaveDetail(req);
+                      }}
+                      className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-100 hover:border-emerald-200 transition-colors flex items-center space-x-3 cursor-pointer group"
+                    >
+                      <img
+                        src={avatar}
+                        alt={req.employeeName}
+                        className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-800 transition-colors">
+                          {req.employeeName || emp?.name || 'เจ้าหน้าที่'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {title} • {dept}
+                        </p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${typeBadgeColor}`}>
+                        {req.type || 'ลางาน'} ({req.days} วัน)
+                      </span>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -460,42 +557,50 @@ export default function AdminDashboardView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredEmployees.slice(0, 5).map((emp) => (
-                <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-3 px-4 font-semibold text-slate-800 flex items-center space-x-2.5">
-                    <img
-                      src={emp.avatar}
-                      alt={emp.name}
-                      className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
-                    />
-                    <div>
-                      <p className="font-bold text-slate-800">{emp.name}</p>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-slate-600">{emp.department}</td>
-                  <td className="py-3 px-4 text-center font-bold text-emerald-700">
-                    {emp.vacationRem} / {emp.vacationLimit ?? 10} วัน
-                  </td>
-                  <td className="py-3 px-4 text-center font-bold text-teal-700">
-                    {emp.personalRem} / {emp.personalLimit ?? (emp.employmentType === 'พนักงานราชการ' ? 10 : 45)} วัน
-                  </td>
-                  <td className="py-3 px-4 text-center font-bold text-rose-600">
-                    {emp.employmentType === 'พนักงานราชการ' || emp.isSickAsActual || Number(emp.sickLimit) === 999
-                      ? 'เท่าที่ป่วยจริง'
-                      : `${emp.sickRem} / ${emp.sickLimit ?? 60} วัน`}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${emp.status.includes('ลา')
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-emerald-50 text-emerald-800 border border-emerald-100'
-                        }`}
-                    >
-                      {emp.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {filteredEmployees.slice(0, 5).map((emp) => {
+                const todayLeave =
+                  leavesTodayMap.get(String(emp.id)) ||
+                  leavesTodayMap.get(String(emp.raw_id)) ||
+                  leavesTodayMap.get(String(emp.employeeId || '').toLowerCase()) ||
+                  leavesTodayMap.get(String(emp.name || '').trim().toLowerCase());
+                const isLeave = Boolean(todayLeave);
+                const statusText = isLeave ? (todayLeave.type || 'ลางาน') : 'ปกติ';
+                const badgeClass = isLeave
+                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-100';
+
+                return (
+                  <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-4 font-semibold text-slate-800 flex items-center space-x-2.5">
+                      <img
+                        src={emp.avatar}
+                        alt={emp.name}
+                        className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
+                      />
+                      <div>
+                        <p className="font-bold text-slate-800">{emp.name}</p>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">{emp.department}</td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700">
+                      {emp.vacationRem} / {emp.vacationLimit ?? 10} วัน
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-teal-700">
+                      {emp.personalRem} / {emp.personalLimit ?? (emp.employmentType === 'พนักงานราชการ' ? 10 : 45)} วัน
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-rose-600">
+                      {emp.employmentType === 'พนักงานราชการ' || emp.isSickAsActual || Number(emp.sickLimit) === 999
+                        ? 'เท่าที่ป่วยจริง'
+                        : `${emp.sickRem} / ${emp.sickLimit ?? 60} วัน`}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeClass}`}>
+                        {statusText}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -513,4 +618,3 @@ export default function AdminDashboardView() {
     </div>
   );
 }
-
