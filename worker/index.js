@@ -1229,8 +1229,11 @@ export async function onRequest(context) {
 
       // ตรวจสอบว่ามีอีเมลนี้อยู่ในระบบหรือไม่
       const user = await env.DB.prepare(
-        'SELECT user_id, prefix, first_name, last_name, display_name, email FROM users WHERE LOWER(email) = ?'
-      ).bind(cleanEmail).first().catch(() => null);
+        'SELECT user_id, prefix, first_name, last_name, english_name, email FROM users WHERE LOWER(TRIM(email)) = ?'
+      ).bind(cleanEmail).first().catch((err) => {
+        console.error('[send-otp find user error]:', err.message);
+        return null;
+      });
 
       if (!user) {
         return jsonResponse({
@@ -1280,7 +1283,7 @@ export async function onRequest(context) {
         'INSERT INTO password_reset_otps (email, otp_code, expires_at, is_used) VALUES (?, ?, ?, 0)'
       ).bind(cleanEmail, otpCode, expiresAt).run().catch(() => { });
 
-      const userName = user.display_name || `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim();
+      const userName = `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim() || user.english_name || 'ผู้ใช้งาน';
 
       // ส่งอีเมลผ่าน Google Apps Script (หรือ Resend สำรอง)
       const sendResult = await sendOtpEmail({
