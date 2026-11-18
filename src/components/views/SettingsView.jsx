@@ -89,18 +89,19 @@ const normalizeGender = (user) => {
 
 function extractEnglishNameFields(user) {
   if (user?.firstNameEn || user?.lastNameEn) {
+    const rawPfx = user.prefixEn === 'Ms.' ? 'Miss' : user.prefixEn;
     return {
-      prefixEn: user.prefixEn || (user.gender === 'ชาย' ? 'Mr.' : 'Ms.'),
+      prefixEn: rawPfx || (user.gender === 'ชาย' ? 'Mr.' : 'Miss'),
       firstNameEn: user.firstNameEn || '',
       lastNameEn: user.lastNameEn || '',
-      englishName: user.englishName || `${user.prefixEn || ''} ${user.firstNameEn || ''} ${user.lastNameEn || ''}`.trim(),
+      englishName: user.englishName || `${rawPfx || ''} ${user.firstNameEn || ''} ${user.lastNameEn || ''}`.trim(),
     };
   }
   const raw = user?.englishName || '';
   if (!raw.trim()) {
     const isMale = user?.gender === 'ชาย' || user?.prefix?.includes('นาย');
     return {
-      prefixEn: isMale ? 'Mr.' : 'Ms.',
+      prefixEn: isMale ? 'Mr.' : 'Miss',
       firstNameEn: '',
       lastNameEn: '',
       englishName: '',
@@ -112,11 +113,11 @@ function extractEnglishNameFields(user) {
   let firstNameEn = '';
   let lastNameEn = '';
   if (['mr', 'mrs', 'ms', 'miss'].includes(firstLower)) {
-    prefixEn = firstLower === 'mr' ? 'Mr.' : (firstLower === 'mrs' ? 'Mrs.' : (firstLower === 'miss' ? 'Miss' : 'Ms.'));
+    prefixEn = firstLower === 'mr' ? 'Mr.' : (firstLower === 'mrs' ? 'Mrs.' : 'Miss');
     firstNameEn = parts[1] || '';
     lastNameEn = parts.slice(2).join(' ') || '';
   } else {
-    prefixEn = user?.gender === 'ชาย' || user?.prefix?.includes('นาย') ? 'Mr.' : ((user?.prefix?.includes('นาง') && !user?.prefix?.includes('นางสาว')) ? 'Mrs.' : 'Ms.');
+    prefixEn = user?.gender === 'ชาย' || user?.prefix?.includes('นาย') ? 'Mr.' : ((user?.prefix?.includes('นาง') && !user?.prefix?.includes('นางสาว')) ? 'Mrs.' : 'Miss');
     firstNameEn = parts[0] || '';
     lastNameEn = parts.slice(1).join(' ') || '';
   }
@@ -287,8 +288,8 @@ export default function SettingsView() {
       if (showToast) showToast('กรุณาระบุรหัสผ่านใหม่', 'error');
       return;
     }
-    if (passwordData.newPassword.length < 6) {
-      if (showToast) showToast('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร', 'error');
+    if (passwordData.newPassword.length < 8) {
+      if (showToast) showToast('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร', 'error');
       return;
     }
     if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -458,7 +459,7 @@ export default function SettingsView() {
                     const newPrefix = e.target.value;
                     const isMale = newPrefix === 'นาย';
                     const newGender = isMale ? 'ชาย' : (['นาง', 'นางสาว'].includes(newPrefix) ? 'หญิง' : formData.gender);
-                    const newPrefixEn = isMale ? 'Mr.' : (newPrefix === 'นาง' ? 'Mrs.' : 'Ms.');
+                    const newPrefixEn = isMale ? 'Mr.' : (newPrefix === 'นาง' ? 'Mrs.' : 'Miss');
                     const newFullName = `${newPrefix}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
                     setFormData((prev) => ({
                       ...prev,
@@ -563,7 +564,7 @@ export default function SettingsView() {
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">คำนำหน้า (Title)</label>
                 <select
                   aria-label="คำนำหน้าภาษาอังกฤษ"
-                  value={formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Ms.')}
+                  value={formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'))}
                   onChange={(e) => {
                     const newPrefixEn = e.target.value;
                     const newFullNameEn = `${newPrefixEn} ${formData.firstNameEn || ''} ${formData.lastNameEn || ''}`.trim();
@@ -573,7 +574,6 @@ export default function SettingsView() {
                 >
                   <option value="Mr.">Mr. (นาย)</option>
                   <option value="Mrs.">Mrs. (นาง)</option>
-                  <option value="Ms.">Ms. (นางสาว)</option>
                   <option value="Miss">Miss (นางสาว)</option>
                 </select>
               </div>
@@ -585,7 +585,7 @@ export default function SettingsView() {
                   value={formData.firstNameEn}
                   onChange={(e) => {
                     const newFirst = e.target.value;
-                    const p = formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Ms.');
+                    const p = formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'));
                     setFormData({ 
                       ...formData, 
                       firstNameEn: newFirst, 
@@ -604,7 +604,7 @@ export default function SettingsView() {
                   value={formData.lastNameEn}
                   onChange={(e) => {
                     const newLast = e.target.value;
-                    const p = formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Ms.');
+                    const p = formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'));
                     setFormData({ 
                       ...formData, 
                       lastNameEn: newLast, 
@@ -777,7 +777,7 @@ export default function SettingsView() {
                 เปลี่ยนรหัสผ่าน (Change Password)
               </h3>
               <p className="text-xs text-slate-400">
-                อัปเดตรหัสผ่านสำหรับเข้าสู่ระบบของท่าน (ความยาวอย่างน้อย 6 ตัวอักษร)
+                อัปเดตรหัสผ่านสำหรับเข้าสู่ระบบของท่าน (ความยาวอย่างน้อย 8 ตัวอักษร)
               </p>
             </div>
           </div>
@@ -821,7 +821,7 @@ export default function SettingsView() {
                   value={passwordData.newPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                   className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="รหัสผ่านใหม่อย่างน้อย 6 ตัวอักษร"
+                  placeholder="รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร"
                 />
                 <button
                   type="button"

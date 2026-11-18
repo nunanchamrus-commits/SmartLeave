@@ -1538,8 +1538,8 @@ export async function onRequest(context) {
       if ((!email && !userId) || !newPassword) {
         return jsonResponse({ success: false, message: 'กรุณากรอกข้อมูลบัญชีผู้ใช้และรหัสผ่านใหม่' }, 400);
       }
-      if (typeof newPassword !== 'string' || newPassword.trim().length < 6) {
-        return jsonResponse({ success: false, message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' }, 400);
+      if (typeof newPassword !== 'string' || newPassword.trim().length < 8) {
+        return jsonResponse({ success: false, message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร' }, 400);
       }
 
       // หากส่ง otp มาด้วย ให้ตรวจสอบความถูกต้องและหมดอายุ
@@ -1639,8 +1639,8 @@ export async function onRequest(context) {
       if (!currentPassword || !newPassword) {
         return jsonResponse({ success: false, message: 'กรุณากรอกรหัสผ่านปัจจุบันและรหัสผ่านใหม่' }, 400);
       }
-      if (typeof newPassword !== 'string' || newPassword.trim().length < 6) {
-        return jsonResponse({ success: false, message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' }, 400);
+      if (typeof newPassword !== 'string' || newPassword.trim().length < 8) {
+        return jsonResponse({ success: false, message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร' }, 400);
       }
 
       let user = null;
