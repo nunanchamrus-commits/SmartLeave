@@ -90,39 +90,48 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
           mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
-        {/* ==================== MODERN LAYERED PATTERNS ==================== */}
-        {/* Layer 1: Minimalist Fine Dot Grid (สไตล์ SaaS ทันสมัย สะอาดตา) */}
-        <div className="absolute inset-0 pointer-events-none select-none opacity-[0.11]">
+        {/* ==================== MODERN LUXURY LAYERED PATTERNS (เรียบหรู ไม่มีจุด) ==================== */}
+        {/* Layer 1: Ultra-Fine Architectural Diagonal Silk Lines */}
+        <div className="absolute inset-0 pointer-events-none select-none opacity-[0.055]">
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern
-                id="sidebar-modern-dots"
-                width="20"
-                height="20"
+                id="sidebar-luxury-lines"
+                width="28"
+                height="28"
                 patternUnits="userSpaceOnUse"
+                patternTransform="rotate(35)"
               >
-                <circle cx="2" cy="2" r="1" fill="white" />
+                <line x1="0" y1="0" x2="0" y2="28" stroke="white" strokeWidth="0.9" />
               </pattern>
             </defs>
-            <rect width="100%" height="100%" fill="url(#sidebar-modern-dots)" />
+            <rect width="100%" height="100%" fill="url(#sidebar-luxury-lines)" />
           </svg>
         </div>
 
-        {/* Layer 2: Soft Glassmorphism Ambient Mesh Glows */}
-        <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-teal-300/20 blur-3xl pointer-events-none select-none" />
-        <div className="absolute top-1/3 -left-20 w-48 h-48 rounded-full bg-emerald-200/15 blur-3xl pointer-events-none select-none" />
-        <div className="absolute -bottom-16 -right-12 w-52 h-52 rounded-full bg-lime-200/15 blur-3xl pointer-events-none select-none" />
+        {/* Layer 2: Velvety Ambient Silk Light Glows */}
+        <div className="absolute -top-20 -right-16 w-60 h-60 rounded-full bg-emerald-200/15 blur-3xl pointer-events-none select-none" />
+        <div className="absolute bottom-1/4 -left-24 w-56 h-56 rounded-full bg-teal-200/12 blur-3xl pointer-events-none select-none" />
 
-        {/* Layer 3: Top-Right Modern Flowing Abstract Curves */}
-        <div className="absolute top-0 right-0 w-56 h-48 pointer-events-none select-none opacity-[0.16]">
-          <svg viewBox="0 0 220 180" fill="none" className="w-full h-full text-white">
-            <path d="M40 -10 C 90 45, 165 25, 230 70" stroke="currentColor" strokeWidth="1.2" />
-            <path d="M20 -10 C 80 60, 155 45, 230 95" stroke="currentColor" strokeWidth="0.9" opacity="0.75" />
-            <path d="M0 -10 C 70 78, 145 68, 230 122" stroke="currentColor" strokeWidth="0.7" opacity="0.5" />
-            <circle cx="172" cy="48" r="24" stroke="currentColor" strokeWidth="0.8" opacity="0.55" />
-            <circle cx="172" cy="48" r="42" stroke="currentColor" strokeWidth="0.6" strokeDasharray="4 5" opacity="0.4" />
+        {/* Layer 3: Top-Right Sleek Architectural Sweeping Arcs */}
+        <div className="absolute top-0 right-0 w-60 h-52 pointer-events-none select-none opacity-[0.14]">
+          <svg viewBox="0 0 240 200" fill="none" className="w-full h-full text-white">
+            <path d="M55 -15 C 110 55, 175 40, 250 85" stroke="currentColor" strokeWidth="1.1" />
+            <path d="M25 -15 C 95 75, 165 62, 250 112" stroke="currentColor" strokeWidth="0.8" opacity="0.7" />
+            <path d="M0 -10 C 82 95, 155 86, 250 140" stroke="currentColor" strokeWidth="0.6" opacity="0.45" />
+            <circle cx="195" cy="25" r="58" stroke="currentColor" strokeWidth="0.7" opacity="0.45" />
+            <circle cx="195" cy="25" r="88" stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
           </svg>
         </div>
+
+        {/* Layer 4: Subtle Diagonal Glass Sheen Overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none select-none opacity-[0.09]"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 42%, rgba(255,255,255,0.14) 78%, rgba(255,255,255,0) 100%)',
+          }}
+        />
 
         {/* Brand Header */}
         <div className="relative z-10 flex flex-col items-center justify-center pt-7 pb-5 px-6">
