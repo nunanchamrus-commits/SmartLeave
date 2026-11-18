@@ -157,8 +157,14 @@ export default function AdminEmployeesView() {
     const maternityUsed = isMale ? 0 : Number(emp.maternityUsed ?? Math.max(0, maternityLimit - maternityRem));
 
     const totalUsedDays = vacationUsed + personalUsed + sickUsed + maternityUsed;
-    const generalRem = isSickAsActual ? (vacationRem + personalRem) : (vacationRem + personalRem + sickRem);
-    const generalLimit = isSickAsActual ? (vacationLimit + personalLimit) : (vacationLimit + personalLimit + sickLimit);
+    const femaleMatRem = isMale ? 0 : maternityRem;
+    const femaleMatLimit = isMale ? 0 : maternityLimit;
+    const generalRem = isSickAsActual
+      ? (vacationRem + personalRem + femaleMatRem)
+      : (vacationRem + personalRem + sickRem + femaleMatRem);
+    const generalLimit = isSickAsActual
+      ? (vacationLimit + personalLimit + femaleMatLimit)
+      : (vacationLimit + personalLimit + sickLimit + femaleMatLimit);
 
     return {
       approvedLeaves,
@@ -326,8 +332,17 @@ export default function AdminEmployeesView() {
       return;
     }
 
-    const fullThaiName = editForm.firstName
-      ? `${editForm.prefix || ''}${editForm.firstName} ${editForm.lastName || ''}`.trim()
+    let cleanEditFn = editForm.firstName ? editForm.firstName.trim() : '';
+    let pfx = editForm.prefix || '';
+    const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.'];
+    for (const p of thaiPrefixes) {
+      if (cleanEditFn.startsWith(p)) {
+        if (!pfx) pfx = p;
+        cleanEditFn = cleanEditFn.slice(p.length).trim();
+      }
+    }
+    const fullThaiName = cleanEditFn
+      ? `${pfx || ''}${cleanEditFn} ${editForm.lastName || ''}`.trim()
       : editForm.name;
     const fullEnglishName = editForm.firstNameEn
       ? `${editForm.prefixEn ? editForm.prefixEn + ' ' : ''}${editForm.firstNameEn} ${editForm.lastNameEn || ''}`.trim()
@@ -382,7 +397,16 @@ export default function AdminEmployeesView() {
       return;
     }
 
-    const fullThaiName = `${addForm.prefix || ''}${addForm.firstName} ${addForm.lastName || ''}`.trim();
+    let cleanAddFn = addForm.firstName.trim();
+    let pfx = addForm.prefix || '';
+    const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.'];
+    for (const p of thaiPrefixes) {
+      if (cleanAddFn.startsWith(p)) {
+        if (!pfx) pfx = p;
+        cleanAddFn = cleanAddFn.slice(p.length).trim();
+      }
+    }
+    const fullThaiName = `${pfx || ''}${cleanAddFn} ${addForm.lastName || ''}`.trim();
     const fullEnglishName = addForm.firstNameEn
       ? `${addForm.prefixEn ? addForm.prefixEn + ' ' : ''}${addForm.firstNameEn} ${addForm.lastNameEn || ''}`.trim()
       : '';
@@ -429,7 +453,7 @@ export default function AdminEmployeesView() {
       'ลากิจคงเหลือ/สิทธิ์ (วัน)',
       'ลาป่วยคงเหลือ/สิทธิ์ (วัน)',
       'ลาคลอดคงเหลือ/สิทธิ์ (วัน)',
-      'คงเหลือสิทธิ์ลาทั่วไปรวม (วัน)',
+      'คงเหลือสิทธิ์ลารวม (วัน)',
     ];
 
     const rows = filteredEmployees.map((emp) => {
@@ -472,18 +496,26 @@ export default function AdminEmployeesView() {
   ];
 
   const editingStats = editingEmp ? getEmployeeLeaveStats(editingEmp) : null;
+  const isEditingMale = (editForm.gender === 'ชาย') || (editingEmp && isMaleEmployee(editingEmp));
+  const editMaternityRem = isEditingMale ? 0 : Number(editForm.maternityRem || 0);
+  const editMaternityLimit = isEditingMale ? 0 : Number(editForm.maternityLimit || 0);
+  const editMaternityUsed = isEditingMale ? 0 : Number(editForm.maternityUsed || 0);
+
   const previewGeneralRem =
     Number(editForm.vacationRem || 0) +
     Number(editForm.personalRem || 0) +
-    Number(editForm.sickRem || 0);
+    Number(editForm.sickRem || 0) +
+    editMaternityRem;
   const previewGeneralLimit =
     Number(editForm.vacationLimit || 0) +
     Number(editForm.personalLimit || 0) +
-    Number(editForm.sickLimit || 0);
+    Number(editForm.sickLimit || 0) +
+    editMaternityLimit;
   const previewGeneralUsed =
     Number(editForm.vacationUsed || 0) +
     Number(editForm.personalUsed || 0) +
-    Number(editForm.sickUsed || 0);
+    Number(editForm.sickUsed || 0) +
+    editMaternityUsed;
 
   return (
     <div className="space-y-6">
@@ -1183,8 +1215,10 @@ export default function AdminEmployeesView() {
 
                   <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
                     <span>
-                      <strong>สรุปสิทธิ์ลาทั่วไป (พักร้อน + ลากิจ + ลาป่วย):</strong> ใช้ไปแล้ว{' '}
-                      <strong>{previewGeneralUsed}</strong> วัน
+                      <strong>
+                        สรุปสิทธิ์ลารวม {isEditingMale ? '(พักร้อน + ลากิจ + ลาป่วย)' : '(พักร้อน + ลากิจ + ลาป่วย + ลาคลอด)'}:
+                      </strong>{' '}
+                      ใช้ไปแล้ว <strong>{previewGeneralUsed}</strong> วัน
                     </span>
                     <span className="font-bold text-[#155A32]">
                       คงเหลือ {previewGeneralRem} จาก {previewGeneralLimit} วัน

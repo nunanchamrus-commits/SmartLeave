@@ -383,6 +383,33 @@ function normalizeEmployeeQuotas(emp) {
     next.maternityUsed = 0;
     next.maternityRem = 0;
   }
+
+  // ทำความสะอาดชื่อและป้องกันคำนำหน้าซ้ำซ้อน เช่น 'นายนายสมชาย'
+  const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.'];
+  let cleanFn = (emp.firstName || '').trim();
+  let pfx = (emp.prefix || '').trim();
+  let stripped = true;
+  while (stripped && cleanFn) {
+    stripped = false;
+    for (const p of thaiPrefixes) {
+      if (cleanFn.startsWith(p)) {
+        if (!pfx) pfx = p;
+        cleanFn = cleanFn.slice(p.length).trim();
+        stripped = true;
+        break;
+      }
+    }
+  }
+  if (cleanFn) next.firstName = cleanFn;
+  if (pfx) next.prefix = pfx;
+  if (emp.name) {
+    next.name = emp.name.replace(/^((นางสาว|น.ส.|นาง|นาย|ดร.|ศ.|รศ.|ผศ.)s*)+/g, (match) => {
+      for (const p of thaiPrefixes) {
+        if (match.includes(p)) return p;
+      }
+      return match;
+    });
+  }
   return next;
 }
 
@@ -2022,20 +2049,61 @@ export function LeaveProvider({ children }) {
     const newId = `usr-${Date.now()}`;
     const empCode = `EMP-${new Date().getFullYear() + 543}-${Math.floor(100 + Math.random() * 900)}`;
 
-    let prefix = '';
-    let firstName = userData.fullName || '';
-    let lastName = '';
-    if (userData.fullName && userData.fullName.includes(' ')) {
-      const parts = userData.fullName.trim().split(/\s+/);
-      if (['นาย', 'นาง', 'นางสาว'].includes(parts[0])) {
-        prefix = parts[0];
-        firstName = parts[1] || '';
-        lastName = parts.slice(2).join(' ') || '';
+    let prefix = userData.prefix || '';
+    let firstName = userData.firstName || '';
+    let lastName = userData.lastName || '';
+    const rawFullName = (userData.fullName || '').trim();
+
+    const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.', 'พ.ต.ต.', 'พ.ต.ท.', 'พ.ต.อ.', 'ร.ต.อ.', 'ร.ต.ท.', 'ร.ต.ต.'];
+
+    // แยก prefix, firstName, lastName จาก fullName
+    if (rawFullName) {
+      let matchedPrefix = '';
+      for (const p of thaiPrefixes) {
+        if (rawFullName.startsWith(p)) {
+          matchedPrefix = p;
+          break;
+        }
+      }
+
+      if (matchedPrefix) {
+        prefix = prefix || matchedPrefix;
+        const rest = rawFullName.slice(matchedPrefix.length).trim();
+        const parts = rest.split(/\s+/).filter(Boolean);
+        firstName = firstName || parts[0] || '';
+        lastName = lastName || parts.slice(1).join(' ') || '';
       } else {
-        firstName = parts[0] || '';
-        lastName = parts.slice(1).join(' ') || '';
+        const parts = rawFullName.split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+          firstName = firstName || parts[0] || '';
+          lastName = lastName || parts.slice(1).join(' ') || '';
+        } else {
+          firstName = firstName || parts[0] || '';
+        }
       }
     }
+
+    // ถอด prefix ที่อาจติดมาข้างหน้า firstName ออกเสมอ
+    if (firstName) {
+      let stripped = true;
+      while (stripped && firstName) {
+        stripped = false;
+        for (const p of thaiPrefixes) {
+          if (firstName.startsWith(p)) {
+            if (!prefix) prefix = p;
+            firstName = firstName.slice(p.length).trim();
+            stripped = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!prefix) {
+      prefix = (userData.gender === 'หญิง' || userData.gender === 'female') ? 'นางสาว' : 'นาย';
+    }
+
+    const fullThaiName = `${prefix}${firstName} ${lastName}`.trim();
 
     // จัดการแยกชื่อภาษาอังกฤษ (prefixEn, firstNameEn, lastNameEn)
     let prefixEn = userData.prefixEn || '';
@@ -2062,7 +2130,7 @@ export function LeaveProvider({ children }) {
     if (api && api.register) {
       try {
         const res = await api.register({
-          fullName: userData.fullName,
+          fullName: fullThaiName || userData.fullName,
           englishName: fullEnglishName,
           firstName,
           lastName,
@@ -2100,7 +2168,7 @@ export function LeaveProvider({ children }) {
     const newUser = {
       id: dbUserId,
       raw_id: registeredDbUser?.raw_id,
-      name: registeredDbUser?.name || userData.fullName,
+      name: (registeredDbUser?.name || fullThaiName || userData.fullName).replace(/^((นางสาว|น\.ส\.|นาง|นาย|ดร\.)\s*)+/g, (match) => { for (const p of ["นางสาว", "น.ส.", "นาง", "นาย", "ดร."]) if (match.includes(p)) return p; return match; }),
       prefix: registeredDbUser?.prefix || prefix || (userData.gender === 'หญิง' ? 'นางสาว' : 'นาย'),
       firstName: registeredDbUser?.firstName || firstName,
       lastName: registeredDbUser?.lastName || lastName,

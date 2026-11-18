@@ -3,7 +3,10 @@ import { useLeave } from '../context/LeaveContext';
 
 export default function HeroBanner() {
   const { currentUser } = useLeave();
-  const firstName = currentUser.name.split(' ')[0].replace('นางสาว', '').replace('นาย', '');
+  const rawName = (currentUser?.name || `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`).trim();
+  const cleanFullName = rawName
+    .replace(/^((นาย|นางสาว|นาง|น\.ส\.|ดร\.|ศ\.|รศ\.|ผศ\.|Mr\.|Mrs\.|Ms\.|Miss)\s*)+/gi, '')
+    .trim() || 'ผู้ใช้งาน';
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#D5EFE0] via-[#E3F4EA] to-[#DCF2E5] p-6 sm:p-8 shadow-sm border border-emerald-100/60">
@@ -16,7 +19,7 @@ export default function HeroBanner() {
         <div className="space-y-2 text-left max-w-xl">
           <div className="flex items-center space-x-2">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#113C22] tracking-tight font-prompt">
-              สวัสดีค่ะ คุณ{firstName} <span className="inline-block hover:rotate-12 transition-transform cursor-default">👋</span>
+              สวัสดีค่ะ คุณ{cleanFullName} <span className="inline-block hover:rotate-12 transition-transform cursor-default">👋</span>
             </h2>
           </div>
           <p className="text-base sm:text-lg font-semibold text-[#185331]">
