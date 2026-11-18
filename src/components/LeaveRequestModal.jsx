@@ -71,6 +71,7 @@ export default function LeaveRequestModal() {
 
   // --- State สำหรับแท็บ "ยกเลิกวันลา" ---
   const [selectedCancelId, setSelectedCancelId] = useState('');
+  const [isSelectingCancelItem, setIsSelectingCancelItem] = useState(true);
   const [selectedCancelDates, setSelectedCancelDates] = useState([]);
   const [cancelRangeStart, setCancelRangeStart] = useState('');
   const [cancelRangeEnd, setCancelRangeEnd] = useState('');
@@ -109,15 +110,30 @@ export default function LeaveRequestModal() {
       setCancelErrorMsg('');
       setIsSuccess(false);
       setIsCancelSuccess(false);
+      if (cancellableLeaves.length === 1) {
+        setSelectedCancelId(String(cancellableLeaves[0].id));
+        setIsSelectingCancelItem(false);
+      } else {
+        setSelectedCancelId('');
+        setIsSelectingCancelItem(true);
+      }
     }
   }, [isRequestModalOpen]);
 
-  // Auto-select first cancellable leave when switching to cancel tab
+  // Auto-select if only 1 cancellable leave exists when switching to cancel tab
   useEffect(() => {
-    if (modalTab === 'cancel' && cancellableLeaves.length > 0) {
-      const stillExists = cancellableLeaves.some((r) => String(r.id) === String(selectedCancelId));
-      if (!stillExists) {
+    if (modalTab === 'cancel') {
+      if (cancellableLeaves.length === 1) {
         setSelectedCancelId(String(cancellableLeaves[0].id));
+        setIsSelectingCancelItem(false);
+      } else if (selectedCancelId) {
+        const stillExists = cancellableLeaves.some((r) => String(r.id) === String(selectedCancelId));
+        if (!stillExists) {
+          setSelectedCancelId('');
+          setIsSelectingCancelItem(true);
+        }
+      } else {
+        setIsSelectingCancelItem(true);
       }
     }
   }, [modalTab, cancellableLeaves.length]);
@@ -678,9 +694,23 @@ export default function LeaveRequestModal() {
 
                 {/* Select Leave Request to Cancel */}
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-2">
-                    เลือกรายการลาที่ต้องการขอยกเลิก <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block font-semibold text-slate-700">
+                      {selectedLeave && !isSelectingCancelItem
+                        ? 'รายการลาที่เลือกยกเลิก'
+                        : 'เลือกรายการลาที่ต้องการขอยกเลิก'}{' '}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    {selectedLeave && !isSelectingCancelItem && cancellableLeaves.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsSelectingCancelItem(true)}
+                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
+                      >
+                        เปลี่ยนรายการ ({cancellableLeaves.length})
+                      </button>
+                    )}
+                  </div>
 
                   {cancellableLeaves.length === 0 ? (
                     <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 text-center space-y-1.5">
@@ -692,8 +722,36 @@ export default function LeaveRequestModal() {
                         รายการที่ยกเลิกแล้ว ไม่อนุมัติ หรือกำลังรอพิจารณายกเลิกจะไม่แสดงในรายการนี้
                       </p>
                     </div>
+                  ) : selectedLeave && !isSelectingCancelItem ? (
+                    /* แสดงเฉพาะรายการที่เลือก ซ่อนรายการอื่นไว้ทั้งหมด */
+                    <div className="p-3.5 rounded-2xl border bg-rose-50/80 border-rose-500 ring-2 ring-rose-500/15 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center flex-wrap gap-1.5">
+                          <span className="font-bold text-slate-800 text-xs sm:text-sm">
+                            {selectedLeave.type}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getMiniStatusBadge(selectedLeave.status)}`}
+                          >
+                            {selectedLeave.status}
+                          </span>
+                          {selectedLeave.cancelStatus === 'rejected' && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
+                              เคยไม่อนุญาตยกเลิก
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-600 mt-0.5 truncate">
+                          {selectedLeave.dateRange} ({selectedLeave.days} วัน)
+                        </p>
+                      </div>
+                      <div className="w-5 h-5 rounded-full border-2 border-rose-600 bg-rose-600 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3 h-3 text-white stroke-[3]" />
+                      </div>
+                    </div>
                   ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    /* แสดงรายการทั้งหมดให้ผู้ใช้กดเลือก (เมื่อเลือกแล้วจะซ่อนรายการอื่นอัตโนมัติ) */
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                       {cancellableLeaves.map((req) => {
                         const isSelected = String(selectedCancelId) === String(req.id);
                         return (
@@ -702,12 +760,13 @@ export default function LeaveRequestModal() {
                             key={req.id}
                             onClick={() => {
                               setSelectedCancelId(String(req.id));
+                              setIsSelectingCancelItem(false);
                               setCancelErrorMsg('');
                             }}
                             className={`w-full text-left p-3 rounded-2xl border transition-all flex items-center justify-between gap-2 ${
                               isSelected
                                 ? 'bg-rose-50/80 border-rose-500 ring-2 ring-rose-500/15'
-                                : 'bg-white border-slate-200 hover:bg-slate-50'
+                                : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-rose-300'
                             }`}
                           >
                             <div className="min-w-0">

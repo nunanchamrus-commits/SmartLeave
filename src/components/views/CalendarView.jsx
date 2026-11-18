@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Users, User, Clock, RotateCcw } from 'lucide-react';
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Users,
+  User,
+  Clock,
+  RotateCcw,
+  X,
+  FileText,
+} from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { getHolidaysMap } from '../../data/holidays';
 
@@ -16,6 +26,7 @@ export default function CalendarView() {
   // ปฏิทินของ User แสดงเฉพาะของตัวเองเท่านั้น ส่วน Admin แสดงของทุกคนเป็นค่าเริ่มต้น
   const [filterMode, setFilterMode] = useState(isAdmin ? 'all' : 'my'); // 'my' | 'all'
   const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedDayStr, setSelectedDayStr] = useState(null); // วันที่ที่คลิกเพื่อเปิดดูรายการลาในวันนั้น
 
   useEffect(() => {
     if (!isAdmin) {
@@ -122,6 +133,8 @@ export default function CalendarView() {
     const dayEvents = getEventsForDay(d);
     days.push({
       day: d,
+      dateStr: dayStr,
+      dayOfWeek: new Date(displayYear, displayMonth, d).getDay(),
       isCurrent: true,
       isToday,
       events: dayEvents,
@@ -135,6 +148,27 @@ export default function CalendarView() {
   for (let d = 1; d <= remaining; d++) {
     days.push({ day: d, isCurrent: false, isToday: false, events: [] });
   }
+
+  // ข้อมูลวันแบบสดที่ถูกคลิกเลือกเปิดดู
+  const selectedDayItem = selectedDayStr
+    ? days.find((item) => item.isCurrent && item.dateStr === selectedDayStr) || null
+    : null;
+
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'อนุมัติ':
+        return 'bg-[#DCFCE7] text-[#15803D] border-emerald-200';
+      case 'ไม่อนุมัติ':
+        return 'bg-[#FEE2E2] text-[#DC2626] border-red-200';
+      case 'อยู่ระหว่างตรวจสอบ':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'ยกเลิกวันลา':
+      case 'ยกเลิกการลา':
+        return 'bg-slate-100 text-slate-600 border-slate-200';
+      default:
+        return 'bg-orange-100 text-orange-700 border-orange-200';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -253,73 +287,217 @@ export default function CalendarView() {
           ))}
         </div>
 
-        {/* Grid Days */}
+        {/* Grid Days (คลิกที่แต่ละวันเพื่อเปิดดูรายการลาในวันนั้นได้ทันที ไม่ต้องเลื่อนดูในช่องเล็ก) */}
         <div className="grid grid-cols-7 gap-2">
-          {days.map((item, idx) => (
-            <div
-              key={idx}
-              className={`min-h-[90px] sm:min-h-[110px] p-2 rounded-2xl border transition-all flex flex-col justify-between ${
-                item.isCurrent
-                  ? item.isToday
-                    ? 'bg-emerald-50/40 border-emerald-400 ring-2 ring-emerald-500/20 shadow-xs'
-                    : 'bg-white border-slate-100 hover:border-emerald-200 hover:shadow-xs'
-                  : 'bg-slate-50/50 border-slate-50 text-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span
-                  className={`text-xs font-bold ${
-                    item.isToday
-                      ? 'w-6 h-6 rounded-full bg-[#155A32] text-white flex items-center justify-center shadow-xs'
-                      : item.isCurrent
-                      ? 'text-slate-700'
-                      : 'text-slate-300'
-                  }`}
-                >
-                  {item.day}
-                </span>
-                {item.isToday && (
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-md">
-                    วันนี้
-                  </span>
-                )}
-                {!item.isToday && item.holiday && (
-                  <span className="w-2 h-2 rounded-full bg-purple-500" title={item.holiday.name} />
-                )}
-                {!item.isToday && !item.holiday && item.events && item.events.length > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                )}
-              </div>
+          {days.map((item, idx) => {
+            const maxPreview = item.holiday ? 1 : 2;
+            const visibleEvents = (item.events || []).slice(0, maxPreview);
+            const hiddenCount = Math.max(0, (item.events?.length || 0) - visibleEvents.length);
 
-              {/* Event & Holiday Chips */}
-              <div className="space-y-1 mt-1 overflow-y-auto max-h-16">
-                {item.holiday && (
-                  <div
-                    className="w-full text-left px-1.5 py-0.5 rounded-lg text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/90 truncate flex items-center space-x-1"
-                    title={item.holiday.name}
+            return (
+              <div
+                key={idx}
+                onClick={() => {
+                  if (item.isCurrent && item.dateStr) {
+                    setSelectedDayStr(item.dateStr);
+                  }
+                }}
+                className={`min-h-[96px] sm:min-h-[116px] p-2 rounded-2xl border transition-all flex flex-col justify-between ${
+                  item.isCurrent
+                    ? item.isToday
+                      ? 'bg-emerald-50/40 border-emerald-400 ring-2 ring-emerald-500/20 shadow-xs cursor-pointer hover:bg-emerald-50/70'
+                      : 'bg-white border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/20 hover:shadow-sm cursor-pointer'
+                    : 'bg-slate-50/50 border-slate-50 text-slate-300'
+                }`}
+                title={item.isCurrent ? 'คลิกเพื่อดูรายละเอียดการลาในวันนี้' : undefined}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span
+                    className={`text-xs font-bold ${
+                      item.isToday
+                        ? 'w-6 h-6 rounded-full bg-[#155A32] text-white flex items-center justify-center shadow-xs'
+                        : item.isCurrent
+                        ? 'text-slate-700'
+                        : 'text-slate-300'
+                    }`}
                   >
-                    <span className="text-[10px]">🏛️</span>
-                    <span className="truncate">{item.holiday.name}</span>
+                    {item.day}
+                  </span>
+                  <div className="flex items-center space-x-1">
+                    {item.isToday && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-md">
+                        วันนี้
+                      </span>
+                    )}
+                    {item.isCurrent && item.events && item.events.length > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-1.5 py-0.2 rounded-full">
+                        {item.events.length}
+                      </span>
+                    )}
+                    {!item.isToday && item.holiday && (
+                      <span className="w-2 h-2 rounded-full bg-purple-500" title={item.holiday.name} />
+                    )}
                   </div>
-                )}
-                {item.events?.map((ev, i) => (
-                  <button
-                    type="button"
-                    key={i}
-                    onClick={() => setSelectedLeaveDetail(ev)}
-                    className={`w-full text-left px-1.5 py-0.5 rounded-lg text-[10px] font-medium border truncate transition-opacity hover:opacity-85 ${getEventStyle(
-                      ev.typeKey
-                    )}`}
-                    title={`${ev.employeeName} - ${ev.type} (${ev.status})`}
-                  >
-                    {ev.employeeName ? ev.employeeName.split(' ')[0] : 'คำขอ'}: {ev.type}
-                  </button>
-                ))}
+                </div>
+
+                {/* Event & Holiday Chips (แสดงตัวอย่างแบบไม่เลื่อน คลิกที่วันเพื่อเปิดดูทั้งหมด) */}
+                <div className="space-y-1 mt-1.5 overflow-hidden">
+                  {item.holiday && (
+                    <div
+                      className="w-full text-left px-1.5 py-0.5 rounded-lg text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/90 truncate flex items-center space-x-1"
+                      title={item.holiday.name}
+                    >
+                      <span className="text-[10px]">🏛️</span>
+                      <span className="truncate">{item.holiday.name}</span>
+                    </div>
+                  )}
+                  {visibleEvents.map((ev, i) => (
+                    <div
+                      key={ev.id || i}
+                      className={`w-full text-left px-1.5 py-0.5 rounded-lg text-[10px] font-medium border truncate ${getEventStyle(
+                        ev.typeKey
+                      )}`}
+                      title={`${ev.employeeName} - ${ev.type} (${ev.status})`}
+                    >
+                      {ev.employeeName ? ev.employeeName.split(' ')[0] : 'คำขอ'}: {ev.type}
+                    </div>
+                  ))}
+                  {hiddenCount > 0 && (
+                    <div className="w-full text-center px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-emerald-100 hover:text-emerald-800 transition-colors">
+                      +{hiddenCount} รายการ (คลิกดู)
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* Day Leave Details Modal (คลิกวันที่ในปฏิทินเพื่อดูรายการลาทั้งหมดของวันนั้น) */}
+      {selectedDayItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setSelectedDayStr(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-[#123E24] text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-emerald-300">
+                  <CalendarIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg font-prompt">
+                    {thaiDayNames[selectedDayItem.dayOfWeek]}ที่ {selectedDayItem.day} {monthsThai[displayMonth]} {displayYearBE}
+                  </h3>
+                  <p className="text-[11px] text-emerald-200">
+                    {selectedDayItem.events.length > 0
+                      ? `มีรายการลาทั้งหมด ${selectedDayItem.events.length} รายการ`
+                      : 'ไม่มีรายการลาในวันนี้'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDayStr(null)}
+                className="p-1.5 rounded-full hover:bg-white/15 text-emerald-100 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-5 overflow-y-auto space-y-3">
+              {selectedDayItem.holiday && (
+                <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 flex items-center space-x-2.5 text-purple-900 text-xs sm:text-sm">
+                  <span className="text-lg">🏛️</span>
+                  <div>
+                    <p className="font-bold">วันหยุดราชการประจำปี</p>
+                    <p className="text-xs text-purple-700">{selectedDayItem.holiday.name}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedDayItem.events.length === 0 ? (
+                <div className="py-10 text-center space-y-2.5">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-600">ไม่มีรายการลาในวันนี้</p>
+                  <p className="text-xs text-slate-400">
+                    {isAdmin && filterMode === 'all'
+                      ? 'เจ้าหน้าที่ทุกคนปฏิบัติงานตามปกติในวันนี้'
+                      : 'คุณไม่มีรายการลาในวันนี้'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {selectedDayItem.events.map((ev, i) => (
+                    <button
+                      type="button"
+                      key={ev.id || i}
+                      onClick={() => {
+                        setSelectedDayStr(null);
+                        setSelectedLeaveDetail(ev);
+                      }}
+                      className="w-full text-left p-4 rounded-2xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all flex items-center justify-between gap-3 group"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center flex-wrap gap-1.5">
+                          <span className="font-bold text-slate-800 text-sm">
+                            {ev.employeeName || 'ผู้ใช้งาน'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${getEventStyle(ev.typeKey)}`}>
+                            {ev.type}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(ev.status)}`}>
+                            {ev.status}
+                          </span>
+                        </div>
+                        {ev.department && (
+                          <p className="text-[11px] text-slate-400">{ev.department}</p>
+                        )}
+                        <p className="text-xs text-slate-600">
+                          ช่วงวันที่ลา: <span className="font-semibold text-slate-800">{ev.dateRange}</span> ({ev.days} วัน)
+                        </p>
+                        {ev.reason && (
+                          <p className="text-[11px] text-slate-500 truncate">เหตุผล: {ev.reason}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700 flex-shrink-0 transition-transform group-hover:translate-x-0.5" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDayStr(null);
+                  setIsRequestModalOpen(true);
+                }}
+                className="px-4 py-2 rounded-xl bg-[#155A32] hover:bg-[#114A29] text-white text-xs font-semibold transition-colors shadow-xs"
+              >
+                + ขอลา / ยกเลิกวันลา
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDayStr(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-200/70 text-xs font-semibold transition-colors"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
