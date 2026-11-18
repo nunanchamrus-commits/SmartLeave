@@ -118,6 +118,12 @@ export default function LeaveHistoryView() {
             ไม่อนุมัติ
           </span>
         );
+      case 'ยกเลิกการลา':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+            ยกเลิกการลา
+          </span>
+        );
       default:
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200/70">
@@ -205,6 +211,7 @@ export default function LeaveHistoryView() {
             { id: 'อยู่ระหว่างตรวจสอบ', label: 'อยู่ระหว่างตรวจสอบ' },
             { id: 'อนุมัติ', label: 'อนุมัติ' },
             { id: 'ไม่อนุมัติ', label: 'ไม่อนุมัติ' },
+            { id: 'ยกเลิกการลา', label: 'ยกเลิกการลา' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -294,7 +301,19 @@ export default function LeaveHistoryView() {
                       {req.reason}
                     </td>
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      {getStatusBadge(req.status)}
+                      <div className="flex flex-col items-center gap-1">
+                        {getStatusBadge(req.status)}
+                        {req.cancelStatus === 'pending' && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                            รอพิจารณาขอยกเลิก
+                          </span>
+                        )}
+                        {req.cancelStatus === 'rejected' && req.status !== 'ยกเลิกการลา' && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200">
+                            ไม่อนุมัติยกเลิกลา
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end space-x-1.5">

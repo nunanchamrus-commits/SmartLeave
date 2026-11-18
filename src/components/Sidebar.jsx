@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Home,
   CalendarPlus,
+  CalendarX2,
   FileText,
   Calendar,
   Users,
@@ -30,10 +31,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
     (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ'
   ).length;
 
+  const pendingCancellationsCount = leaveRequests.filter(
+    (r) => r.cancelStatus === 'pending'
+  ).length;
+
   // Distinct navigation items for User vs Admin
   const userNavItems = [
     { id: 'dashboard', label: 'หน้าหลัก', icon: Home },
-    { id: 'request', label: 'ขอลา', icon: CalendarPlus, isAction: true },
+    { id: 'request', label: 'ขอลา/ขอยกเลิกการลา', icon: CalendarPlus, isAction: true },
     { id: 'history', label: 'ตรวจสอบสถานะการลา', icon: FileText },
     { id: 'calendar', label: 'ปฏิทินการลา', icon: Calendar },
     { id: 'settings', label: 'ข้อมูลส่วนตัว', icon: Settings },
@@ -46,6 +51,12 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
       label: 'จัดการคำขอลา',
       icon: CheckSquare,
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : null,
+    },
+    {
+      id: 'cancel-approvals',
+      label: 'อนุมัติยกเลิกการลา',
+      icon: CalendarX2,
+      badge: pendingCancellationsCount > 0 ? pendingCancellationsCount : null,
     },
     { id: 'employees', label: 'จัดการพนักงาน & โควตา', icon: Users },
     { id: 'calendar', label: 'ปฏิทินการลา', icon: Calendar },

@@ -347,6 +347,12 @@ export default function LeaveDetailModal() {
                       <span>ไม่อนุมัติ</span>
                     </span>
                   )}
+                  {req.status === 'ยกเลิกการลา' && (
+                    <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>ยกเลิกการลา</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -438,6 +444,83 @@ export default function LeaveDetailModal() {
                 <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 text-xs text-emerald-900">
                   <span className="font-semibold block">ความเห็นจากผู้อนุมัติ:</span>
                   <p className="mt-0.5">{req.note}</p>
+                </div>
+              )}
+
+              {/* Leave Cancellation Info & Document */}
+              {(req.cancelStatus || req.cancelReason || req.cancelAttachmentName || req.cancelAttachmentUrl) && (
+                <div className="p-3.5 bg-rose-50/70 rounded-2xl border border-rose-200/80 text-xs space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                    <span className="font-bold text-rose-800">ข้อมูลคำขอยกเลิกการลา</span>
+                    {req.cancelStatus === 'pending' && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[11px] border border-amber-200">
+                        รอพิจารณาอนุมัติยกเลิก
+                      </span>
+                    )}
+                    {req.cancelStatus === 'approved' && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-200">
+                        อนุมัติยกเลิกการลาแล้ว
+                      </span>
+                    )}
+                    {req.cancelStatus === 'rejected' && (
+                      <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold text-[11px] border border-red-200">
+                        ไม่อนุมัติยกเลิกการลา
+                      </span>
+                    )}
+                  </div>
+                  {req.cancelReason && (
+                    <p className="text-slate-700">
+                      <span className="font-semibold text-slate-600">เหตุผลขอยกเลิก: </span>
+                      {req.cancelReason}
+                    </p>
+                  )}
+                  {req.cancelRemark && (
+                    <p className="text-slate-700">
+                      <span className="font-semibold text-slate-600">หมายเหตุผู้ดูแล: </span>
+                      {req.cancelRemark}
+                    </p>
+                  )}
+                  {(req.cancelAttachmentName || req.cancelAttachmentUrl) && (
+                    <div className="p-2.5 bg-white rounded-xl border border-rose-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2 text-slate-600 truncate max-w-[60%]">
+                        <FileText className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                        <span className="truncate font-medium">
+                          {req.cancelAttachmentName || 'เอกสารการยกเลิกการลา'}
+                        </span>
+                      </div>
+                      {req.cancelAttachmentUrl && (
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const w = window.open('');
+                              if (w) {
+                                if (req.cancelAttachmentUrl.startsWith('data:application/pdf')) {
+                                  w.document.write(`<iframe src="${req.cancelAttachmentUrl}" frameborder="0" style="border:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                  w.document.title = req.cancelAttachmentName || 'เอกสารการยกเลิกการลา.pdf';
+                                } else {
+                                  w.location.href = req.cancelAttachmentUrl;
+                                }
+                              }
+                            }}
+                            className="text-emerald-700 hover:text-emerald-900 font-semibold hover:underline flex items-center space-x-1"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>เปิดดู</span>
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <a
+                            href={req.cancelAttachmentUrl}
+                            download={req.cancelAttachmentName || 'เอกสารการยกเลิกการลา'}
+                            className="text-emerald-700 hover:text-emerald-900 font-semibold hover:underline flex items-center space-x-1"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>ดาวน์โหลด</span>
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

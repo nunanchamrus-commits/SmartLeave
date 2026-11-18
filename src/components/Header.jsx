@@ -174,7 +174,16 @@ export default function Header({ onMenuClick }) {
                     return (
                     <div
                       key={notif.id}
-                      onClick={() => markNotificationRead(notif.id)}
+                      onClick={() => {
+                        markNotificationRead(notif.id);
+                        if (isAdmin && (notif.linkUrl === '/cancel-approvals' || notif.title?.includes('ยกเลิกการลา'))) {
+                          setActiveTab('cancel-approvals');
+                          setIsNotifDropdownOpen(false);
+                        } else if (isAdmin && notif.linkUrl === '/approver') {
+                          setActiveTab('approver');
+                          setIsNotifDropdownOpen(false);
+                        }
+                      }}
                       className={`p-3.5 flex items-start space-x-3 cursor-pointer transition-colors ${
                         isRead ? 'bg-white hover:bg-slate-50' : 'bg-emerald-50/50 hover:bg-emerald-50'
                       }`}

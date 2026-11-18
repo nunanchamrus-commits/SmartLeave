@@ -41,6 +41,13 @@ const SCHEMA_COLUMNS = {
     review_stage: "TEXT DEFAULT 'not_submitted'",
     attachment_url: 'TEXT',
     attachment_name: 'TEXT',
+    cancel_status: "TEXT DEFAULT ''",
+    cancel_reason: 'TEXT',
+    cancel_attachment_url: 'TEXT',
+    cancel_attachment_name: 'TEXT',
+    cancel_requested_at: 'TEXT',
+    cancel_decided_at: 'TEXT',
+    cancel_remark: 'TEXT',
   },
   employee_leave_quotas: {
     carry_over_days: 'REAL DEFAULT 0.0',
@@ -72,8 +79,8 @@ function mapLeaveStatusToDb(rawStatus) {
   if (s === 'ไม่อนุมัติ' || lower === 'rejected') {
     return { dbStatus: 'rejected', reviewStage: 'rejected', displayStatus: 'ไม่อนุมัติ' };
   }
-  if (s === 'ยกเลิก' || lower === 'cancelled' || lower === 'canceled') {
-    return { dbStatus: 'cancelled', reviewStage: 'rejected', displayStatus: 'ยกเลิก' };
+  if (s === 'ยกเลิก' || s === 'ยกเลิกการลา' || lower === 'cancelled' || lower === 'canceled') {
+    return { dbStatus: 'cancelled', reviewStage: 'cancelled', displayStatus: 'ยกเลิกการลา' };
   }
   if (
     s === 'อยู่ระหว่างตรวจสอบ' ||
@@ -92,14 +99,14 @@ function mapDbRowToDisplayStatus(dbStatus, reviewStage) {
   const st = typeof dbStatus === 'string' ? dbStatus.trim() : '';
   const stLower = st.toLowerCase();
   const stage = typeof reviewStage === 'string' ? reviewStage.trim().toLowerCase() : '';
+  if (st === 'ยกเลิก' || st === 'ยกเลิกการลา' || stLower === 'cancelled' || stLower === 'canceled' || stage === 'cancelled') {
+    return 'ยกเลิกการลา';
+  }
   if (st === 'อนุมัติ' || stLower === 'approved' || stage === 'approved') {
     return 'อนุมัติ';
   }
   if (st === 'ไม่อนุมัติ' || stLower === 'rejected' || stage === 'rejected') {
     return 'ไม่อนุมัติ';
-  }
-  if (st === 'ยกเลิก' || stLower === 'cancelled' || stLower === 'canceled') {
-    return 'ยกเลิก';
   }
   if (
     st === 'อยู่ระหว่างตรวจสอบ' ||
@@ -876,7 +883,8 @@ async function autoMigrateDatabase(db) {
   // อัปเดต review_stage ให้คำขอลาเดิมที่มีอยู่แล้วในฐานข้อมูล (รวมกรณี ALTER TABLE ... DEFAULT 'not_submitted')
   try {
     await db.prepare("UPDATE leave_requests SET review_stage = 'approved' WHERE status IN ('approved', 'อนุมัติ') AND COALESCE(review_stage, '') != 'approved'").run().catch(() => { });
-    await db.prepare("UPDATE leave_requests SET review_stage = 'rejected' WHERE status IN ('rejected', 'cancelled', 'ไม่อนุมัติ', 'ยกเลิก') AND COALESCE(review_stage, '') != 'rejected'").run().catch(() => { });
+    await db.prepare("UPDATE leave_requests SET review_stage = 'rejected' WHERE status IN ('rejected', 'ไม่อนุมัติ') AND COALESCE(review_stage, '') != 'rejected'").run().catch(() => { });
+    await db.prepare("UPDATE leave_requests SET review_stage = 'cancelled' WHERE status IN ('cancelled', 'ยกเลิก', 'ยกเลิกการลา') AND COALESCE(review_stage, '') != 'cancelled'").run().catch(() => { });
     await db.prepare("UPDATE leave_requests SET review_stage = 'checking' WHERE status IN ('อยู่ระหว่างตรวจสอบ', 'รออนุมัติ') AND COALESCE(review_stage, '') != 'checking'").run().catch(() => { });
     await db.prepare("UPDATE leave_requests SET review_stage = 'not_submitted' WHERE review_stage IS NULL OR review_stage = ''").run().catch(() => { });
   } catch (stageMigErr) { }
@@ -1782,6 +1790,13 @@ export async function onRequest(context) {
           COALESCE(lr.attachment_url, '') as attachmentUrl,
           COALESCE(lr.attachment_name, '') as attachmentName,
           COALESCE(lr.attachment_name, CASE WHEN lr.attachment_url IS NOT NULL AND lr.attachment_url != '' THEN 'เอกสารแนบ.pdf' ELSE '' END) as attachment,
+          COALESCE(lr.cancel_status, '') as cancelStatus,
+          COALESCE(lr.cancel_reason, '') as cancelReason,
+          COALESCE(lr.cancel_attachment_url, '') as cancelAttachmentUrl,
+          COALESCE(lr.cancel_attachment_name, '') as cancelAttachmentName,
+          COALESCE(lr.cancel_requested_at, '') as cancelRequestedAt,
+          COALESCE(lr.cancel_decided_at, '') as cancelDecidedAt,
+          COALESCE(lr.cancel_remark, '') as cancelRemark,
           COALESCE(
             CASE WHEN sub.user_id IS NOT NULL THEN ((CASE WHEN sub.prefix IS NOT NULL AND sub.prefix != '' THEN sub.prefix ELSE '' END) || sub.first_name || ' ' || sub.last_name) END,
             NULLIF(lr.substitute_name, ''),
@@ -2956,7 +2971,8 @@ export async function onRequest(context) {
       await env.DB.prepare(`
         UPDATE leave_requests
         SET status = 'cancelled',
-            review_stage = 'rejected',
+            review_stage = 'cancelled',
+            cancel_status = 'approved',
             approved_at = NULL,
             updated_at = datetime('now', 'localtime')
         WHERE request_id = ?
@@ -2968,6 +2984,200 @@ export async function onRequest(context) {
       }
 
       return jsonResponse({ success: true, message: 'ยกเลิกคำขอลางานใน Cloudflare D1 เรียบร้อยแล้ว' });
+    }
+
+    // -------------------------------------------------------------
+    // 6.2 ยื่นคำขอยกเลิกการลา (User Request Leave Cancellation)
+    // POST /api/leaves/:id/cancel-request
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)\/cancel-request$/) && method === 'POST') {
+      const idMatch = path.match(/^\/leaves\/([^/]+)\/cancel-request$/);
+      const leaveId = idMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const cancelReason = typeof body.cancelReason === 'string' ? body.cancelReason.trim() : '';
+      const cancelAttachmentName = typeof body.cancelAttachmentName === 'string' ? body.cancelAttachmentName.trim() : '';
+      const cancelAttachmentUrl = typeof body.cancelAttachmentUrl === 'string' ? body.cancelAttachmentUrl.trim() : '';
+
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
+      if (!reqInfo) {
+        return jsonResponse({ error: 'ไม่พบคำขอลางานที่ต้องการยกเลิก' }, 404);
+      }
+
+      await ensureTableColumns(env.DB, 'leave_requests', SCHEMA_COLUMNS.leave_requests).catch(() => { });
+
+      await env.DB.prepare(`
+        UPDATE leave_requests
+        SET cancel_status = 'pending',
+            cancel_reason = ?,
+            cancel_attachment_url = ?,
+            cancel_attachment_name = ?,
+            cancel_requested_at = datetime('now', '+7 hours'),
+            cancel_decided_at = NULL,
+            cancel_remark = NULL,
+            updated_at = datetime('now', '+7 hours')
+        WHERE request_id = ?
+      `).bind(
+        cancelReason,
+        cancelAttachmentUrl || null,
+        cancelAttachmentName || null,
+        reqInfo.request_id
+      ).run();
+
+      const requester = await env.DB.prepare('SELECT first_name, last_name, prefix FROM users WHERE user_id = ?')
+        .bind(reqInfo.user_id).first().catch(() => null);
+      const requesterName = requester
+        ? `${requester.prefix || ''}${requester.first_name} ${requester.last_name || ''}`.trim()
+        : 'เจ้าหน้าที่';
+      const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
+      const typeName = (reqInfo.type_name || 'การลา').replace(/พักร้อน/g, 'พักผ่อน');
+
+      // แจ้งเตือนผู้ยื่นคำขอ
+      await env.DB.prepare(`
+        INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
+        VALUES (?, ?, ?, 'pending', 0, 'employee', datetime('now', '+7 hours'))
+      `).bind(
+        reqInfo.user_id,
+        `ยื่นคำขอยกเลิกการลา (${typeName}) สำเร็จ`,
+        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`
+      ).run().catch(() => { });
+
+      // แจ้งเตือน Admin / ผู้อนุมัติ
+      await env.DB.prepare(`
+        INSERT INTO notifications (user_id, title, description, type, link_url, is_read, target_role, created_at)
+        VALUES (?, ?, ?, 'pending', '/cancel-approvals', 0, 'admin', datetime('now', '+7 hours'))
+      `).bind(
+        reqInfo.user_id || 1,
+        `มีคำขอยกเลิกการลาใหม่จาก ${requesterName}`,
+        `คำขอยกเลิกการลา ${reqCode} (${typeName}) วันที่ ${reqInfo.start_date} ถึง ${reqInfo.end_date} รอการพิจารณา`
+      ).run().catch(() => { });
+
+      return jsonResponse({
+        success: true,
+        requestId: reqInfo.request_id,
+        cancelStatus: 'pending',
+        message: 'ส่งคำขอยกเลิกการลาเรียบร้อยแล้ว รอผู้ดูแลระบบพิจารณา',
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 6.3 อนุมัติคำขอยกเลิกการลา (Admin Approve Leave Cancellation)
+    // POST /api/leaves/:id/cancel-approve
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)\/cancel-approve$/) && method === 'POST') {
+      const idMatch = path.match(/^\/leaves\/([^/]+)\/cancel-approve$/);
+      const leaveId = idMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const remarkText = (typeof body.remark === 'string' && body.remark.trim())
+        ? body.remark.trim()
+        : 'อนุมัติการยกเลิกการลาเรียบร้อย';
+
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
+      if (!reqInfo) {
+        return jsonResponse({ error: 'ไม่พบคำขอลางานที่ระบุ' }, 404);
+      }
+
+      const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
+      const wasApproved = prevDisplayStatus === 'อนุมัติ';
+
+      await env.DB.prepare(`
+        UPDATE leave_requests
+        SET status = 'cancelled',
+            review_stage = 'cancelled',
+            cancel_status = 'approved',
+            cancel_remark = ?,
+            cancel_decided_at = datetime('now', '+7 hours'),
+            updated_at = datetime('now', '+7 hours')
+        WHERE request_id = ?
+      `).bind(remarkText, reqInfo.request_id).run();
+
+      // หากเดิมคำขอลานี้เคยถูกอนุมัติไปแล้ว ให้คืนโควตาวันลาให้พนักงานอัตโนมัติ
+      if (wasApproved) {
+        const year = extractFiscalYear(reqInfo.start_date);
+        await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -Number(reqInfo.total_days || 0));
+      }
+
+      const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
+      const typeName = (reqInfo.type_name || 'การลา').replace(/พักร้อน/g, 'พักผ่อน');
+
+      // แจ้งเตือน User เจ้าของคำขอ
+      await env.DB.prepare(`
+        INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
+        VALUES (?, ?, ?, 'approved', 0, 'employee', datetime('now', '+7 hours'))
+      `).bind(
+        reqInfo.user_id,
+        `อนุมัติคำขอยกเลิกการลา (${typeName}) แล้ว`,
+        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ได้รับการอนุมัติแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
+      ).run().catch(() => { });
+
+      // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
+      await env.DB.prepare(`
+        UPDATE notifications SET is_read = 1
+        WHERE (target_role IN ('admin', 'approver') OR title LIKE '%มีคำขอยกเลิก%')
+          AND description LIKE ?
+      `).bind(`%${reqCode}%`).run().catch(() => { });
+
+      return jsonResponse({
+        success: true,
+        requestId: reqInfo.request_id,
+        status: 'ยกเลิกการลา',
+        cancelStatus: 'approved',
+        quotaRefunded: wasApproved,
+        message: 'อนุมัติการยกเลิกการลาเรียบร้อยแล้ว',
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 6.4 ไม่อนุมัติคำขอยกเลิกการลา (Admin Reject Leave Cancellation)
+    // POST /api/leaves/:id/cancel-reject
+    // -------------------------------------------------------------
+    if (path.match(/^\/leaves\/([^/]+)\/cancel-reject$/) && method === 'POST') {
+      const idMatch = path.match(/^\/leaves\/([^/]+)\/cancel-reject$/);
+      const leaveId = idMatch[1];
+      const body = await request.json().catch(() => ({}));
+      const remarkText = (typeof body.remark === 'string' && body.remark.trim())
+        ? body.remark.trim()
+        : 'ไม่อนุมัติการยกเลิกการลา';
+
+      const reqInfo = await findLeaveRequest(env.DB, leaveId);
+      if (!reqInfo) {
+        return jsonResponse({ error: 'ไม่พบคำขอลางานที่ระบุ' }, 404);
+      }
+
+      await env.DB.prepare(`
+        UPDATE leave_requests
+        SET cancel_status = 'rejected',
+            cancel_remark = ?,
+            cancel_decided_at = datetime('now', '+7 hours'),
+            updated_at = datetime('now', '+7 hours')
+        WHERE request_id = ?
+      `).bind(remarkText, reqInfo.request_id).run();
+
+      const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
+      const typeName = (reqInfo.type_name || 'การลา').replace(/พักร้อน/g, 'พักผ่อน');
+
+      // แจ้งเตือน User เจ้าของคำขอ
+      await env.DB.prepare(`
+        INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
+        VALUES (?, ?, ?, 'rejected', 0, 'employee', datetime('now', '+7 hours'))
+      `).bind(
+        reqInfo.user_id,
+        `ไม่อนุมัติคำขอยกเลิกการลา (${typeName})`,
+        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ไม่ได้รับการอนุมัติ (${remarkText})`
+      ).run().catch(() => { });
+
+      // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
+      await env.DB.prepare(`
+        UPDATE notifications SET is_read = 1
+        WHERE (target_role IN ('admin', 'approver') OR title LIKE '%มีคำขอยกเลิก%')
+          AND description LIKE ?
+      `).bind(`%${reqCode}%`).run().catch(() => { });
+
+      return jsonResponse({
+        success: true,
+        requestId: reqInfo.request_id,
+        cancelStatus: 'rejected',
+        message: 'ไม่อนุมัติคำขอยกเลิกการลาเรียบร้อยแล้ว',
+      });
     }
 
     // -------------------------------------------------------------

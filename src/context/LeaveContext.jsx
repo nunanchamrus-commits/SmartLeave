@@ -299,6 +299,11 @@ function normalizeLeaveStatus(status) {
     case 'ไม่อนุมัติ':
     case 'rejected':
       return 'ไม่อนุมัติ';
+    case 'ยกเลิก':
+    case 'ยกเลิกการลา':
+    case 'cancelled':
+    case 'canceled':
+      return 'ยกเลิกการลา';
     default:
       return 'ยังไม่ยื่นเอกสาร';
   }
@@ -1221,6 +1226,292 @@ export function LeaveProvider({ children }) {
     }
 
     showToast(`ปรับสถานะคำขอเป็น "${normalizedStatus}" เรียบร้อยแล้ว`, 'success');
+  };
+
+  // User submits a leave cancellation request (ขอยกเลิกการลา พร้อมแนบเอกสาร)
+  const submitCancelLeaveRequest = async (requestId, { cancelReason = '', cancelAttachmentName = '', cancelAttachmentUrl = '' } = {}) => {
+    mutationEpochRef.current += 1;
+    const baseRequests = leaveRequestsRef.current;
+    const target = baseRequests.find((r) => String(r.id) === String(requestId));
+    if (!target) {
+      showToast('ไม่พบรายการลาที่ต้องการขอยกเลิก', 'error');
+      return { success: false };
+    }
+
+    const nowThai = formatThaiDateTime(new Date());
+    const updated = baseRequests.map((r) =>
+      String(r.id) === String(requestId)
+        ? {
+          ...r,
+          cancelStatus: 'pending',
+          cancelReason,
+          cancelAttachmentName,
+          cancelAttachmentUrl,
+          cancelRequestedAt: nowThai,
+          cancelDecidedAt: '',
+          cancelRemark: '',
+        }
+        : r
+    );
+    setLeaveRequests(updated);
+    leaveRequestsRef.current = updated;
+
+    if (selectedLeaveDetail && String(selectedLeaveDetail.id) === String(requestId)) {
+      setSelectedLeaveDetail((prev) =>
+        prev
+          ? {
+            ...prev,
+            cancelStatus: 'pending',
+            cancelReason,
+            cancelAttachmentName,
+            cancelAttachmentUrl,
+            cancelRequestedAt: nowThai,
+            cancelDecidedAt: '',
+            cancelRemark: '',
+          }
+          : null
+      );
+    }
+
+    // แจ้งเตือนฝั่ง User และ Admin
+    const userNotif = normalizeNotificationItem({
+      id: `notif-cancel-user-${Date.now()}`,
+      userId: currentUser?.raw_id ?? currentUser?.id,
+      employeeId: currentUser?.employeeId || currentUser?.id,
+      email: currentUser?.email,
+      employeeName: currentUser?.name,
+      targetRole: 'employee',
+      title: `ยื่นคำขอยกเลิกการลา (${target.type}) สำเร็จ`,
+      description: `คำขอยกเลิกการลาวันที่ ${target.dateRange} อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`,
+      time: nowThai,
+      read: false,
+      isRead: 0,
+      type: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+    const adminNotif = normalizeNotificationItem({
+      id: `notif-cancel-admin-${Date.now() + 1}`,
+      userId: currentUser?.raw_id ?? currentUser?.id,
+      employeeId: currentUser?.employeeId || currentUser?.id,
+      employeeName: currentUser?.name,
+      targetRole: 'admin',
+      forAdmin: true,
+      linkUrl: '/cancel-approvals',
+      title: `มีคำขอยกเลิกการลาใหม่จาก ${currentUser?.name || target.employeeName}`,
+      description: `คำขอยกเลิกการลา (${target.type}) วันที่ ${target.dateRange} รอการพิจารณา`,
+      time: nowThai,
+      read: false,
+      isRead: 0,
+      type: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+    setNotifications((prev) => [userNotif, adminNotif, ...prev]);
+
+    pendingMutationRef.current += 1;
+    let apiSynced = false;
+    let apiError = null;
+    try {
+      if (api && api.requestCancelLeave) {
+        await api.requestCancelLeave(requestId, {
+          cancelReason,
+          cancelAttachmentName,
+          cancelAttachmentUrl,
+        });
+        apiSynced = true;
+      }
+    } catch (e) {
+      apiError = e;
+      console.log('[Cancel Leave Request DB note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(`ไม่สามารถส่งคำขอยกเลิกการลาลงฐานข้อมูลได้ (${apiError.message || 'Server error'})`, 'error');
+      return { success: false };
+    }
+
+    if (apiSynced) {
+      await fetchLiveDatabaseData({ silent: true });
+    }
+
+    showToast('ส่งคำขอยกเลิกการลาเรียบร้อยแล้ว รอผู้ดูแลระบบพิจารณา', 'success');
+    return { success: true };
+  };
+
+  // Admin approves a leave cancellation request (อนุมัติการยกเลิกการลา + คืนโควตาอัตโนมัติหากเคยอนุมัติ)
+  const approveCancelLeaveRequest = async (requestId, remark = 'อนุมัติการยกเลิกการลาเรียบร้อย') => {
+    mutationEpochRef.current += 1;
+    const baseRequests = leaveRequestsRef.current;
+    const baseEmployees = employeesRef.current;
+    const target = baseRequests.find((r) => String(r.id) === String(requestId));
+    const wasApproved = target?.status === 'อนุมัติ';
+    const nowThai = formatThaiDateTime(new Date());
+
+    const updated = baseRequests.map((r) =>
+      String(r.id) === String(requestId)
+        ? {
+          ...r,
+          status: 'ยกเลิกการลา',
+          cancelStatus: 'approved',
+          cancelRemark: remark,
+          cancelDecidedAt: nowThai,
+        }
+        : r
+    );
+    setLeaveRequests(updated);
+    leaveRequestsRef.current = updated;
+    syncLeaveBaselineForUser(updated, currentUserRef.current);
+
+    // หากคำขอลาเดิมเคยได้รับอนุมัติไปแล้ว ให้คืนวันลาให้พนักงานทันที
+    let nextEmployees = baseEmployees;
+    if (target && wasApproved) {
+      nextEmployees = applyEmployeeQuotaDelta(baseEmployees, target, null, -Number(target.days || 0));
+      setEmployees(nextEmployees);
+      employeesRef.current = nextEmployees;
+    }
+    recalculateQuotas(updated, nextEmployees, true);
+
+    if (selectedLeaveDetail && String(selectedLeaveDetail.id) === String(requestId)) {
+      setSelectedLeaveDetail((prev) =>
+        prev
+          ? {
+            ...prev,
+            status: 'ยกเลิกการลา',
+            cancelStatus: 'approved',
+            cancelRemark: remark,
+            cancelDecidedAt: nowThai,
+          }
+          : null
+      );
+    }
+
+    if (target) {
+      const userNotif = normalizeNotificationItem({
+        id: `notif-cancel-ok-${Date.now()}`,
+        userId: target.userId ?? target.user_id,
+        employeeId: target.employeeId,
+        email: target.employeeEmail,
+        employeeName: target.employeeName,
+        targetRole: 'employee',
+        title: `อนุมัติคำขอยกเลิกการลา (${target.type}) แล้ว`,
+        description: `คำขอยกเลิกการลาวันที่ ${target.dateRange} ได้รับการอนุมัติแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} • ${remark}`,
+        time: nowThai,
+        read: false,
+        isRead: 0,
+        type: 'approved',
+        createdAt: new Date().toISOString(),
+      });
+      setNotifications((prev) => [userNotif, ...prev]);
+    }
+
+    pendingMutationRef.current += 1;
+    let apiSynced = false;
+    let apiError = null;
+    try {
+      if (api && api.approveCancelLeave) {
+        await api.approveCancelLeave(requestId, remark);
+        apiSynced = true;
+      }
+    } catch (e) {
+      apiError = e;
+      console.log('[Approve Cancel Leave DB note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(`ไม่สามารถบันทึกการอนุมัติยกเลิกลาได้ (${apiError.message || 'Server error'})`, 'error');
+      return;
+    }
+
+    if (apiSynced) {
+      await fetchLiveDatabaseData({ silent: true });
+    }
+
+    showToast(`อนุมัติการยกเลิกการลาเรียบร้อยแล้ว${wasApproved ? ' (คืนสิทธิ์วันลาอัตโนมัติ)' : ''}`, 'success');
+  };
+
+  // Admin rejects a leave cancellation request (ไม่อนุมัติการยกเลิกการลา)
+  const rejectCancelLeaveRequest = async (requestId, remark = 'ไม่อนุมัติการยกเลิกการลา') => {
+    mutationEpochRef.current += 1;
+    const baseRequests = leaveRequestsRef.current;
+    const target = baseRequests.find((r) => String(r.id) === String(requestId));
+    const nowThai = formatThaiDateTime(new Date());
+
+    const updated = baseRequests.map((r) =>
+      String(r.id) === String(requestId)
+        ? {
+          ...r,
+          cancelStatus: 'rejected',
+          cancelRemark: remark,
+          cancelDecidedAt: nowThai,
+        }
+        : r
+    );
+    setLeaveRequests(updated);
+    leaveRequestsRef.current = updated;
+
+    if (selectedLeaveDetail && String(selectedLeaveDetail.id) === String(requestId)) {
+      setSelectedLeaveDetail((prev) =>
+        prev
+          ? {
+            ...prev,
+            cancelStatus: 'rejected',
+            cancelRemark: remark,
+            cancelDecidedAt: nowThai,
+          }
+          : null
+      );
+    }
+
+    if (target) {
+      const userNotif = normalizeNotificationItem({
+        id: `notif-cancel-rej-${Date.now()}`,
+        userId: target.userId ?? target.user_id,
+        employeeId: target.employeeId,
+        email: target.employeeEmail,
+        employeeName: target.employeeName,
+        targetRole: 'employee',
+        title: `ไม่อนุมัติคำขอยกเลิกการลา (${target.type})`,
+        description: `คำขอยกเลิกการลาวันที่ ${target.dateRange} ไม่ได้รับการอนุมัติ • ${remark}`,
+        time: nowThai,
+        read: false,
+        isRead: 0,
+        type: 'rejected',
+        createdAt: new Date().toISOString(),
+      });
+      setNotifications((prev) => [userNotif, ...prev]);
+    }
+
+    pendingMutationRef.current += 1;
+    let apiSynced = false;
+    let apiError = null;
+    try {
+      if (api && api.rejectCancelLeave) {
+        await api.rejectCancelLeave(requestId, remark);
+        apiSynced = true;
+      }
+    } catch (e) {
+      apiError = e;
+      console.log('[Reject Cancel Leave DB note]:', e.message);
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
+    }
+
+    if (apiError && isDbConnectedRef.current) {
+      await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+      showToast(`ไม่สามารถบันทึกผลการพิจารณาได้ (${apiError.message || 'Server error'})`, 'error');
+      return;
+    }
+
+    if (apiSynced) {
+      await fetchLiveDatabaseData({ silent: true });
+    }
+
+    showToast('บันทึกผล "ไม่อนุมัติการยกเลิกการลา" เรียบร้อยแล้ว', 'info');
   };
 
   // Update Leave Request Details (User or Admin)
@@ -2381,6 +2672,9 @@ export function LeaveProvider({ children }) {
         updateLeaveStatus,
         approveLeaveRequest,
         rejectLeaveRequest,
+        submitCancelLeaveRequest,
+        approveCancelLeaveRequest,
+        rejectCancelLeaveRequest,
         markAllNotificationsRead,
         markNotificationRead,
         resetToDefault,

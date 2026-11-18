@@ -28,12 +28,14 @@ export default function ApproverView() {
     approveLeaveRequest,
     rejectLeaveRequest,
     setSelectedLeaveDetail,
+    setActiveTab: setMainActiveTab,
     showToast,
   } = useLeave();
 
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [remarks, setRemarks] = useState({});
   const [downloadingId, setDownloadingId] = useState(null);
+  const [isExportingAllPdf, setIsExportingAllPdf] = useState(false);
 
   // State สำหรับ Modal กดยืนยันการเปลี่ยนสถานะอีกรอบ (อนุมัติ, ไม่อนุมัติ, อยู่ระหว่างตรวจสอบ, ยังไม่ยื่นเอกสาร)
   const [confirmModal, setConfirmModal] = useState({
@@ -47,8 +49,11 @@ export default function ApproverView() {
     (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ'
   );
   const historyRequests = leaveRequests.filter(
-    (r) => r.status === 'อนุมัติ' || r.status === 'ไม่อนุมัติ'
+    (r) => r.status === 'อนุมัติ' || r.status === 'ไม่อนุมัติ' || r.status === 'ยกเลิกการลา'
   );
+  const pendingCancellationsCount = leaveRequests.filter(
+    (r) => r.cancelStatus === 'pending'
+  ).length;
 
   const handleOpenConfirm = (req, targetStatus) => {
     let defaultRemark = remarks[req.id] || '';
@@ -104,22 +109,37 @@ export default function ApproverView() {
     }
   };
 
+  const handleExportSummaryPdf = async () => {
+    setIsExportingAllPdf(true);
+    try {
+      const listToExport = activeTab === 'pending' ? pendingRequests : leaveRequests;
+      const title = activeTab === 'pending' ? 'รายงานคำขอรอพิจารณาอนุมัติ' : 'รายงานตรวจสอบสถานะการลาทั้งหมดในองค์กร';
+      await downloadLeaveSummaryPdf(listToExport, title);
+      if (showToast) showToast('ส่งออกรายงานสรุป PDF สำเร็จ', 'success');
+    } catch (err) {
+      console.error(err);
+      if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF', 'error');
+    } finally {
+      setIsExportingAllPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Banner if currently viewing as employee */}
-      {currentUser?.role !== 'approver' && currentUser?.role !== 'admin' && (
+      {currentUser.role !== 'approver' && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-900">
           <div className="flex items-center space-x-3">
             <UserCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div className="text-xs sm:text-sm">
-              <span className="font-bold">โหมดสลับมุมมอง:</span> ปัจจุบันคุณอยู่ในมุมมองพนักงาน คลิกปุ่มด้านขวาเพื่อสลับเป็นมุมมองผู้อนุมัติเพื่อพิจารณาคำขอ
+              <span className="font-bold">โหมดทดสอบระบบสำหรับผู้จัดการ (Admin):</span> ปัจจุบันคุณเข้าสู่ระบบในชื่อพนักงาน (นางสาวพนิกา) คลิกปุ่มด้านขวาเพื่อสลับเป็นผู้จัดการ (นายสมชาย) เพื่ออนุมัติคำขอ
             </div>
           </div>
           <button
             onClick={() => switchRole('approver')}
             className="flex-shrink-0 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
           >
-            สลับเป็นมุมมองผู้อนุมัติ
+            สลับเป็นผู้จัดการ (นายสมชาย)
           </button>
         </div>
       )}
@@ -131,11 +151,36 @@ export default function ApproverView() {
             ระบบพิจารณาอนุมัติคำขอลา (Approver Portal)
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ตรวจสอบ อนุมัติ และปฏิเสธคำขอการลาของพนักงานในองค์กร
+            ตรวจสอบ อนุมัติ ปฏิเสธคำขอ และส่งออกใบลาอิเล็กทรอนิกส์เป็น PDF สำหรับผู้บริหาร
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Export PDF Button */}
+          <button
+            onClick={handleExportSummaryPdf}
+            disabled={isExportingAllPdf}
+            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[#155A32] text-xs sm:text-sm font-semibold transition-colors shadow-xs disabled:opacity-60"
+            title="ส่งออกรายงานคำขอเป็นไฟล์ PDF"
+          >
+            {isExportingAllPdf ? (
+              <div className="w-4 h-4 border-2 border-emerald-700/30 border-t-emerald-700 rounded-full animate-spin" />
+            ) : (
+              <FileDown className="w-4 h-4 text-emerald-700" />
+            )}
+            <span>{isExportingAllPdf ? 'กำลังสร้าง PDF...' : 'ส่งออกรายงาน PDF'}</span>
+          </button>
+
+          {pendingCancellationsCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('cancel-approvals')}
+              className="px-3.5 py-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs flex items-center space-x-1.5 border border-rose-200 transition-colors"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>มีคำขอยกเลิกการลา {pendingCancellationsCount} รายการ ➔</span>
+            </button>
+          )}
           <div className="px-3.5 py-2 rounded-xl bg-amber-100 text-amber-800 font-bold text-xs flex items-center space-x-1.5 border border-amber-200">
             <Clock className="w-3.5 h-3.5" />
             <span>รอพิจารณา {pendingRequests.length} รายการ</span>
@@ -150,22 +195,20 @@ export default function ApproverView() {
           <div className="flex space-x-2">
             <button
               onClick={() => setActiveTab('pending')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 ${
-                activeTab === 'pending'
-                  ? 'bg-[#155A32] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-200/60'
-              }`}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 ${activeTab === 'pending'
+                ? 'bg-[#155A32] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
             >
               <Clock className="w-3.5 h-3.5" />
               <span>รายการรอพิจารณา ({pendingRequests.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('history')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 ${
-                activeTab === 'history'
-                  ? 'bg-[#155A32] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-200/60'
-              }`}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 ${activeTab === 'history'
+                ? 'bg-[#155A32] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
             >
               <CheckCircle className="w-3.5 h-3.5" />
               <span>รายการที่พิจารณาแล้ว ({historyRequests.length})</span>
@@ -200,11 +243,10 @@ export default function ApproverView() {
                             {req.type}
                           </span>
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                              req.status === 'อยู่ระหว่างตรวจสอบ'
-                                ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                                : 'bg-orange-100 text-orange-700 border-orange-200'
-                            }`}
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${req.status === 'อยู่ระหว่างตรวจสอบ'
+                              ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                              : 'bg-orange-100 text-orange-700 border-orange-200'
+                              }`}
                           >
                             {req.status}
                           </span>
@@ -325,15 +367,14 @@ export default function ApproverView() {
                           </span>
                           <span className="text-xs text-slate-400">({req.department})</span>
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                              req.status === 'อนุมัติ'
-                                ? 'bg-[#DCFCE7] text-[#15803D]'
-                                : req.status === 'ไม่อนุมัติ'
+                            className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${req.status === 'อนุมัติ'
+                              ? 'bg-[#DCFCE7] text-[#15803D]'
+                              : req.status === 'ไม่อนุมัติ'
                                 ? 'bg-[#FEE2E2] text-[#DC2626]'
                                 : req.status === 'อยู่ระหว่างตรวจสอบ'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-orange-100 text-orange-700'
-                            }`}
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-orange-100 text-orange-700'
+                              }`}
                           >
                             {req.status}
                           </span>

@@ -184,6 +184,27 @@ class ApiService {
     });
   }
 
+  async requestCancelLeave(requestId, cancelData) {
+    return this.request(`/leaves/${requestId}/cancel-request`, {
+      method: 'POST',
+      body: JSON.stringify(cancelData),
+    });
+  }
+
+  async approveCancelLeave(requestId, remark) {
+    return this.request(`/leaves/${requestId}/cancel-approve`, {
+      method: 'POST',
+      body: JSON.stringify({ remark }),
+    });
+  }
+
+  async rejectCancelLeave(requestId, remark) {
+    return this.request(`/leaves/${requestId}/cancel-reject`, {
+      method: 'POST',
+      body: JSON.stringify({ remark }),
+    });
+  }
+
   async getUserQuotas(userId, year) {
     return this.request(`/quotas?userId=${userId}&year=${year || new Date().getFullYear()}`);
   }
