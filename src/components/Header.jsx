@@ -440,11 +440,6 @@ export default function Header({ onMenuClick }) {
                 {currentUser.englishName && (
                   <p className="text-xs sm:text-sm text-slate-500 mt-0.5">{currentUser.englishName}</p>
                 )}
-                {currentUser.employeeId && (
-                  <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-mono font-semibold">
-                    รหัส: {currentUser.employeeId}
-                  </span>
-                )}
               </div>
 
               <div className="space-y-2.5">
