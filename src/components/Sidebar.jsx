@@ -90,63 +90,37 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
           mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
-        {/* ==================== MULTI-LAYER DECORATIVE PATTERNS ==================== */}
-        {/* Layer 1: Base Khon Kaen Mudmee / Geometric Ikat Pattern (ทั้งแถบแบบจางละมุน) */}
-        <div className="absolute inset-0 pointer-events-none select-none opacity-[0.075]">
+        {/* ==================== MODERN LAYERED PATTERNS ==================== */}
+        {/* Layer 1: Minimalist Fine Dot Grid (สไตล์ SaaS ทันสมัย สะอาดตา) */}
+        <div className="absolute inset-0 pointer-events-none select-none opacity-[0.11]">
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern
-                id="sidebar-mudmee-pattern"
-                width="36"
-                height="36"
+                id="sidebar-modern-dots"
+                width="20"
+                height="20"
                 patternUnits="userSpaceOnUse"
               >
-                {/* ข้าวหลามตัดมัดหมี่ */}
-                <path
-                  d="M18 2 L34 18 L18 34 L2 18 Z"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="0.9"
-                />
-                <path
-                  d="M18 9 L27 18 L18 27 L9 18 Z"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="0.7"
-                />
-                <circle cx="18" cy="18" r="1.6" fill="white" />
-                <circle cx="0" cy="0" r="1.2" fill="white" />
-                <circle cx="36" cy="0" r="1.2" fill="white" />
-                <circle cx="0" cy="36" r="1.2" fill="white" />
-                <circle cx="36" cy="36" r="1.2" fill="white" />
+                <circle cx="2" cy="2" r="1" fill="white" />
               </pattern>
             </defs>
-            <rect width="100%" height="100%" fill="url(#sidebar-mudmee-pattern)" />
+            <rect width="100%" height="100%" fill="url(#sidebar-modern-dots)" />
           </svg>
         </div>
 
-        {/* Layer 2: Top-Right Soft Concentric Waves & Ambient Glow */}
-        <div className="absolute -top-10 -right-10 w-48 h-48 pointer-events-none select-none">
-          <div className="absolute inset-4 rounded-full bg-emerald-200/15 blur-2xl" />
-          <svg viewBox="0 0 180 180" fill="none" className="w-full h-full text-white opacity-[0.14]">
-            <circle cx="145" cy="35" r="32" stroke="currentColor" strokeWidth="1" strokeDasharray="3 4" />
-            <circle cx="145" cy="35" r="56" stroke="currentColor" strokeWidth="0.9" />
-            <circle cx="145" cy="35" r="82" stroke="currentColor" strokeWidth="0.8" strokeDasharray="6 6" />
-            <circle cx="145" cy="35" r="108" stroke="currentColor" strokeWidth="0.6" />
-            {/* เส้นคลื่นโค้งด้านบน */}
-            <path d="M10 42 Q 55 18, 95 45 T 175 30" stroke="currentColor" strokeWidth="1" opacity="0.7" />
-            <path d="M20 56 Q 65 32, 105 58 T 175 46" stroke="currentColor" strokeWidth="0.7" opacity="0.5" />
-          </svg>
-        </div>
+        {/* Layer 2: Soft Glassmorphism Ambient Mesh Glows */}
+        <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-teal-300/20 blur-3xl pointer-events-none select-none" />
+        <div className="absolute top-1/3 -left-20 w-48 h-48 rounded-full bg-emerald-200/15 blur-3xl pointer-events-none select-none" />
+        <div className="absolute -bottom-16 -right-12 w-52 h-52 rounded-full bg-lime-200/15 blur-3xl pointer-events-none select-none" />
 
-        {/* Layer 3: Mid-Side Subtle Flowing Leaf Vein Silhouette */}
-        <div className="absolute top-1/2 -left-10 -translate-y-1/2 w-36 h-64 pointer-events-none select-none opacity-[0.08]">
-          <svg viewBox="0 0 120 220" fill="none" className="w-full h-full text-emerald-100">
-            <path d="M18 210 C 48 155, 40 85, 82 22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M40 160 C 12 148, 12 124, 42 130 C 52 138, 48 152, 40 160 Z" fill="currentColor" />
-            <path d="M47 122 C 80 112, 92 86, 62 84 C 48 92, 44 110, 47 122 Z" fill="currentColor" />
-            <path d="M56 84 C 28 70, 32 46, 62 56 C 68 66, 62 76, 56 84 Z" fill="currentColor" />
-            <path d="M72 48 C 96 42, 102 22, 82 22 C 70 28, 68 40, 72 48 Z" fill="currentColor" />
+        {/* Layer 3: Top-Right Modern Flowing Abstract Curves */}
+        <div className="absolute top-0 right-0 w-56 h-48 pointer-events-none select-none opacity-[0.16]">
+          <svg viewBox="0 0 220 180" fill="none" className="w-full h-full text-white">
+            <path d="M40 -10 C 90 45, 165 25, 230 70" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M20 -10 C 80 60, 155 45, 230 95" stroke="currentColor" strokeWidth="0.9" opacity="0.75" />
+            <path d="M0 -10 C 70 78, 145 68, 230 122" stroke="currentColor" strokeWidth="0.7" opacity="0.5" />
+            <circle cx="172" cy="48" r="24" stroke="currentColor" strokeWidth="0.8" opacity="0.55" />
+            <circle cx="172" cy="48" r="42" stroke="currentColor" strokeWidth="0.6" strokeDasharray="4 5" opacity="0.4" />
           </svg>
         </div>
 
@@ -177,7 +151,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
           {/* Current Role Badge */}
           <div className="mt-3 w-full">
             <div
-              className={`py-1.5 px-3 rounded-xl text-center text-xs font-bold flex items-center justify-center space-x-1.5 ${
+              className={`py-1.5 px-3 rounded-xl text-center text-xs font-bold flex items-center justify-center space-x-1.5 backdrop-blur-xs ${
                 isAdmin
                   ? 'bg-amber-300/20 text-amber-100 border border-amber-200/35'
                   : 'bg-white/15 text-emerald-50 border border-white/25'
@@ -198,15 +172,9 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
           </div>
         </div>
 
-        {/* Layer 4: Thai Mudmee Diamond Ornament Divider */}
-        <div className="relative z-10 px-5 pointer-events-none select-none flex items-center space-x-2 opacity-60">
-          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/40 to-white/60" />
-          <svg width="28" height="10" viewBox="0 0 28 10" fill="none" className="text-emerald-100 flex-shrink-0">
-            <path d="M2 5 L6 2 L10 5 L6 8 Z" fill="currentColor" opacity="0.65" />
-            <path d="M14 1 L19 5 L14 9 L9 5 Z" fill="currentColor" />
-            <path d="M18 5 L22 2 L26 5 L22 8 Z" fill="currentColor" opacity="0.65" />
-          </svg>
-          <div className="flex-1 h-px bg-gradient-to-l from-transparent via-white/40 to-white/60" />
+        {/* Sleek Modern Glass Hairline Divider */}
+        <div className="relative z-10 px-6 pointer-events-none select-none">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent" />
         </div>
 
         {/* Navigation Items */}
@@ -244,33 +212,27 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
           })}
         </nav>
 
-        {/* Logout & Footer Section with Layered Botanical Leaves + Cooperative Rice Stalks */}
+        {/* Logout & Footer Section with Modern Layered Wave Curves */}
         <div className="relative z-10 px-4 py-4 border-t border-white/15 overflow-hidden">
-          {/* Soft ambient glow */}
-          <div className="absolute -bottom-8 -right-8 w-28 h-28 bg-lime-200/15 rounded-full blur-xl pointer-events-none" />
-          <div className="absolute -bottom-10 -left-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-
-          {/* Bottom-Left: Botanical Leaves SVG */}
-          <div className="absolute bottom-0 left-0 w-36 h-24 pointer-events-none select-none opacity-[0.18]">
-            <svg viewBox="0 0 140 100" fill="none" className="w-full h-full text-emerald-100">
-              <path d="M8,96 Q40,28 112,34 Q62,84 8,96 Z" fill="currentColor" />
-              <path d="M8,96 Q54,58 106,36" stroke="#2B6849" strokeWidth="1.2" opacity="0.5" />
-              <path d="M2,96 Q18,52 78,62 Q38,90 2,96 Z" fill="currentColor" opacity="0.65" />
-            </svg>
-          </div>
-
-          {/* Bottom-Right: Cooperative Rice / Wheat Stalk SVG */}
-          <div className="absolute bottom-0 right-0 w-24 h-24 pointer-events-none select-none opacity-[0.16]">
-            <svg viewBox="0 0 100 100" fill="none" className="w-full h-full text-lime-100">
-              <path d="M84 98 C 76 68, 62 42, 42 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              <ellipse cx="47" cy="24" rx="5" ry="2.6" transform="rotate(-38 47 24)" fill="currentColor" />
-              <ellipse cx="56" cy="34" rx="5.5" ry="2.8" transform="rotate(-32 56 34)" fill="currentColor" />
-              <ellipse cx="64" cy="46" rx="5.5" ry="2.8" transform="rotate(-26 64 46)" fill="currentColor" />
-              <ellipse cx="71" cy="59" rx="5.5" ry="2.8" transform="rotate(-20 71 59)" fill="currentColor" />
-              <ellipse cx="38" cy="33" rx="5" ry="2.6" transform="rotate(35 38 33)" fill="currentColor" opacity="0.8" />
-              <ellipse cx="47" cy="45" rx="5.5" ry="2.8" transform="rotate(32 47 45)" fill="currentColor" opacity="0.8" />
-              <ellipse cx="55" cy="58" rx="5.5" ry="2.8" transform="rotate(28 55 58)" fill="currentColor" opacity="0.8" />
-              <ellipse cx="63" cy="71" rx="5.5" ry="2.8" transform="rotate(24 63 71)" fill="currentColor" opacity="0.8" />
+          {/* Layer 4: Sleek Layered Translucent Ribbon Waves */}
+          <div className="absolute inset-x-0 bottom-0 h-24 pointer-events-none select-none opacity-[0.16]">
+            <svg viewBox="0 0 260 96" preserveAspectRatio="none" fill="none" className="w-full h-full text-white">
+              <path
+                d="M0 58 C 65 28, 130 82, 200 44 C 228 28, 248 34, 260 40 L260 96 L0 96 Z"
+                fill="currentColor"
+                opacity="0.45"
+              />
+              <path
+                d="M0 72 C 70 48, 145 92, 220 56 C 240 46, 252 50, 260 54 L260 96 L0 96 Z"
+                fill="currentColor"
+                opacity="0.65"
+              />
+              <path
+                d="M0 44 C 75 18, 140 70, 260 26"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                opacity="0.7"
+              />
             </svg>
           </div>
 
