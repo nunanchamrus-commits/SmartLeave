@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 import { downloadLeaveSlipPdf } from '../utils/exportPdf';
+import { formatThaiDateRangeBE } from '../utils/thaiDate';
+import ThaiDatePicker from './ThaiDatePicker';
 
 export default function LeaveDetailModal() {
   const {
@@ -123,9 +125,7 @@ export default function LeaveDetailModal() {
     const finalType = typeNames[editForm.typeKey] || editForm.type;
     const dateRange =
       editForm.startDate && editForm.endDate
-        ? editForm.startDate === editForm.endDate
-          ? editForm.startDate
-          : `${editForm.startDate} ถึง ${editForm.endDate}`
+        ? formatThaiDateRangeBE(editForm.startDate, editForm.endDate, req.dateRange, parseFloat(editForm.days) || 1)
         : req.dateRange;
 
     const payload = {
@@ -218,20 +218,23 @@ export default function LeaveDetailModal() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">วันที่เริ่มต้น</label>
-                  <input
-                    type="date"
+                  <ThaiDatePicker
                     value={editForm.startDate}
-                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-800"
+                    onChange={(val) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        startDate: val,
+                        endDate: prev.endDate && val > prev.endDate ? val : prev.endDate,
+                      }))
+                    }
                   />
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">วันที่สิ้นสุด</label>
-                  <input
-                    type="date"
+                  <ThaiDatePicker
                     value={editForm.endDate}
-                    onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-800"
+                    min={editForm.startDate}
+                    onChange={(val) => setEditForm({ ...editForm, endDate: val })}
                   />
                 </div>
               </div>

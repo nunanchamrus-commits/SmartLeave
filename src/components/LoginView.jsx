@@ -105,7 +105,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
 
           {/* Bottom Copyright */}
           <div className="relative z-10 pt-4 border-t border-emerald-800/40 text-[11px] text-emerald-300/60 flex items-center justify-between">
-            <span>© 2026 SmartLeave Inc.</span>
+            <span>© พ.ศ. 2569 SmartLeave</span>
             <span>เวอร์ชัน 1.0.0</span>
           </div>
         </div>

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useRef 
 import { initialQuotas, initialPDPAPolicy } from '../data/mockData';
 import { generateHolidayAnnouncements } from '../data/holidays';
 import api from '../services/api';
+import { formatThaiDateRangeBE, replaceIsoDatesWithThaiBE } from '../utils/thaiDate';
 
 const LeaveContext = createContext();
 
@@ -257,8 +258,8 @@ function normalizeNotificationItem(notif) {
     ...notif,
     targetRole: notif.targetRole || notif.target_role || (notif.forAdmin ? 'admin' : undefined),
     linkUrl: notif.linkUrl || notif.link_url,
-    title: typeof notif.title === 'string' ? notif.title.replace(/พักร้อน/g, 'พักผ่อน') : notif.title,
-    description: notif.description ? notif.description.replace(/2568/g, '2569').replace(/พักร้อน/g, 'พักผ่อน') : notif.description,
+    title: typeof notif.title === 'string' ? replaceIsoDatesWithThaiBE(notif.title.replace(/พักร้อน/g, 'พักผ่อน')) : notif.title,
+    description: notif.description ? replaceIsoDatesWithThaiBE(notif.description.replace(/2568/g, '2569').replace(/พักร้อน/g, 'พักผ่อน')) : notif.description,
     time: normalizedTime,
     read: isRead,
     isRead: isRead ? 1 : 0,
@@ -745,6 +746,11 @@ export function LeaveProvider({ children }) {
         const normalizedLeaves = leavesData.map((r) => ({
           ...r,
           type: typeof r.type === 'string' ? r.type.replace(/พักร้อน/g, 'พักผ่อน') : r.type,
+          dateRange: formatThaiDateRangeBE(r.startDate, r.endDate, r.dateRange, r.days),
+          appliedDate: r.appliedDate ? formatThaiDateTime(r.appliedDate) : r.appliedDate,
+          approvedDate: r.approvedDate ? formatThaiDateTime(r.approvedDate) : null,
+          cancelRequestedAt: r.cancelRequestedAt ? formatThaiDateTime(r.cancelRequestedAt) : '',
+          cancelDecidedAt: r.cancelDecidedAt ? formatThaiDateTime(r.cancelDecidedAt) : '',
           status: normalizeLeaveStatus(r.status),
           attachment: r.attachment || r.attachmentName || (r.attachmentUrl ? 'เอกสารแนบ.pdf' : ''),
           attachmentName: r.attachmentName || r.attachment || '',

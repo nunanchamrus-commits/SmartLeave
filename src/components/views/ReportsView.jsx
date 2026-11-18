@@ -106,7 +106,7 @@ export default function ReportsView() {
             รายงานสถิติการลา
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ข้อมูลสถิติการลาประจำปี พ.ศ. {currentYearBE} (ค.ศ. {currentYear})
+            ข้อมูลสถิติการลาประจำปี พ.ศ. {currentYearBE}
           </p>
         </div>
       </div>

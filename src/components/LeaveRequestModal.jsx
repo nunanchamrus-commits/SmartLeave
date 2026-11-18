@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
+import ThaiDatePicker from './ThaiDatePicker';
 
 export default function LeaveRequestModal() {
   const {
@@ -469,33 +470,29 @@ export default function LeaveRequestModal() {
                   </div>
                 </div>
 
-                {/* Date Pickers */}
+                {/* Date Pickers (พ.ศ.) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
                       ตั้งแต่วันที่ <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="date"
+                    <ThaiDatePicker
                       value={startDate}
-                      onChange={(e) => {
-                        setStartDate(e.target.value);
-                        if (e.target.value > endDate) setEndDate(e.target.value);
+                      onChange={(val) => {
+                        setStartDate(val);
+                        if (val > endDate) setEndDate(val);
                       }}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
                     />
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
                       ถึงวันที่ <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="date"
+                    <ThaiDatePicker
                       value={endDate}
                       disabled={durationMode !== 'full'}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onChange={(val) => setEndDate(val)}
                       min={startDate}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none disabled:opacity-50"
                     />
                   </div>
                 </div>

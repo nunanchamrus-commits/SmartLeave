@@ -18,6 +18,30 @@ function jsonResponse(data, status = 200) {
   });
 }
 
+const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+function formatThaiDateBE(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const m = dateStr.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return dateStr.trim();
+  let y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10) - 1;
+  const d = parseInt(m[3], 10);
+  if (y < 2400) y += 543;
+  const monthName = THAI_MONTHS_SHORT[mo];
+  return monthName && !Number.isNaN(d) ? `${d} ${monthName} ${y}` : dateStr.trim();
+}
+
+function formatThaiDateRangeBE(startDate, endDate, totalDays = null) {
+  const s = formatThaiDateBE(startDate);
+  if (!s) return '';
+  if (!endDate || String(startDate).trim() === String(endDate).trim()) {
+    return Number(totalDays) === 0.5 ? `${s} (ครึ่งวัน)` : s;
+  }
+  const e = formatThaiDateBE(endDate);
+  return e ? `${s} – ${e}` : s;
+}
+
 // -------------------------------------------------------------
 // DYNAMIC SQL SCHEMA MIGRATION: ตรวจสอบและสร้างคอลัมน์อัตโนมัติหากยังไม่มีใน D1
 // -------------------------------------------------------------
@@ -287,7 +311,7 @@ async function createLeaveStatusNotification(db, reqInfo, displayStatus, remark 
   const reqNoText = reqInfo.request_no || `#${reqInfo.request_id}`;
   const typeText = reqInfo.type_name ? ` (${reqInfo.type_name})` : '';
   const dateText = reqInfo.start_date
-    ? (reqInfo.end_date && reqInfo.end_date !== reqInfo.start_date ? `${reqInfo.start_date} ถึง ${reqInfo.end_date}` : reqInfo.start_date)
+    ? formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, reqInfo.total_days)
     : '';
   const cleanRemark = typeof remark === 'string' ? remark.trim() : '';
   const notifTitle = `อัปเดตสถานะคำขอลา: ${displayStatus}`;
@@ -1819,6 +1843,7 @@ export async function onRequest(context) {
         const { dbStatus, reviewStage, ...rest } = row;
         return {
           ...rest,
+          dateRange: formatThaiDateRangeBE(rest.startDate, rest.endDate, rest.days) || rest.dateRange,
           approvedDate: rest.approvedDate || null,
           status: displayStatus,
         };
@@ -2586,20 +2611,21 @@ export async function onRequest(context) {
             : mapped.displayStatus === 'ยังไม่ยื่นเอกสาร'
               ? 'warning'
               : 'pending';
+      const rangeBE = formatThaiDateRangeBE(safeStart, safeEnd, safeDays);
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
         VALUES (?, ?, ?, ?, 0, 'employee', datetime('now', '+7 hours'))
       `).bind(
         userId,
         `ยื่นคำขอลา${typeName ? ` (${typeName})` : ''}สำเร็จ`,
-        `คำขอลา ${reqNo} (${safeStart} ถึง ${safeEnd}) สถานะ: ${mapped.displayStatus}`,
+        `คำขอลา ${reqNo} (${rangeBE}) สถานะ: ${mapped.displayStatus}`,
         notifType
       ).run().catch(() => { });
 
       // 3. สร้างการแจ้งเตือนสำหรับ Admin / ผู้อนุมัติ ทันทีเมื่อมีคำขอส่งเข้ามา (+7 ชั่วโมง)
       // บันทึกระดับกลุ่ม Admin (target_role = 'admin')
       const adminNotifTitle = `มีคำขอ${typeName ? ` (${typeName})` : ''}ใหม่จาก ${requesterName}`;
-      const adminNotifDesc = `คำขอลา ${reqNo} วันที่ ${safeStart} ถึง ${safeEnd} (${safeDays} วัน) รอการตรวจสอบ`;
+      const adminNotifDesc = `คำขอลา ${reqNo} วันที่ ${rangeBE} (${safeDays} วัน) รอการตรวจสอบ`;
 
       await ensureTableColumns(env.DB, 'notifications', SCHEMA_COLUMNS.notifications).catch(() => { });
 
@@ -3031,6 +3057,8 @@ export async function onRequest(context) {
       const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
       const typeName = (reqInfo.type_name || 'การลา').replace(/พักร้อน/g, 'พักผ่อน');
 
+      const rangeBE = formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, reqInfo.total_days);
+
       // แจ้งเตือนผู้ยื่นคำขอ
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
@@ -3038,7 +3066,7 @@ export async function onRequest(context) {
       `).bind(
         reqInfo.user_id,
         `ยื่นคำขอยกเลิกวันลา (${typeName}) สำเร็จ`,
-        `คำขอยกเลิกวันลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`
+        `คำขอยกเลิกวันลา ${reqCode} (${rangeBE}) อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`
       ).run().catch(() => { });
 
       // แจ้งเตือน Admin / ผู้อนุมัติ
@@ -3048,7 +3076,7 @@ export async function onRequest(context) {
       `).bind(
         reqInfo.user_id || 1,
         `มีคำขอยกเลิกวันลาใหม่จาก ${requesterName}`,
-        `คำขอยกเลิกวันลา ${reqCode} (${typeName}) วันที่ ${reqInfo.start_date} ถึง ${reqInfo.end_date} รอการพิจารณา`
+        `คำขอยกเลิกวันลา ${reqCode} (${typeName}) วันที่ ${rangeBE} รอการพิจารณา`
       ).run().catch(() => { });
 
       return jsonResponse({
@@ -3099,6 +3127,8 @@ export async function onRequest(context) {
       const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
       const typeName = (reqInfo.type_name || 'การลา').replace(/พักร้อน/g, 'พักผ่อน');
 
+      const rangeBE = formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, reqInfo.total_days);
+
       // แจ้งเตือน User เจ้าของคำขอ
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
@@ -3106,7 +3136,7 @@ export async function onRequest(context) {
       `).bind(
         reqInfo.user_id,
         `อนุญาตคำขอยกเลิกวันลา (${typeName}) แล้ว`,
-        `คำขอยกเลิกวันลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
+        `คำขอยกเลิกวันลา ${reqCode} (${rangeBE}) ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
       ).run().catch(() => { });
 
       // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
@@ -3155,6 +3185,8 @@ export async function onRequest(context) {
       const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
       const typeName = (reqInfo.type_name || 'การลา').replace(/พักร้อน/g, 'พักผ่อน');
 
+      const rangeBE = formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, reqInfo.total_days);
+
       // แจ้งเตือน User เจ้าของคำขอ
       await env.DB.prepare(`
         INSERT INTO notifications (user_id, title, description, type, is_read, target_role, created_at)
@@ -3162,7 +3194,7 @@ export async function onRequest(context) {
       `).bind(
         reqInfo.user_id,
         `ไม่อนุญาตคำขอยกเลิกวันลา (${typeName})`,
-        `คำขอยกเลิกวันลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ไม่ได้รับอนุญาต (${remarkText})`
+        `คำขอยกเลิกวันลา ${reqCode} (${rangeBE}) ไม่ได้รับอนุญาต (${remarkText})`
       ).run().catch(() => { });
 
       // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
