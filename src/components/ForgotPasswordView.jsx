@@ -219,7 +219,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
       {/* Main Container Card */}
       <div className="relative z-10 w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[640px]">
         {/* Left Side: Brand Visual & Security Guidelines (5 of 12 cols) */}
-        <div className="lg:col-span-5 bg-gradient-to-br from-[#0F3D24] via-[#123E24] to-[#165632] p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
+        <div className="lg:col-span-5 bg-gradient-to-br from-[#2E6F4E] via-[#38845D] to-[#45966C] p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-lime-400/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -462,7 +462,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                   <button
                     type="submit"
                     disabled={isVerifying}
-                    className="w-full mt-4 py-3 px-4 bg-[#155A32] hover:bg-[#114929] text-white rounded-xl text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-70 group"
+                    className="w-full mt-4 py-3 px-4 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-70 group"
                   >
                     {isVerifying ? (
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -557,7 +557,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                   <button
                     type="submit"
                     disabled={isVerifying}
-                    className="w-full mt-4 py-3 px-4 bg-[#155A32] hover:bg-[#114929] text-white rounded-xl text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-70 group"
+                    className="w-full mt-4 py-3 px-4 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-70 group"
                   >
                     {isVerifying ? (
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -591,7 +591,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
                   <button
                     type="button"
                     onClick={onSwitchToLogin}
-                    className="w-full py-3 px-4 bg-[#155A32] hover:bg-[#114929] text-white rounded-xl text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+                    className="w-full py-3 px-4 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2"
                   >
                     <span>เข้าสู่ระบบด้วยรหัสผ่านใหม่</span>
                     <ArrowRight className="w-4 h-4" />

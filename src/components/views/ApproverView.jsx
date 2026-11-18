@@ -142,7 +142,7 @@ export default function ApproverView() {
           <button
             onClick={handleExportSummaryPdf}
             disabled={isExportingAllPdf}
-            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[#155A32] text-xs sm:text-sm font-semibold transition-colors shadow-xs disabled:opacity-60"
+            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[#2F855A] text-xs sm:text-sm font-semibold transition-colors shadow-xs disabled:opacity-60"
             title="ส่งออกรายงานคำขอเป็นไฟล์ PDF"
           >
             {isExportingAllPdf ? (
@@ -178,7 +178,7 @@ export default function ApproverView() {
             <button
               onClick={() => setActiveTab('pending')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 ${activeTab === 'pending'
-                ? 'bg-[#155A32] text-white shadow-xs'
+                ? 'bg-[#2F855A] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/60'
                 }`}
             >
@@ -188,7 +188,7 @@ export default function ApproverView() {
             <button
               onClick={() => setActiveTab('history')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 ${activeTab === 'history'
-                ? 'bg-[#155A32] text-white shadow-xs'
+                ? 'bg-[#2F855A] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-200/60'
                 }`}
             >
@@ -318,7 +318,7 @@ export default function ApproverView() {
                         <button
                           type="button"
                           onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
-                          className="px-4 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1"
+                          className="px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>อนุมัติ</span>

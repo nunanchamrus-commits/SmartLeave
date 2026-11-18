@@ -191,13 +191,13 @@ export default function ReportsView() {
                     title={`${item.m}: ${item.days} วัน (${item.requestsCount} คำขอ)`}
                     className={`w-full rounded-t-lg transition-all duration-500 ${
                       isCurrentMonth
-                        ? 'bg-[#155A32] shadow-md ring-2 ring-emerald-300'
+                        ? 'bg-[#2F855A] shadow-md ring-2 ring-emerald-300'
                         : item.days > 0
                         ? 'bg-emerald-400 hover:bg-emerald-500'
                         : 'bg-slate-100'
                     }`}
                   />
-                  <span className={`text-[10px] ${isCurrentMonth ? 'font-bold text-[#155A32]' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] ${isCurrentMonth ? 'font-bold text-[#2F855A]' : 'text-slate-400'}`}>
                     {item.m}
                   </span>
                 </div>
@@ -207,7 +207,7 @@ export default function ReportsView() {
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
             <span className="flex items-center space-x-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#155A32]" />
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#2F855A]" />
               <span>เดือนปัจจุบัน ({thaiMonthsShort[currentMonthIndex]})</span>
             </span>
             <span className="flex items-center space-x-1.5">

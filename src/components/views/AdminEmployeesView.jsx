@@ -727,7 +727,7 @@ export default function AdminEmployeesView() {
 
                       {/* Total Remaining Entitlement */}
                       <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-[#155A32] border border-emerald-200/80">
+                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-[#2F855A] border border-emerald-200/80">
                           {s.generalRem} / {s.generalLimit} วัน
                         </span>
                       </td>
@@ -767,7 +767,7 @@ export default function AdminEmployeesView() {
       {editingEmp && editingStats && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-4 bg-[#123E24] text-white">
+            <div className="flex items-center justify-between px-6 py-4 bg-[#2E6F4E] text-white">
               <div className="flex items-center space-x-2.5">
                 <Shield className="w-5 h-5 text-amber-400" />
                 <h3 className="font-bold text-base font-prompt">
@@ -832,7 +832,7 @@ export default function AdminEmployeesView() {
                   <span className="px-3 py-1 rounded-xl bg-amber-100 text-amber-800 font-bold text-xs">
                     ลาไปแล้ว {editingStats.approvedCount} ครั้ง
                   </span>
-                  <span className="px-3 py-1 rounded-xl bg-emerald-100 text-[#155A32] font-bold text-xs">
+                  <span className="px-3 py-1 rounded-xl bg-emerald-100 text-[#2F855A] font-bold text-xs">
                     คงเหลือรวม {previewGeneralRem} / {previewGeneralLimit} วัน
                   </span>
                 </div>
@@ -1205,7 +1205,7 @@ export default function AdminEmployeesView() {
                               value={editForm[`${lt.key}Rem`]}
                               onChange={(e) => handleQuotaFieldChange(lt.key, 'Rem', e.target.value)}
                               onBlur={() => handleQuotaFieldBlur(lt.key, 'Rem')}
-                              className="w-full px-3 py-1.5 text-center bg-white border border-emerald-200 rounded-xl font-bold text-[#155A32] outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                              className="w-full px-3 py-1.5 text-center bg-white border border-emerald-200 rounded-xl font-bold text-[#2F855A] outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                             />
                           )}
                         </div>
@@ -1220,7 +1220,7 @@ export default function AdminEmployeesView() {
                       </strong>{' '}
                       ใช้ไปแล้ว <strong>{previewGeneralUsed}</strong> วัน
                     </span>
-                    <span className="font-bold text-[#155A32]">
+                    <span className="font-bold text-[#2F855A]">
                       คงเหลือ {previewGeneralRem} จาก {previewGeneralLimit} วัน
                     </span>
                   </div>
@@ -1237,7 +1237,7 @@ export default function AdminEmployeesView() {
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs shadow-sm transition-all"
+                  className="flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs shadow-sm transition-all"
                 >
                   <Save className="w-4 h-4" />
                   <span>บันทึกการแก้ไข</span>
@@ -1252,7 +1252,7 @@ export default function AdminEmployeesView() {
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-4 bg-[#123E24] text-white">
+            <div className="flex items-center justify-between px-6 py-4 bg-[#2E6F4E] text-white">
               <div className="flex items-center space-x-2.5">
                 <UserPlus className="w-5 h-5 text-amber-400" />
                 <h3 className="font-bold text-base font-prompt">เพิ่มพนักงานใหม่เข้าสู่ระบบ</h3>
@@ -1550,7 +1550,7 @@ export default function AdminEmployeesView() {
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs shadow-sm transition-all"
+                  className="flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs shadow-sm transition-all"
                 >
                   <Plus className="w-4 h-4" />
                   <span>บันทึกพนักงานใหม่</span>

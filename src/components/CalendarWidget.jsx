@@ -179,7 +179,7 @@ export default function CalendarWidget() {
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-semibold">{todayDescription}</span>
         </div>
-        <div className="flex items-center space-x-1 font-mono font-bold text-[#155A32] bg-white px-2 py-0.5 rounded-lg border border-emerald-200/60 shadow-xs">
+        <div className="flex items-center space-x-1 font-mono font-bold text-[#2F855A] bg-white px-2 py-0.5 rounded-lg border border-emerald-200/60 shadow-xs">
           <Clock className="w-3 h-3 text-emerald-600" />
           <span>{formattedTime} น.</span>
         </div>
@@ -252,7 +252,7 @@ export default function CalendarWidget() {
             >
               {/* Today / Holiday / Event Badge Highlight */}
               {cell.isToday ? (
-                <div className="w-7 h-7 rounded-full bg-[#155A32] text-white flex items-center justify-center font-bold text-xs shadow-sm ring-2 ring-emerald-400">
+                <div className="w-7 h-7 rounded-full bg-[#2F855A] text-white flex items-center justify-center font-bold text-xs shadow-sm ring-2 ring-emerald-400">
                   {cell.day}
                 </div>
               ) : cell.holiday ? (
@@ -325,7 +325,7 @@ export default function CalendarWidget() {
       {/* Legend Footer */}
       <div className="flex items-center justify-center space-x-3 pt-3 mt-2 border-t border-slate-100 text-[11px] text-slate-600 flex-wrap gap-y-1">
         <div className="flex items-center space-x-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#155A32] ring-1 ring-emerald-400" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#2F855A] ring-1 ring-emerald-400" />
           <span className="font-semibold text-slate-700">วันนี้</span>
         </div>
         <div className="flex items-center space-x-1.5">

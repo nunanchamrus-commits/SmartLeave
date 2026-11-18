@@ -167,7 +167,7 @@ export default function LeaveDetailModal() {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-[#123E24] text-white">
+        <div className="flex items-center justify-between px-6 py-4 bg-[#2E6F4E] text-white">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-emerald-300">
               <FileText className="w-4 h-4" />
@@ -594,7 +594,7 @@ export default function LeaveDetailModal() {
                         className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all shadow-sm ${
                           req.status === 'อนุมัติ'
                             ? 'bg-[#15803D] text-white ring-2 ring-emerald-400/40 cursor-default'
-                            : 'bg-[#155A32] text-white hover:bg-[#124A29]'
+                            : 'bg-[#2F855A] text-white hover:bg-[#256F4A]'
                         }`}
                       >
                         <Check className="w-3.5 h-3.5" />
@@ -661,7 +661,7 @@ export default function LeaveDetailModal() {
                           }}
                           className={`px-3.5 py-1.5 rounded-lg text-white text-xs font-semibold shadow-xs ${
                             pendingStatusConfirm === 'อนุมัติ'
-                              ? 'bg-[#155A32] hover:bg-[#124A29]'
+                              ? 'bg-[#2F855A] hover:bg-[#256F4A]'
                               : pendingStatusConfirm === 'ไม่อนุมัติ'
                               ? 'bg-red-600 hover:bg-red-700'
                               : pendingStatusConfirm === 'อยู่ระหว่างตรวจสอบ'
@@ -745,7 +745,7 @@ export default function LeaveDetailModal() {
               <button
                 onClick={handleDownloadPdf}
                 disabled={isExportingPdf}
-                className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-xs disabled:opacity-60"
+                className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-xs disabled:opacity-60"
                 title="ดาวน์โหลดไฟล์ PDF ใบลาเข้าสู่เครื่อง"
               >
                 {isExportingPdf ? (

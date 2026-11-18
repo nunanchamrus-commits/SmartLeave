@@ -64,7 +64,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
       <div className="relative z-10 w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[620px]">
 
         {/* Left Side: Brand Visual & Feature Highlights (5 of 12 cols) */}
-        <div className="lg:col-span-5 bg-gradient-to-br from-[#0F3D24] via-[#123E24] to-[#165632] p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
+        <div className="lg:col-span-5 bg-gradient-to-br from-[#2E6F4E] via-[#38845D] to-[#45966C] p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
           {/* Subtle leafy background curves */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-lime-400/10 rounded-full blur-3xl pointer-events-none" />
@@ -123,7 +123,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
                 />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-[#113C22] font-prompt leading-tight">SmartLeave</h1>
+                <h1 className="text-lg font-bold text-[#1E5638] font-prompt leading-tight">SmartLeave</h1>
                 <p className="text-xs text-slate-500 font-medium">สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-2 py-3 px-4 bg-[#155A32] hover:bg-[#114929] text-white rounded-xl text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-70 group"
+                className="w-full mt-2 py-3 px-4 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-70 group"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

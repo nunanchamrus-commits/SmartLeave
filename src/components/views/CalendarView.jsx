@@ -189,7 +189,7 @@ export default function CalendarView() {
           <div className="hidden lg:flex items-center space-x-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200/80 shadow-xs text-xs">
             <Clock className="w-3.5 h-3.5 text-emerald-600" />
             <span className="text-slate-600">{todayDescription}</span>
-            <span className="font-mono font-bold text-[#155A32] pl-1 border-l border-slate-200">
+            <span className="font-mono font-bold text-[#2F855A] pl-1 border-l border-slate-200">
               {formattedTime} น.
             </span>
           </div>
@@ -202,7 +202,7 @@ export default function CalendarView() {
                 onClick={() => setFilterMode('all')}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   filterMode === 'all'
-                    ? 'bg-[#155A32] text-white shadow-xs'
+                    ? 'bg-[#2F855A] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -214,7 +214,7 @@ export default function CalendarView() {
                 onClick={() => setFilterMode('my')}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   filterMode === 'my'
-                    ? 'bg-[#155A32] text-white shadow-xs'
+                    ? 'bg-[#2F855A] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -231,7 +231,7 @@ export default function CalendarView() {
 
           <button
             onClick={() => setIsRequestModalOpen(true)}
-            className="px-4 py-2 bg-[#155A32] hover:bg-[#114A29] text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-sm"
+            className="px-4 py-2 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-sm"
           >
             + ขอลา
           </button>
@@ -315,7 +315,7 @@ export default function CalendarView() {
                   <span
                     className={`text-xs font-bold ${
                       item.isToday
-                        ? 'w-6 h-6 rounded-full bg-[#155A32] text-white flex items-center justify-center shadow-xs'
+                        ? 'w-6 h-6 rounded-full bg-[#2F855A] text-white flex items-center justify-center shadow-xs'
                         : item.isCurrent
                         ? 'text-slate-700'
                         : 'text-slate-300'
@@ -385,7 +385,7 @@ export default function CalendarView() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-[#123E24] text-white flex items-center justify-between">
+            <div className="px-6 py-4 bg-[#2E6F4E] text-white flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
                 <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-emerald-300">
                   <CalendarIcon className="w-5 h-5" />
@@ -483,7 +483,7 @@ export default function CalendarView() {
                   setSelectedDayStr(null);
                   setIsRequestModalOpen(true);
                 }}
-                className="px-4 py-2 rounded-xl bg-[#155A32] hover:bg-[#114A29] text-white text-xs font-semibold transition-colors shadow-xs"
+                className="px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white text-xs font-semibold transition-colors shadow-xs"
               >
                 + ขอลา / ยกเลิกวันลา
               </button>

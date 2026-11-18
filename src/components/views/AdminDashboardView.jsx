@@ -167,7 +167,7 @@ export default function AdminDashboardView() {
   return (
     <div className="space-y-6">
       {/* 1. Admin Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0F351E] via-[#154628] to-[#1E5D37] p-6 sm:p-8 text-white shadow-md border border-emerald-900/30">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#2E6F4E] via-[#38845D] to-[#45966C] p-6 sm:p-8 text-white shadow-md border border-emerald-900/30">
         <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-lime-400/10 rounded-full blur-2xl pointer-events-none" />
 
@@ -416,7 +416,7 @@ export default function AdminDashboardView() {
                     <button
                       type="button"
                       onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
-                      className="px-3.5 py-1.5 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-xs flex items-center space-x-1"
+                      className="px-3.5 py-1.5 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-xs flex items-center space-x-1"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>อนุมัติ</span>
@@ -537,7 +537,7 @@ export default function AdminDashboardView() {
             />
             <button
               onClick={() => setActiveTab('employees')}
-              className="px-3.5 py-1.5 bg-[#155A32] hover:bg-[#114929] text-white rounded-xl text-xs font-semibold whitespace-nowrap transition-colors"
+              className="px-3.5 py-1.5 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-xs font-semibold whitespace-nowrap transition-colors"
             >
               จัดการพนักงาน ➔
             </button>

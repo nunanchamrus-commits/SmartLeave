@@ -20,7 +20,7 @@ export default function PrivacyPolicyModal() {
       <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden font-prompt">
         
         {/* Header */}
-        <div className="px-6 py-5 bg-gradient-to-r from-[#0F3D24] via-[#155A32] to-[#1E7441] text-white flex items-center justify-between">
+        <div className="px-6 py-5 bg-gradient-to-r from-[#2E6F4E] via-[#38845D] to-[#45966C] text-white flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
               <ShieldCheck className="w-6 h-6 text-emerald-300" />
@@ -143,7 +143,7 @@ export default function PrivacyPolicyModal() {
             <button
               type="button"
               onClick={acceptPDPAConsent}
-              className="w-1/2 sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-[#155A32] hover:bg-[#114929] shadow-md transition flex items-center justify-center space-x-1.5"
+              className="w-1/2 sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-[#2F855A] hover:bg-[#256F4A] shadow-md transition flex items-center justify-center space-x-1.5"
             >
               <Check className="w-4 h-4" />
               <span>รับทราบและยืนยันการตั้งค่า</span>

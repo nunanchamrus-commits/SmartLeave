@@ -19,9 +19,9 @@ export default {
           800: '#166534',
           900: '#14532D',
           950: '#0B331A',
-          sidebar: '#123D24',
-          sidebarActive: '#2D6B48',
-          sidebarHover: '#1B4D2F',
+          sidebar: '#2E6F4E',
+          sidebarActive: '#428D66',
+          sidebarHover: '#397F5A',
         }
       },
       fontFamily: {

@@ -129,7 +129,7 @@ export default function Header({ onMenuClick }) {
         <div className="hidden xl:flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200/80 shadow-xs text-xs">
           <Clock className="w-3.5 h-3.5 text-emerald-600" />
           <span className="text-slate-600 font-medium">{formattedHeaderDate}</span>
-          <span className="font-mono font-bold text-[#155A32] pl-1.5 border-l border-slate-200">
+          <span className="font-mono font-bold text-[#2F855A] pl-1.5 border-l border-slate-200">
             {formattedHeaderTime} น.
           </span>
         </div>
@@ -277,7 +277,7 @@ export default function Header({ onMenuClick }) {
                 alt={currentUser.name}
                 className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/30 group-hover:ring-emerald-600 shadow-sm transition-all group-hover:scale-105 cursor-pointer"
               />
-              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#155A32] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-xs">
+              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#2F855A] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-xs">
                 <Maximize2 className="w-2.5 h-2.5" />
               </span>
             </button>
@@ -388,7 +388,7 @@ export default function Header({ onMenuClick }) {
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header */}
-          <div className="px-6 py-4 bg-[#123E24] text-white flex items-center justify-between">
+          <div className="px-6 py-4 bg-[#2E6F4E] text-white flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
               <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-emerald-300">
                 <User className="w-4 h-4" />
@@ -501,7 +501,7 @@ export default function Header({ onMenuClick }) {
                 setIsProfilePreviewOpen(false);
                 setActiveTab('settings');
               }}
-              className="px-4 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-xs"
+              className="px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-xs"
             >
               <Settings className="w-3.5 h-3.5" />
               <span>แก้ไขข้อมูลส่วนตัว</span>

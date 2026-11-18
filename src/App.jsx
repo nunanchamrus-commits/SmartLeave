@@ -121,7 +121,7 @@ function AppContent() {
             className={`flex items-center space-x-2.5 px-4 py-3 rounded-2xl shadow-xl border text-xs sm:text-sm font-semibold ${
               toast.type === 'error'
                 ? 'bg-red-50 text-red-700 border-red-200'
-                : 'bg-[#123E24] text-white border-emerald-800/50'
+                : 'bg-[#2E6F4E] text-white border-emerald-800/50'
             }`}
           >
             {toast.type === 'error' ? (

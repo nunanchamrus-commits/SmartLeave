@@ -209,7 +209,7 @@ export default function ThaiDatePicker({
                   onClick={() => handleSelectDay(day)}
                   className={`h-8 w-8 mx-auto rounded-lg text-xs font-medium flex items-center justify-center transition-all ${
                     isSelected
-                      ? 'bg-[#155A32] text-white font-bold shadow-xs'
+                      ? 'bg-[#2F855A] text-white font-bold shadow-xs'
                       : isToday
                         ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-300'
                         : 'text-slate-700 hover:bg-slate-100'

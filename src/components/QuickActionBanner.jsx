@@ -57,7 +57,7 @@ export default function QuickActionBanner() {
       {/* Action Button */}
       <button
         onClick={() => setIsRequestModalOpen(true)}
-        className="flex-shrink-0 flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#155A32] hover:bg-[#114929] text-white text-sm font-semibold shadow-sm hover:shadow-md transition-all group"
+        className="flex-shrink-0 flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#2F855A] hover:bg-[#256F4A] text-white text-sm font-semibold shadow-sm hover:shadow-md transition-all group"
       >
         <span>ขอลาเลย</span>
         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

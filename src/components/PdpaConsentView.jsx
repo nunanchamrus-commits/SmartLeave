@@ -44,7 +44,7 @@ export default function PdpaConsentView() {
       {/* Main PDPA Container Card */}
       <div className="relative z-10 w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
         {/* Top Green Header Banner */}
-        <div className="bg-gradient-to-r from-[#0F3D24] via-[#123E24] to-[#165632] p-6 sm:p-8 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-r from-[#2E6F4E] via-[#38845D] to-[#45966C] p-6 sm:p-8 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none -mr-10 -mt-10" />
 
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -181,7 +181,7 @@ export default function PdpaConsentView() {
               disabled={isSubmitting}
               className={`px-7 py-3 rounded-xl text-xs sm:text-sm font-bold text-white shadow-md transition-all flex items-center justify-center space-x-2 group ${
                 isAgreed
-                  ? 'bg-[#155A32] hover:bg-[#114929] shadow-emerald-950/15 hover:shadow-lg'
+                  ? 'bg-[#2F855A] hover:bg-[#256F4A] shadow-emerald-950/15 hover:shadow-lg'
                   : 'bg-emerald-700/70 hover:bg-emerald-700 cursor-pointer'
               }`}
             >

@@ -145,7 +145,7 @@ export default function AdminCancelApprovalsView() {
               onClick={() => setActiveTab('history')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 ${
                 activeTab === 'history'
-                  ? 'bg-[#155A32] text-white shadow-xs'
+                  ? 'bg-[#2F855A] text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-200/60'
               }`}
             >
@@ -310,7 +310,7 @@ export default function AdminCancelApprovalsView() {
                           <button
                             type="button"
                             onClick={() => openConfirm(req, 'approve')}
-                            className="px-4 py-2 rounded-xl bg-[#155A32] hover:bg-[#114929] text-white font-semibold text-xs transition-colors shadow-sm flex items-center space-x-1.5"
+                            className="px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-sm flex items-center space-x-1.5"
                           >
                             <Check className="w-3.5 h-3.5" />
                             <span>อนุญาต</span>
@@ -413,7 +413,7 @@ export default function AdminCancelApprovalsView() {
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
             <div
               className={`px-6 py-4 flex items-center justify-between text-white ${
-                confirmModal.action === 'approve' ? 'bg-[#155A32]' : 'bg-red-600'
+                confirmModal.action === 'approve' ? 'bg-[#2F855A]' : 'bg-red-600'
               }`}
             >
               <div className="flex items-center space-x-2.5">
@@ -524,7 +524,7 @@ export default function AdminCancelApprovalsView() {
                   disabled={isSubmitting}
                   className={`px-5 py-2 rounded-xl text-white font-semibold shadow-sm transition-colors disabled:opacity-60 ${
                     confirmModal.action === 'approve'
-                      ? 'bg-[#155A32] hover:bg-[#114929]'
+                      ? 'bg-[#2F855A] hover:bg-[#256F4A]'
                       : 'bg-red-600 hover:bg-red-700'
                   }`}
                 >
@@ -544,7 +544,7 @@ export default function AdminCancelApprovalsView() {
       {previewDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
           <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 bg-[#123E24] text-white flex items-center justify-between">
+            <div className="px-6 py-4 bg-[#2E6F4E] text-white flex items-center justify-between">
               <div className="flex items-center space-x-2 truncate">
                 <Paperclip className="w-4 h-4 text-emerald-300 flex-shrink-0" />
                 <h4 className="font-bold text-sm sm:text-base truncate">{previewDoc.name}</h4>

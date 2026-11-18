@@ -18,11 +18,11 @@ export default function HeroBanner() {
         {/* Left Text Content */}
         <div className="space-y-2 text-left max-w-xl">
           <div className="flex items-center space-x-2">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#113C22] tracking-tight font-prompt">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#1E5638] tracking-tight font-prompt">
               สวัสดีค่ะ คุณ{cleanFullName} <span className="inline-block hover:rotate-12 transition-transform cursor-default">👋</span>
             </h2>
           </div>
-          <p className="text-base sm:text-lg font-semibold text-[#185331]">
+          <p className="text-base sm:text-lg font-semibold text-[#2B6E4A]">
             ยินดีต้อนรับสู่ระบบจัดการวันเวลาของการลา
           </p>
           <p className="text-xs sm:text-sm text-slate-600 font-normal leading-relaxed">

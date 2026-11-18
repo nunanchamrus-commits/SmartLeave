@@ -115,7 +115,7 @@ export default function RecentLeavesWidget() {
 
         <button
           onClick={() => setActiveTab('history')}
-          className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#155A32] hover:bg-[#124B2A] text-white text-xs font-medium transition-all shadow-sm group"
+          className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#2F855A] hover:bg-[#124B2A] text-white text-xs font-medium transition-all shadow-sm group"
         >
           <span>ดูทั้งหมด</span>
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />

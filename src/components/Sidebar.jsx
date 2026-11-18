@@ -86,31 +86,31 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-[#123E24] text-white transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-gradient-to-b from-[#2E6F4E] via-[#347B57] to-[#2B6849] text-white transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
         {/* Brand Header */}
-        <div className="flex flex-col items-center justify-center pt-7 pb-5 px-6 border-b border-emerald-900/40">
+        <div className="flex flex-col items-center justify-center pt-7 pb-5 px-6 border-b border-white/15">
           <div className="relative mb-3 group cursor-pointer" onClick={() => setActiveTab(isAdmin ? 'admin-dashboard' : 'dashboard')}>
-            <div className="w-16 h-16 rounded-full bg-white/10 p-1.5 shadow-lg shadow-emerald-950/40 border-2 border-white/25 backdrop-blur-xs flex items-center justify-center transition-transform group-hover:scale-105">
+            <div className="w-16 h-16 rounded-full bg-white/15 p-1.5 shadow-md shadow-emerald-950/20 border-2 border-white/30 backdrop-blur-xs flex items-center justify-center transition-transform group-hover:scale-105">
               <img
                 src="/logo.png"
                 alt="สำนักงานสหกรณ์จังหวัดขอนแก่น"
                 className="w-full h-full object-contain drop-shadow"
               />
             </div>
-            <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-lime-400 rounded-full flex items-center justify-center text-[#123E24] shadow-sm text-[10px] font-bold border border-emerald-900">
+            <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-lime-300 rounded-full flex items-center justify-center text-[#2E6F4E] shadow-sm text-[10px] font-bold border border-white/40">
               ✓
             </span>
           </div>
           <h1 className="text-xl font-bold tracking-tight text-white font-prompt text-center">
             SmartLeave
           </h1>
-          <p className="text-[11px] font-medium text-emerald-200/90 tracking-wide mt-0.5 text-center leading-tight">
+          <p className="text-[11px] font-medium text-emerald-50/90 tracking-wide mt-0.5 text-center leading-tight">
             สำนักงานสหกรณ์จังหวัดขอนแก่น
           </p>
-          <span className="text-[9.5px] text-emerald-300/70 text-center block mt-0.5">
+          <span className="text-[9.5px] text-emerald-100/80 text-center block mt-0.5">
             ระบบจัดการวันเวลาของการลา
           </span>
 
@@ -119,8 +119,8 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
             <div
               className={`py-1.5 px-3 rounded-xl text-center text-xs font-bold flex items-center justify-center space-x-1.5 ${
                 isAdmin
-                  ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
-                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                  ? 'bg-amber-300/20 text-amber-100 border border-amber-200/35'
+                  : 'bg-white/15 text-emerald-50 border border-white/25'
               }`}
             >
               {isAdmin ? (
@@ -149,8 +149,8 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
                 onClick={() => handleNavClick(item)}
                 className={`group w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? 'bg-[#2A6A48] text-white shadow-md shadow-emerald-950/20 translate-x-1'
-                    : 'text-emerald-100/75 hover:bg-white/10 hover:text-white'
+                    ? 'bg-white/20 text-white shadow-sm translate-x-1'
+                    : 'text-emerald-50/85 hover:bg-white/15 hover:text-white'
                 }`}
               >
                 <div className="flex items-center space-x-3.5 transition-transform duration-200 ease-out group-hover:translate-x-1.5">
@@ -174,10 +174,10 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
         </nav>
 
         {/* Logout & Footer Section */}
-        <div className="px-4 py-4 border-t border-emerald-900/40 relative overflow-hidden">
+        <div className="px-4 py-4 border-t border-white/15 relative overflow-hidden">
           {/* Subtle leafy background shapes */}
-          <div className="absolute -bottom-8 -right-8 w-28 h-28 bg-emerald-800/30 rounded-full blur-xl pointer-events-none" />
-          <div className="absolute -bottom-10 -left-6 w-32 h-32 bg-emerald-700/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-8 -right-8 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
+          <div className="absolute -bottom-10 -left-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
 
           {/* Decorative leaf SVG */}
           <div className="absolute bottom-0 left-0 w-36 h-28 pointer-events-none opacity-20">

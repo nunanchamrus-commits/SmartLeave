@@ -24,7 +24,7 @@ export default function StatusConfirmModal({
   const isChecking = targetStatus === 'อยู่ระหว่างตรวจสอบ';
 
   const headerBg = isApprove
-    ? 'bg-[#155A32]'
+    ? 'bg-[#2F855A]'
     : isReject
     ? 'bg-red-600'
     : isChecking
@@ -32,7 +32,7 @@ export default function StatusConfirmModal({
     : 'bg-orange-600';
 
   const confirmBtnBg = isApprove
-    ? 'bg-[#155A32] hover:bg-[#114929]'
+    ? 'bg-[#2F855A] hover:bg-[#256F4A]'
     : isReject
     ? 'bg-red-600 hover:bg-red-700'
     : isChecking

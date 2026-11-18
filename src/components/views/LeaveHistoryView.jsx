@@ -167,7 +167,7 @@ export default function LeaveHistoryView() {
                 type="button"
                 onClick={() => setAdminScope('all')}
                 className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 ${
-                  adminScope === 'all' ? 'bg-[#155A32] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
+                  adminScope === 'all' ? 'bg-[#2F855A] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
@@ -177,7 +177,7 @@ export default function LeaveHistoryView() {
                 type="button"
                 onClick={() => setAdminScope('my')}
                 className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center space-x-1.5 ${
-                  adminScope === 'my' ? 'bg-[#155A32] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
+                  adminScope === 'my' ? 'bg-[#2F855A] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <User className="w-3.5 h-3.5" />
@@ -194,7 +194,7 @@ export default function LeaveHistoryView() {
           </button>
           <button
             onClick={() => setIsRequestModalOpen(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-[#155A32] hover:bg-[#114A29] text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-sm"
+            className="flex items-center space-x-2 px-4 py-2 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-sm"
           >
             <PlusCircle className="w-4 h-4" />
             <span>ยื่นคำขอลาใหม่</span>
@@ -219,7 +219,7 @@ export default function LeaveHistoryView() {
               onClick={() => setStatusFilter(tab.id)}
               className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                 statusFilter === tab.id
-                  ? 'bg-[#155A32] text-white shadow-xs'
+                  ? 'bg-[#2F855A] text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >

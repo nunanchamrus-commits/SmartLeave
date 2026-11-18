@@ -386,7 +386,7 @@ export default function LeaveRequestModal() {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-[#123E24] text-white">
+        <div className="flex items-center justify-between px-6 py-4 bg-[#2E6F4E] text-white">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-emerald-300">
               {modalTab === 'leave' ? (
@@ -421,7 +421,7 @@ export default function LeaveRequestModal() {
               }}
               className={`flex items-center justify-center space-x-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
                 modalTab === 'leave'
-                  ? 'bg-[#155A32] text-white shadow-sm'
+                  ? 'bg-[#2F855A] text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
@@ -533,7 +533,7 @@ export default function LeaveRequestModal() {
                         onClick={() => setDurationMode(m.id)}
                         className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-medium border transition-colors ${
                           durationMode === m.id
-                            ? 'bg-[#155A32] text-white border-[#155A32]'
+                            ? 'bg-[#2F855A] text-white border-[#2F855A]'
                             : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                         }`}
                       >
@@ -660,7 +660,7 @@ export default function LeaveRequestModal() {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2 rounded-full bg-[#155A32] hover:bg-[#114929] text-white font-semibold shadow-sm hover:shadow transition-all"
+                    className="px-6 py-2 rounded-full bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold shadow-sm hover:shadow transition-all"
                   >
                     ยืนยันการขอลา
                   </button>

@@ -362,7 +362,7 @@ export default function SettingsView() {
               <button
                 type="button"
                 onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-                className="absolute -bottom-2 -right-2 p-1.5 bg-[#155A32] text-white rounded-xl shadow-md hover:bg-[#114A29] transition-all"
+                className="absolute -bottom-2 -right-2 p-1.5 bg-[#2F855A] text-white rounded-xl shadow-md hover:bg-[#256F4A] transition-all"
                 title="เปลี่ยนรูปโปรไฟล์"
               >
                 <Camera className="w-4 h-4" />
@@ -541,7 +541,7 @@ export default function SettingsView() {
                   onClick={() => setFormData({ ...formData, gender: g.value })}
                   className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
                     formData.gender === g.value
-                      ? 'bg-[#155A32] text-white border-[#155A32] shadow-xs'
+                      ? 'bg-[#2F855A] text-white border-[#2F855A] shadow-xs'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
@@ -746,7 +746,7 @@ export default function SettingsView() {
               className={`flex items-center justify-center space-x-2 px-7 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] ${
                 savedSuccess
                   ? 'bg-emerald-600 ring-2 ring-emerald-400'
-                  : 'bg-[#155A32] hover:bg-[#114A29]'
+                  : 'bg-[#2F855A] hover:bg-[#256F4A]'
               }`}
             >
               {savedSuccess ? (
@@ -866,7 +866,7 @@ export default function SettingsView() {
               className={`flex items-center justify-center space-x-2 px-6 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-60 ${
                 passwordSuccess
                   ? 'bg-emerald-600 ring-2 ring-emerald-400'
-                  : 'bg-[#155A32] hover:bg-[#114A29]'
+                  : 'bg-[#2F855A] hover:bg-[#256F4A]'
               }`}
             >
               {passwordSuccess ? (
