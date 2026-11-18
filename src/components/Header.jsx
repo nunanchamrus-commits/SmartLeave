@@ -176,7 +176,7 @@ export default function Header({ onMenuClick }) {
                       key={notif.id}
                       onClick={() => {
                         markNotificationRead(notif.id);
-                        if (isAdmin && (notif.linkUrl === '/cancel-approvals' || notif.title?.includes('ยกเลิกการลา'))) {
+                        if (isAdmin && (notif.linkUrl === '/cancel-approvals' || notif.title?.includes('ยกเลิกวันลา') || notif.title?.includes('ยกเลิกการลา'))) {
                           setActiveTab('cancel-approvals');
                           setIsNotifDropdownOpen(false);
                         } else if (isAdmin && notif.linkUrl === '/approver') {

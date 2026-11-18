@@ -301,9 +301,10 @@ function normalizeLeaveStatus(status) {
       return 'ไม่อนุมัติ';
     case 'ยกเลิก':
     case 'ยกเลิกการลา':
+    case 'ยกเลิกวันลา':
     case 'cancelled':
     case 'canceled':
-      return 'ยกเลิกการลา';
+      return 'ยกเลิกวันลา';
     default:
       return 'ยังไม่ยื่นเอกสาร';
   }
@@ -1228,7 +1229,7 @@ export function LeaveProvider({ children }) {
     showToast(`ปรับสถานะคำขอเป็น "${normalizedStatus}" เรียบร้อยแล้ว`, 'success');
   };
 
-  // User submits a leave cancellation request (ขอยกเลิกการลา พร้อมแนบเอกสาร)
+  // User submits a leave cancellation request (ยกเลิกวันลา พร้อมแนบเอกสาร)
   const submitCancelLeaveRequest = async (requestId, { cancelReason = '', cancelAttachmentName = '', cancelAttachmentUrl = '' } = {}) => {
     mutationEpochRef.current += 1;
     const baseRequests = leaveRequestsRef.current;
@@ -1281,8 +1282,8 @@ export function LeaveProvider({ children }) {
       email: currentUser?.email,
       employeeName: currentUser?.name,
       targetRole: 'employee',
-      title: `ยื่นคำขอยกเลิกการลา (${target.type}) สำเร็จ`,
-      description: `คำขอยกเลิกการลาวันที่ ${target.dateRange} อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`,
+      title: `ยื่นคำยกเลิกวันลา (${target.type}) สำเร็จ`,
+      description: `คำยกเลิกวันลาวันที่ ${target.dateRange} อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`,
       time: nowThai,
       read: false,
       isRead: 0,
@@ -1297,8 +1298,8 @@ export function LeaveProvider({ children }) {
       targetRole: 'admin',
       forAdmin: true,
       linkUrl: '/cancel-approvals',
-      title: `มีคำขอยกเลิกการลาใหม่จาก ${currentUser?.name || target.employeeName}`,
-      description: `คำขอยกเลิกการลา (${target.type}) วันที่ ${target.dateRange} รอการพิจารณา`,
+      title: `มีคำยกเลิกวันลาใหม่จาก ${currentUser?.name || target.employeeName}`,
+      description: `คำยกเลิกวันลา (${target.type}) วันที่ ${target.dateRange} รอการพิจารณา`,
       time: nowThai,
       read: false,
       isRead: 0,
@@ -1328,7 +1329,7 @@ export function LeaveProvider({ children }) {
 
     if (apiError && isDbConnectedRef.current) {
       await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
-      showToast(`ไม่สามารถส่งคำขอยกเลิกการลาลงฐานข้อมูลได้ (${apiError.message || 'Server error'})`, 'error');
+      showToast(`ไม่สามารถส่งคำยกเลิกวันลาลงฐานข้อมูลได้ (${apiError.message || 'Server error'})`, 'error');
       return { success: false };
     }
 
@@ -1336,12 +1337,12 @@ export function LeaveProvider({ children }) {
       await fetchLiveDatabaseData({ silent: true });
     }
 
-    showToast('ส่งคำขอยกเลิกการลาเรียบร้อยแล้ว รอผู้ดูแลระบบพิจารณา', 'success');
+    showToast('ส่งคำยกเลิกวันลาเรียบร้อยแล้ว รอผู้ดูแลระบบพิจารณา', 'success');
     return { success: true };
   };
 
-  // Admin approves a leave cancellation request (อนุมัติการยกเลิกการลา + คืนโควตาอัตโนมัติหากเคยอนุมัติ)
-  const approveCancelLeaveRequest = async (requestId, remark = 'อนุญาตให้ยกเลิกการลาเรียบร้อย') => {
+  // Admin approves a leave cancellation request (อนุมัติการยกเลิกวันลา + คืนโควตาอัตโนมัติหากเคยอนุมัติ)
+  const approveCancelLeaveRequest = async (requestId, remark = 'อนุญาตให้ยกเลิกวันลาเรียบร้อย') => {
     mutationEpochRef.current += 1;
     const baseRequests = leaveRequestsRef.current;
     const baseEmployees = employeesRef.current;
@@ -1353,7 +1354,7 @@ export function LeaveProvider({ children }) {
       String(r.id) === String(requestId)
         ? {
           ...r,
-          status: 'ยกเลิกการลา',
+          status: 'ยกเลิกวันลา',
           cancelStatus: 'approved',
           cancelRemark: remark,
           cancelDecidedAt: nowThai,
@@ -1378,7 +1379,7 @@ export function LeaveProvider({ children }) {
         prev
           ? {
             ...prev,
-            status: 'ยกเลิกการลา',
+            status: 'ยกเลิกวันลา',
             cancelStatus: 'approved',
             cancelRemark: remark,
             cancelDecidedAt: nowThai,
@@ -1395,8 +1396,8 @@ export function LeaveProvider({ children }) {
         email: target.employeeEmail,
         employeeName: target.employeeName,
         targetRole: 'employee',
-        title: `อนุญาตคำขอยกเลิกการลา (${target.type}) แล้ว`,
-        description: `คำขอยกเลิกการลาวันที่ ${target.dateRange} ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} • ${remark}`,
+        title: `อนุญาตคำยกเลิกวันลา (${target.type}) แล้ว`,
+        description: `คำยกเลิกวันลาวันที่ ${target.dateRange} ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} • ${remark}`,
         time: nowThai,
         read: false,
         isRead: 0,
@@ -1431,11 +1432,11 @@ export function LeaveProvider({ children }) {
       await fetchLiveDatabaseData({ silent: true });
     }
 
-    showToast(`อนุญาตให้ยกเลิกการลาเรียบร้อยแล้ว${wasApproved ? ' (คืนสิทธิ์วันลาอัตโนมัติ)' : ''}`, 'success');
+    showToast(`อนุญาตให้ยกเลิกวันลาเรียบร้อยแล้ว${wasApproved ? ' (คืนสิทธิ์วันลาอัตโนมัติ)' : ''}`, 'success');
   };
 
-  // Admin rejects a leave cancellation request (ไม่อนุมัติการยกเลิกการลา)
-  const rejectCancelLeaveRequest = async (requestId, remark = 'ไม่อนุญาตให้ยกเลิกการลา') => {
+  // Admin rejects a leave cancellation request (ไม่อนุมัติการยกเลิกวันลา)
+  const rejectCancelLeaveRequest = async (requestId, remark = 'ไม่อนุญาตให้ยกเลิกวันลา') => {
     mutationEpochRef.current += 1;
     const baseRequests = leaveRequestsRef.current;
     const target = baseRequests.find((r) => String(r.id) === String(requestId));
@@ -1475,8 +1476,8 @@ export function LeaveProvider({ children }) {
         email: target.employeeEmail,
         employeeName: target.employeeName,
         targetRole: 'employee',
-        title: `ไม่อนุญาตคำขอยกเลิกการลา (${target.type})`,
-        description: `คำขอยกเลิกการลาวันที่ ${target.dateRange} ไม่ได้รับอนุญาต • ${remark}`,
+        title: `ไม่อนุญาตคำยกเลิกวันลา (${target.type})`,
+        description: `คำยกเลิกวันลาวันที่ ${target.dateRange} ไม่ได้รับอนุญาต • ${remark}`,
         time: nowThai,
         read: false,
         isRead: 0,
@@ -1511,7 +1512,7 @@ export function LeaveProvider({ children }) {
       await fetchLiveDatabaseData({ silent: true });
     }
 
-    showToast('บันทึกผล "ไม่อนุญาตให้ยกเลิกการลา" เรียบร้อยแล้ว', 'info');
+    showToast('บันทึกผล "ไม่อนุญาตให้ยกเลิกวันลา" เรียบร้อยแล้ว', 'info');
   };
 
   // Update Leave Request Details (User or Admin)

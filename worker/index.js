@@ -79,8 +79,8 @@ function mapLeaveStatusToDb(rawStatus) {
   if (s === 'ไม่อนุมัติ' || lower === 'rejected') {
     return { dbStatus: 'rejected', reviewStage: 'rejected', displayStatus: 'ไม่อนุมัติ' };
   }
-  if (s === 'ยกเลิก' || s === 'ยกเลิกการลา' || lower === 'cancelled' || lower === 'canceled') {
-    return { dbStatus: 'cancelled', reviewStage: 'cancelled', displayStatus: 'ยกเลิกการลา' };
+  if (s === 'ยกเลิก' || s === 'ยกเลิกการลา' || s === 'ยกเลิกวันลา' || lower === 'cancelled' || lower === 'canceled') {
+    return { dbStatus: 'cancelled', reviewStage: 'cancelled', displayStatus: 'ยกเลิกวันลา' };
   }
   if (
     s === 'อยู่ระหว่างตรวจสอบ' ||
@@ -99,8 +99,8 @@ function mapDbRowToDisplayStatus(dbStatus, reviewStage) {
   const st = typeof dbStatus === 'string' ? dbStatus.trim() : '';
   const stLower = st.toLowerCase();
   const stage = typeof reviewStage === 'string' ? reviewStage.trim().toLowerCase() : '';
-  if (st === 'ยกเลิก' || st === 'ยกเลิกการลา' || stLower === 'cancelled' || stLower === 'canceled' || stage === 'cancelled') {
-    return 'ยกเลิกการลา';
+  if (st === 'ยกเลิก' || st === 'ยกเลิกการลา' || st === 'ยกเลิกวันลา' || stLower === 'cancelled' || stLower === 'canceled' || stage === 'cancelled') {
+    return 'ยกเลิกวันลา';
   }
   if (st === 'อนุมัติ' || stLower === 'approved' || stage === 'approved') {
     return 'อนุมัติ';
@@ -884,7 +884,7 @@ async function autoMigrateDatabase(db) {
   try {
     await db.prepare("UPDATE leave_requests SET review_stage = 'approved' WHERE status IN ('approved', 'อนุมัติ') AND COALESCE(review_stage, '') != 'approved'").run().catch(() => { });
     await db.prepare("UPDATE leave_requests SET review_stage = 'rejected' WHERE status IN ('rejected', 'ไม่อนุมัติ') AND COALESCE(review_stage, '') != 'rejected'").run().catch(() => { });
-    await db.prepare("UPDATE leave_requests SET review_stage = 'cancelled' WHERE status IN ('cancelled', 'ยกเลิก', 'ยกเลิกการลา') AND COALESCE(review_stage, '') != 'cancelled'").run().catch(() => { });
+    await db.prepare("UPDATE leave_requests SET review_stage = 'cancelled' WHERE status IN ('cancelled', 'ยกเลิก', 'ยกเลิกการลา', 'ยกเลิกวันลา') AND COALESCE(review_stage, '') != 'cancelled'").run().catch(() => { });
     await db.prepare("UPDATE leave_requests SET review_stage = 'checking' WHERE status IN ('อยู่ระหว่างตรวจสอบ', 'รออนุมัติ') AND COALESCE(review_stage, '') != 'checking'").run().catch(() => { });
     await db.prepare("UPDATE leave_requests SET review_stage = 'not_submitted' WHERE review_stage IS NULL OR review_stage = ''").run().catch(() => { });
   } catch (stageMigErr) { }
@@ -2987,7 +2987,7 @@ export async function onRequest(context) {
     }
 
     // -------------------------------------------------------------
-    // 6.2 ยื่นคำขอยกเลิกการลา (User Request Leave Cancellation)
+    // 6.2 ยื่นคำขอยกเลิกวันลา (User Request Leave Cancellation)
     // POST /api/leaves/:id/cancel-request
     // -------------------------------------------------------------
     if (path.match(/^\/leaves\/([^/]+)\/cancel-request$/) && method === 'POST') {
@@ -3037,8 +3037,8 @@ export async function onRequest(context) {
         VALUES (?, ?, ?, 'pending', 0, 'employee', datetime('now', '+7 hours'))
       `).bind(
         reqInfo.user_id,
-        `ยื่นคำขอยกเลิกการลา (${typeName}) สำเร็จ`,
-        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`
+        `ยื่นคำขอยกเลิกวันลา (${typeName}) สำเร็จ`,
+        `คำขอยกเลิกวันลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) อยู่ระหว่างรอผู้ดูแลระบบพิจารณา`
       ).run().catch(() => { });
 
       // แจ้งเตือน Admin / ผู้อนุมัติ
@@ -3047,20 +3047,20 @@ export async function onRequest(context) {
         VALUES (?, ?, ?, 'pending', '/cancel-approvals', 0, 'admin', datetime('now', '+7 hours'))
       `).bind(
         reqInfo.user_id || 1,
-        `มีคำขอยกเลิกการลาใหม่จาก ${requesterName}`,
-        `คำขอยกเลิกการลา ${reqCode} (${typeName}) วันที่ ${reqInfo.start_date} ถึง ${reqInfo.end_date} รอการพิจารณา`
+        `มีคำขอยกเลิกวันลาใหม่จาก ${requesterName}`,
+        `คำขอยกเลิกวันลา ${reqCode} (${typeName}) วันที่ ${reqInfo.start_date} ถึง ${reqInfo.end_date} รอการพิจารณา`
       ).run().catch(() => { });
 
       return jsonResponse({
         success: true,
         requestId: reqInfo.request_id,
         cancelStatus: 'pending',
-        message: 'ส่งคำขอยกเลิกการลาเรียบร้อยแล้ว รอผู้ดูแลระบบพิจารณา',
+        message: 'ส่งคำขอยกเลิกวันลาเรียบร้อยแล้ว รอผู้ดูแลระบบพิจารณา',
       });
     }
 
     // -------------------------------------------------------------
-    // 6.3 อนุมัติคำขอยกเลิกการลา (Admin Approve Leave Cancellation)
+    // 6.3 อนุมัติคำขอยกเลิกวันลา (Admin Approve Leave Cancellation)
     // POST /api/leaves/:id/cancel-approve
     // -------------------------------------------------------------
     if (path.match(/^\/leaves\/([^/]+)\/cancel-approve$/) && method === 'POST') {
@@ -3069,7 +3069,7 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const remarkText = (typeof body.remark === 'string' && body.remark.trim())
         ? body.remark.trim()
-        : 'อนุญาตให้ยกเลิกการลาเรียบร้อย';
+        : 'อนุญาตให้ยกเลิกวันลาเรียบร้อย';
 
       const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (!reqInfo) {
@@ -3105,8 +3105,8 @@ export async function onRequest(context) {
         VALUES (?, ?, ?, 'approved', 0, 'employee', datetime('now', '+7 hours'))
       `).bind(
         reqInfo.user_id,
-        `อนุญาตคำขอยกเลิกการลา (${typeName}) แล้ว`,
-        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
+        `อนุญาตคำขอยกเลิกวันลา (${typeName}) แล้ว`,
+        `คำขอยกเลิกวันลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ได้รับอนุญาตแล้ว${wasApproved ? ' และคืนสิทธิ์วันลาเรียบร้อย' : ''} (${remarkText})`
       ).run().catch(() => { });
 
       // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
@@ -3119,15 +3119,15 @@ export async function onRequest(context) {
       return jsonResponse({
         success: true,
         requestId: reqInfo.request_id,
-        status: 'ยกเลิกการลา',
+        status: 'ยกเลิกวันลา',
         cancelStatus: 'approved',
         quotaRefunded: wasApproved,
-        message: 'อนุญาตให้ยกเลิกการลาเรียบร้อยแล้ว',
+        message: 'อนุญาตให้ยกเลิกวันลาเรียบร้อยแล้ว',
       });
     }
 
     // -------------------------------------------------------------
-    // 6.4 ไม่อนุญาตคำขอยกเลิกการลา (Admin Reject Leave Cancellation)
+    // 6.4 ไม่อนุญาตคำขอยกเลิกวันลา (Admin Reject Leave Cancellation)
     // POST /api/leaves/:id/cancel-reject
     // -------------------------------------------------------------
     if (path.match(/^\/leaves\/([^/]+)\/cancel-reject$/) && method === 'POST') {
@@ -3136,7 +3136,7 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const remarkText = (typeof body.remark === 'string' && body.remark.trim())
         ? body.remark.trim()
-        : 'ไม่อนุญาตให้ยกเลิกการลา';
+        : 'ไม่อนุญาตให้ยกเลิกวันลา';
 
       const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (!reqInfo) {
@@ -3161,8 +3161,8 @@ export async function onRequest(context) {
         VALUES (?, ?, ?, 'rejected', 0, 'employee', datetime('now', '+7 hours'))
       `).bind(
         reqInfo.user_id,
-        `ไม่อนุญาตคำขอยกเลิกการลา (${typeName})`,
-        `คำขอยกเลิกการลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ไม่ได้รับอนุญาต (${remarkText})`
+        `ไม่อนุญาตคำขอยกเลิกวันลา (${typeName})`,
+        `คำขอยกเลิกวันลา ${reqCode} (${reqInfo.start_date} ถึง ${reqInfo.end_date}) ไม่ได้รับอนุญาต (${remarkText})`
       ).run().catch(() => { });
 
       // ทำเครื่องหมายแจ้งเตือนคำขอยกเลิกนี้ฝั่ง Admin เป็นอ่านแล้ว
@@ -3176,7 +3176,7 @@ export async function onRequest(context) {
         success: true,
         requestId: reqInfo.request_id,
         cancelStatus: 'rejected',
-        message: 'ไม่อนุญาตให้ยกเลิกการลาเรียบร้อยแล้ว',
+        message: 'ไม่อนุญาตให้ยกเลิกวันลาเรียบร้อยแล้ว',
       });
     }
 

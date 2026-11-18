@@ -118,10 +118,11 @@ export default function LeaveHistoryView() {
             ไม่อนุมัติ
           </span>
         );
+      case 'ยกเลิกวันลา':
       case 'ยกเลิกการลา':
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-            ยกเลิกการลา
+            ยกเลิกวันลา
           </span>
         );
       default:
@@ -211,7 +212,7 @@ export default function LeaveHistoryView() {
             { id: 'อยู่ระหว่างตรวจสอบ', label: 'อยู่ระหว่างตรวจสอบ' },
             { id: 'อนุมัติ', label: 'อนุมัติ' },
             { id: 'ไม่อนุมัติ', label: 'ไม่อนุมัติ' },
-            { id: 'ยกเลิกการลา', label: 'ยกเลิกการลา' },
+            { id: 'ยกเลิกวันลา', label: 'ยกเลิกวันลา' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -308,9 +309,9 @@ export default function LeaveHistoryView() {
                             รอพิจารณาขอยกเลิก
                           </span>
                         )}
-                        {req.cancelStatus === 'rejected' && req.status !== 'ยกเลิกการลา' && (
+                        {req.cancelStatus === 'rejected' && req.status !== 'ยกเลิกวันลา' && req.status !== 'ยกเลิกการลา' && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200">
-                            ไม่อนุญาตยกเลิกลา
+                            ไม่อนุญาตยกเลิกวันลา
                           </span>
                         )}
                       </div>

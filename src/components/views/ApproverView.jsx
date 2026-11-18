@@ -49,7 +49,7 @@ export default function ApproverView() {
     (r) => r.status === 'ยังไม่ยื่นเอกสาร' || r.status === 'อยู่ระหว่างตรวจสอบ'
   );
   const historyRequests = leaveRequests.filter(
-    (r) => r.status === 'อนุมัติ' || r.status === 'ไม่อนุมัติ' || r.status === 'ยกเลิกการลา'
+    (r) => r.status === 'อนุมัติ' || r.status === 'ไม่อนุมัติ' || r.status === 'ยกเลิกวันลา' || r.status === 'ยกเลิกการลา'
   );
   const pendingCancellationsCount = leaveRequests.filter(
     (r) => r.cancelStatus === 'pending'
@@ -160,7 +160,7 @@ export default function ApproverView() {
               className="px-3.5 py-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs flex items-center space-x-1.5 border border-rose-200 transition-colors"
             >
               <AlertCircle className="w-3.5 h-3.5" />
-              <span>มีคำขอยกเลิกการลา {pendingCancellationsCount} รายการ ➔</span>
+              <span>มีคำขอยกเลิกวันลา {pendingCancellationsCount} รายการ ➔</span>
             </button>
           )}
           <div className="px-3.5 py-2 rounded-xl bg-amber-100 text-amber-800 font-bold text-xs flex items-center space-x-1.5 border border-amber-200">
@@ -238,17 +238,21 @@ export default function ApproverView() {
                           <span>
                             <strong className="text-slate-700">ช่วงเวลา:</strong> {req.dateRange} ({req.days} วัน)
                           </span>
-                          <span>
-                            <strong className="text-slate-700">ผู้ปฏิบัติงานแทน:</strong> {req.substitute || 'ไม่มี'}
-                          </span>
+                          {(req.typeKey === 'vacation' || req.substitute) && (
+                            <span>
+                              <strong className="text-slate-700">ผู้ปฏิบัติงานแทน:</strong> {req.substitute || 'ไม่มี'}
+                            </span>
+                          )}
                           <span>
                             <strong className="text-slate-700">วันที่ยื่น:</strong> {req.appliedDate || '-'}
                           </span>
                         </div>
 
-                        <p className="text-xs text-slate-500 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          "{req.reason}"
-                        </p>
+                        {req.reason && (
+                          <p className="text-xs text-slate-500 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                            "{req.reason}"
+                          </p>
+                        )}
                       </div>
 
                       {/* Actions */}

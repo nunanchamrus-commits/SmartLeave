@@ -38,7 +38,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
   // Distinct navigation items for User vs Admin
   const userNavItems = [
     { id: 'dashboard', label: 'หน้าหลัก', icon: Home },
-    { id: 'request', label: 'ขอลา/ขอยกเลิกการลา', icon: CalendarPlus, isAction: true },
+    { id: 'request', label: 'ขอลา/ยกเลิกวันลา', icon: CalendarPlus, isAction: true },
     { id: 'history', label: 'ตรวจสอบสถานะการลา', icon: FileText },
     { id: 'calendar', label: 'ปฏิทินการลา', icon: Calendar },
     { id: 'settings', label: 'ข้อมูลส่วนตัว', icon: Settings },
@@ -54,7 +54,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
     },
     {
       id: 'cancel-approvals',
-      label: 'ยกเลิกการลา',
+      label: 'ยกเลิกวันลา',
       icon: CalendarX2,
       badge: pendingCancellationsCount > 0 ? pendingCancellationsCount : null,
     },

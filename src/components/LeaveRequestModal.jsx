@@ -76,6 +76,7 @@ export default function LeaveRequestModal() {
     (r) =>
       r.status !== 'ไม่อนุมัติ' &&
       r.status !== 'ยกเลิกการลา' &&
+      r.status !== 'ยกเลิกวันลา' &&
       r.cancelStatus !== 'pending' &&
       r.cancelStatus !== 'approved'
   );
@@ -210,7 +211,7 @@ export default function LeaveRequestModal() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!reason.trim()) {
+    if (leaveType !== 'vacation' && !reason.trim()) {
       setErrorMsg('กรุณากรอกเหตุผลการลา');
       return;
     }
@@ -238,8 +239,8 @@ export default function LeaveRequestModal() {
       startDate,
       endDate,
       days: daysCount,
-      reason,
-      substitute,
+      reason: leaveType === 'vacation' ? '' : reason.trim(),
+      substitute: leaveType === 'vacation' ? substitute.trim() : '',
       attachment: fileName,
       attachmentName: fileName,
       attachmentUrl: fileData,
@@ -269,7 +270,7 @@ export default function LeaveRequestModal() {
       return;
     }
     if (!cancelReason.trim()) {
-      setCancelErrorMsg('กรุณาระบุเหตุผลการขอยกเลิกการลา');
+      setCancelErrorMsg('กรุณาระบุเหตุผลการยกเลิกวันลา');
       return;
     }
 
@@ -322,7 +323,7 @@ export default function LeaveRequestModal() {
             </div>
             <div>
               <h3 className="font-bold text-base sm:text-lg font-prompt">
-                ขอลา / ขอยกเลิกการลา
+                ขอลา / ยกเลิกวันลา
               </h3>
             </div>
           </div>
@@ -366,7 +367,7 @@ export default function LeaveRequestModal() {
               }`}
             >
               <CalendarX2 className="w-4 h-4" />
-              <span>ขอยกเลิกการลา</span>
+              <span>ยกเลิกวันลา</span>
               {pendingCancelLeaves.length > 0 && (
                 <span
                   className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -507,34 +508,38 @@ export default function LeaveRequestModal() {
                   </span>
                 </div>
 
-                {/* Reason */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    เหตุผลการลา <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={reason}
-                    onChange={(e) => {
-                      setReason(e.target.value);
-                      setErrorMsg('');
-                    }}
-                    placeholder="ระบุเหตุผลการลา เช่น พักผ่อนกับครอบครัว, พบแพทย์..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none resize-none"
-                  />
-                </div>
+                {/* Reason (ไม่แสดงสำหรับลาพักผ่อน) */}
+                {leaveType !== 'vacation' && (
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      เหตุผลการลา <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={reason}
+                      onChange={(e) => {
+                        setReason(e.target.value);
+                        setErrorMsg('');
+                      }}
+                      placeholder="ระบุเหตุผลการลา เช่น พบแพทย์, ติดธุระส่วนตัว..."
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none resize-none"
+                    />
+                  </div>
+                )}
 
-                {/* Colleague handover */}
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">ผู้ปฏิบัติงานแทน</label>
-                  <input
-                    type="text"
-                    value={substitute}
-                    onChange={(e) => setSubstitute(e.target.value)}
-                    placeholder="ระบุชื่อ - นามสกุล ผู้ปฏิบัติงานแทน"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none text-slate-800 placeholder-slate-400"
-                  />
-                </div>
+                {/* Colleague handover (เฉพาะลาพักผ่อนเท่านั้น) */}
+                {leaveType === 'vacation' && (
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">ผู้ปฏิบัติงานแทน</label>
+                    <input
+                      type="text"
+                      value={substitute}
+                      onChange={(e) => setSubstitute(e.target.value)}
+                      placeholder="ระบุชื่อ - นามสกุล ผู้ปฏิบัติงานแทน"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                )}
 
                 {/* Attachment */}
                 <div>
@@ -603,9 +608,9 @@ export default function LeaveRequestModal() {
                 <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center animate-bounce">
                   <CheckCircle2 className="w-10 h-10" />
                 </div>
-                <h4 className="text-xl font-bold text-slate-800">ส่งคำขอยกเลิกการลาเรียบร้อยแล้ว!</h4>
+                <h4 className="text-xl font-bold text-slate-800">ส่งคำขอยกเลิกวันลาเรียบร้อยแล้ว!</h4>
                 <p className="text-sm text-slate-500">
-                  คำขอยกเลิกการลาของคุณถูกส่งไปยังผู้ดูแลระบบเพื่อพิจารณาอนุญาตแล้ว
+                  คำขอยกเลิกวันลาของคุณถูกส่งไปยังผู้ดูแลระบบเพื่อพิจารณาอนุญาตแล้ว
                 </p>
               </div>
             ) : (
@@ -688,7 +693,7 @@ export default function LeaveRequestModal() {
                 {/* Cancel Reason */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    เหตุผลการขอยกเลิกการลา <span className="text-red-500">*</span>
+                    เหตุผลการยกเลิกวันลา <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     rows={3}
@@ -707,7 +712,7 @@ export default function LeaveRequestModal() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-semibold text-slate-700">
-                      แนบเอกสารการยกเลิกการลา (PDF / รูปภาพ)
+                      แนบเอกสารการยกเลิกวันลา (PDF / รูปภาพ)
                     </label>
                     <span className="text-[11px] text-slate-400">ขนาดไม่เกิน 3 MB</span>
                   </div>
@@ -726,7 +731,7 @@ export default function LeaveRequestModal() {
                           {cancelFileName ? (
                             <span className="font-semibold text-rose-700">{cancelFileName}</span>
                           ) : (
-                            'คลิกเพื่อแนบแบบฟอร์ม/เอกสารขอยกเลิกการลา (PDF หรือรูปภาพ)'
+                            'คลิกเพื่อแนบแบบฟอร์ม/เอกสารยกเลิกวันลา (PDF หรือรูปภาพ)'
                           )}
                         </span>
                       </div>
@@ -776,7 +781,7 @@ export default function LeaveRequestModal() {
                     disabled={cancellableLeaves.length === 0 || isCancelSubmitting}
                     className="px-6 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isCancelSubmitting ? 'กำลังส่งคำขอ...' : 'ยืนยันการขอยกเลิกการลา'}
+                    {isCancelSubmitting ? 'กำลังส่งคำขอ...' : 'ยืนยันการยกเลิกวันลา'}
                   </button>
                 </div>
               </form>

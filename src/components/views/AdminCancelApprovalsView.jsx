@@ -37,7 +37,7 @@ export default function AdminCancelApprovalsView() {
     (r) => r.cancelStatus === 'pending'
   );
   const processedCancellations = (leaveRequests || []).filter(
-    (r) => r.cancelStatus === 'approved' || r.cancelStatus === 'rejected' || r.status === 'ยกเลิกการลา'
+    (r) => r.cancelStatus === 'approved' || r.cancelStatus === 'rejected' || (r.status === 'ยกเลิกวันลา' || r.status === 'ยกเลิกวันลา')
   );
 
   const openConfirm = (req, action) => {
@@ -47,8 +47,8 @@ export default function AdminCancelApprovalsView() {
       action,
       remark:
         action === 'approve'
-          ? 'อนุญาตให้ยกเลิกการลาเรียบร้อย'
-          : 'ไม่อนุญาตให้ยกเลิกการลา',
+          ? 'อนุญาตให้ยกเลิกวันลาเรียบร้อย'
+          : 'ไม่อนุญาตให้ยกเลิกวันลา',
     });
   };
 
@@ -69,12 +69,12 @@ export default function AdminCancelApprovalsView() {
       if (confirmModal.action === 'approve') {
         await approveCancelLeaveRequest(
           confirmModal.req.id,
-          confirmModal.remark.trim() || 'อนุญาตให้ยกเลิกการลาเรียบร้อย'
+          confirmModal.remark.trim() || 'อนุญาตให้ยกเลิกวันลาเรียบร้อย'
         );
       } else {
         await rejectCancelLeaveRequest(
           confirmModal.req.id,
-          confirmModal.remark.trim() || 'ไม่อนุญาตให้ยกเลิกการลา'
+          confirmModal.remark.trim() || 'ไม่อนุญาตให้ยกเลิกวันลา'
         );
       }
       closeConfirm();
@@ -104,14 +104,14 @@ export default function AdminCancelApprovalsView() {
         <div>
           <div className="flex items-center space-x-2">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-              ผู้ดูแลระบบ • คำขอยกเลิกการลา
+              ผู้ดูแลระบบ • คำยกเลิกวันลา
             </span>
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mt-1">
-            พิจารณาคำขอยกเลิกการลา
+            พิจารณาคำยกเลิกวันลา
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ตรวจสอบเอกสารประกอบและพิจารณาอนุญาตหรือไม่อนุญาตคำขอยกเลิกการลาของเจ้าหน้าที่
+            ตรวจสอบเอกสารประกอบและพิจารณาอนุญาตหรือไม่อนุญาตคำยกเลิกวันลาของเจ้าหน้าที่
           </p>
         </div>
 
@@ -163,10 +163,10 @@ export default function AdminCancelApprovalsView() {
                 <div className="py-14 text-center text-slate-400 space-y-2">
                   <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
                   <p className="text-sm font-semibold text-slate-600">
-                    ไม่มีคำขอยกเลิกการลาที่รอการพิจารณาในขณะนี้
+                    ไม่มีคำยกเลิกวันลาที่รอการพิจารณาในขณะนี้
                   </p>
                   <p className="text-xs">
-                    เมื่อเจ้าหน้าที่ยื่นคำขอยกเลิกการลา รายการและเอกสารแนบจะแสดงที่นี่
+                    เมื่อเจ้าหน้าที่ยื่นคำยกเลิกวันลา รายการและเอกสารแนบจะแสดงที่นี่
                   </p>
                 </div>
               ) : (
@@ -187,7 +187,7 @@ export default function AdminCancelApprovalsView() {
                               {req.type}
                             </span>
                             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
-                              ขอยกเลิกการลา
+                              ยกเลิกวันลา
                             </span>
                             <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
                               สถานะลาเดิม: {req.status}
@@ -207,7 +207,7 @@ export default function AdminCancelApprovalsView() {
 
                           {/* Reason Box */}
                           <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-100 text-xs text-slate-700 space-y-1">
-                            <span className="font-bold text-rose-800 block">เหตุผลการขอยกเลิกการลา:</span>
+                            <span className="font-bold text-rose-800 block">เหตุผลการยกเลิกวันลา:</span>
                             <p className="italic">"{req.cancelReason || '-'}"</p>
                           </div>
 
@@ -217,7 +217,7 @@ export default function AdminCancelApprovalsView() {
                               <div className="inline-flex items-center flex-wrap gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                                 <Paperclip className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
                                 <span className="font-semibold text-slate-700 max-w-[220px] truncate">
-                                  {req.cancelAttachmentName || 'เอกสารการยกเลิกการลา'}
+                                  {req.cancelAttachmentName || 'เอกสารการยกเลิกวันลา'}
                                 </span>
                                 {req.cancelAttachmentUrl && (
                                   <div className="flex items-center space-x-1.5 pl-1 border-l border-slate-200">
@@ -225,7 +225,7 @@ export default function AdminCancelApprovalsView() {
                                       type="button"
                                       onClick={() =>
                                         setPreviewDoc({
-                                          name: req.cancelAttachmentName || 'เอกสารการยกเลิกการลา',
+                                          name: req.cancelAttachmentName || 'เอกสารการยกเลิกวันลา',
                                           url: req.cancelAttachmentUrl,
                                         })
                                       }
@@ -253,7 +253,7 @@ export default function AdminCancelApprovalsView() {
                             ) : (
                               <span className="text-xs text-slate-400 flex items-center space-x-1">
                                 <Paperclip className="w-3.5 h-3.5" />
-                                <span>ไม่ได้แนบเอกสารการยกเลิกการลา</span>
+                                <span>ไม่ได้แนบเอกสารการยกเลิกวันลา</span>
                               </span>
                             )}
                           </div>
@@ -311,12 +311,12 @@ export default function AdminCancelApprovalsView() {
             <>
               {processedCancellations.length === 0 ? (
                 <div className="py-12 text-center text-slate-400">
-                  <p className="text-sm">ยังไม่มีประวัติการพิจารณาคำขอยกเลิกการลา</p>
+                  <p className="text-sm">ยังไม่มีประวัติการพิจารณาคำยกเลิกวันลา</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
                   {processedCancellations.map((req) => {
-                    const isCancelApproved = req.cancelStatus === 'approved' || req.status === 'ยกเลิกการลา';
+                    const isCancelApproved = req.cancelStatus === 'approved' || (req.status === 'ยกเลิกวันลา' || req.status === 'ยกเลิกวันลา');
                     return (
                       <div
                         key={req.id}
@@ -335,7 +335,7 @@ export default function AdminCancelApprovalsView() {
                                   : 'bg-red-100 text-red-700'
                               }`}
                             >
-                              {isCancelApproved ? 'อนุญาตยกเลิกการลาแล้ว' : 'ไม่อนุญาตยกเลิกการลา'}
+                              {isCancelApproved ? 'อนุญาตยกเลิกวันลาแล้ว' : 'ไม่อนุญาตยกเลิกวันลา'}
                             </span>
                           </div>
                           <div className="text-xs text-slate-500">
@@ -360,7 +360,7 @@ export default function AdminCancelApprovalsView() {
                               type="button"
                               onClick={() =>
                                 setPreviewDoc({
-                                  name: req.cancelAttachmentName || 'เอกสารการยกเลิกการลา',
+                                  name: req.cancelAttachmentName || 'เอกสารการยกเลิกวันลา',
                                   url: req.cancelAttachmentUrl,
                                 })
                               }
@@ -407,8 +407,8 @@ export default function AdminCancelApprovalsView() {
                 </div>
                 <h3 className="font-bold text-base">
                   {confirmModal.action === 'approve'
-                    ? 'ยืนยันอนุญาตการยกเลิกการลา'
-                    : 'ยืนยันไม่อนุญาตการยกเลิกการลา'}
+                    ? 'ยืนยันอนุญาตการยกเลิกวันลา'
+                    : 'ยืนยันไม่อนุญาตการยกเลิกวันลา'}
                 </h3>
               </div>
               <button
@@ -448,7 +448,7 @@ export default function AdminCancelApprovalsView() {
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start space-x-2">
                   <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <span>
-                    เมื่อยืนยัน ระบบจะเปลี่ยนสถานะเป็น <strong>"ยกเลิกการลา"</strong> และคืนสิทธิ์วันลาจำนวน{' '}
+                    เมื่อยืนยัน ระบบจะเปลี่ยนสถานะเป็น <strong>"ยกเลิกวันลา"</strong> และคืนสิทธิ์วันลาจำนวน{' '}
                     <strong>{confirmModal.req.days} วัน</strong> กลับไปยังโควตาของพนักงานอัตโนมัติ
                   </span>
                 </div>
