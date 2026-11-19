@@ -19,30 +19,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
-
-const JOB_TITLE_OPTIONS = [
-  'นักวิชาการสหกรณ์ชำนาญการ',
-  'นักจัดการงานทั่วไป',
-  'นักจัดการงานทั่วไปชำนาญการ',
-  'นักวิชาการสหกรณ์ปฏิบัติการ',
-  'นักวิชาการสหกรณ์ชำนาญการพิเศษ',
-  'นิติกรปฏิบัติการ',
-  'นิติกรชำนาญการ',
-  'เจ้าพนักงานส่งเสริมสหกรณ์',
-  'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน',
-  'เจ้าพนักงานส่งเสริมสหกรณ์อาวุโส',
-  'นายช่างโยธาอาวุโส',
-  'นักวิเคราะห์นโยบายและแผน',
-  'นิติกร',
-  'นักวิชาการสหกรณ์',
-  'นักวิชาการมาตราฐานสินค้า',
-  'เจ้าพนักงานธุรการ',
-  'เจ้าพนักงานการเงินและบัญชี',
-  'พนักงานขับรถยนต์',
-  'พนักงานขับรถยนต์ ส2',
-];
-
-const DEPARTMENT_OPTIONS = [
+import { POSITIONS_BY_EMPLOYMENT_TYPE, JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } from '../RegisterView';
   'ฝ่ายบริหารทั่วไป',
   'กลุ่มจัดตั้งและส่งเสริมสหกรณ์',
   'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์',
@@ -656,7 +633,10 @@ export default function SettingsView() {
                       {formData.title}
                     </option>
                   )}
-                  {JOB_TITLE_OPTIONS.map((jobTitle) => (
+                  {(formData.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
+                    ? POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
+                    : JOB_TITLE_OPTIONS
+                  ).map((jobTitle) => (
                     <option key={jobTitle} value={jobTitle} className="text-slate-800">
                       {jobTitle}
                     </option>

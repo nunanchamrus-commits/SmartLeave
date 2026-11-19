@@ -21,27 +21,49 @@ import {
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
 
-export const JOB_TITLE_OPTIONS = [
-  'นักวิชาการสหกรณ์ชำนาญการ',
-  'นักจัดการงานทั่วไป',
-  'นักจัดการงานทั่วไปชำนาญการ',
-  'นักวิชาการสหกรณ์ปฏิบัติการ',
-  'นักวิชาการสหกรณ์ชำนาญการพิเศษ',
-  'นิติกรปฏิบัติการ',
-  'นิติกรชำนาญการ',
-  'เจ้าพนักงานส่งเสริมสหกรณ์',
-  'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน',
-  'เจ้าพนักงานส่งเสริมสหกรณ์อาวุโส',
-  'นายช่างโยธาอาวุโส',
-  'นักวิเคราะห์นโยบายและแผน',
-  'นิติกร',
-  'นักวิชาการสหกรณ์',
-  'นักวิชาการมาตราฐานสินค้า',
-  'เจ้าพนักงานธุรการ',
-  'เจ้าพนักงานการเงินและบัญชี',
-  'พนักงานขับรถยนต์',
-  'พนักงานขับรถยนต์ ส2',
+export const POSITIONS_BY_EMPLOYMENT_TYPE = {
+  'ข้าราชการ': [
+    'นักวิชาการสหกรณ์ชำนาญการ',
+    'นักจัดการงานทั่วไป',
+    'นักจัดการงานทั่วไปชำนาญการ',
+    'นักวิชาการสหกรณ์ปฏิบัติการ',
+    'นักวิชาการสหกรณ์ชำนาญการพิเศษ',
+    'นิติการปฏิบัติการ',
+    'นิติกรปฏิบัติการ',
+    'นิติกรชำนาญการ',
+    'เจ้าพนักงานส่งเสริมสหกรณ์ชำนาญงาน',
+    'เจ้าพนักงานส่งเสริมสหกรณ์อาวุโส',
+    'นายช่างโยธาอาวุโส',
+  ],
+  'พนักงานราชการ': [
+    'นักวิเคราะห์นโยบายและแผน',
+    'นักวิชาการมาตรฐานสินค้า',
+    'นักวิชาการสหกรณ์',
+    'เจ้าพนักงานธุรการ',
+    'เจ้าพนักงานส่งเสริมสหกรณ์',
+    'นิติกร',
+    'เจ้าพนักงานการเงินและบัญชี',
+  ],
+  'ลูกจ้างประจำ': [
+    'พนักงานขับรถยนต์',
+    'พนักงานขับรถยนต์ ส2',
+  ],
+};
+
+export const EMPLOYMENT_TYPE_OPTIONS = [
+  'ข้าราชการ',
+  'พนักงานราชการ',
+  'ลูกจ้างประจำ',
 ];
+
+export const JOB_TITLE_OPTIONS = Array.from(
+  new Set([
+    ...POSITIONS_BY_EMPLOYMENT_TYPE['ข้าราชการ'],
+    ...POSITIONS_BY_EMPLOYMENT_TYPE['พนักงานราชการ'],
+    'นักวิชาการมาตราฐานสินค้า',
+    ...POSITIONS_BY_EMPLOYMENT_TYPE['ลูกจ้างประจำ'],
+  ])
+);
 
 export const DEPARTMENT_OPTIONS = [
   'ฝ่ายบริหารทั่วไป',
@@ -58,12 +80,6 @@ export const DEPARTMENT_OPTIONS = [
   'กลุ่มส่งเสริมสหกรณ์ 7',
   'กลุ่มส่งเสริมสหกรณ์ 8',
   'นิคมสหกรณ์ดงมูล',
-];
-
-const EMPLOYMENT_TYPE_OPTIONS = [
-  'ข้าราชการ',
-  'ลูกจ้างประจำ',
-  'พนักงานราชการ',
 ];
 
 export default function RegisterView({ onSwitchToLogin }) {
@@ -86,6 +102,21 @@ export default function RegisterView({ onSwitchToLogin }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const availablePositions = formData.employmentType
+    ? POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType] || []
+    : [];
+
+  const handleEmploymentTypeChange = (e) => {
+    const nextType = e.target.value;
+    const allowed = POSITIONS_BY_EMPLOYMENT_TYPE[nextType] || [];
+    setFormData((prev) => ({
+      ...prev,
+      employmentType: nextType,
+      title: allowed.includes(prev.title) ? prev.title : '',
+    }));
+    setError('');
+  };
 
   // Auto-generate valid ASCII email preview when empty
   const handleNameChange = (e) => {
@@ -144,6 +175,10 @@ export default function RegisterView({ onSwitchToLogin }) {
       setError('กรุณาเลือกเพศ');
       return;
     }
+    if (!formData.employmentType) {
+      setError('กรุณาเลือกประเภทการจ้างงาน');
+      return;
+    }
     if (!formData.title.trim()) {
       setError('กรุณาเลือกตำแหน่งงาน');
       return;
@@ -152,8 +187,13 @@ export default function RegisterView({ onSwitchToLogin }) {
       setError('กรุณาเลือกสังกัดกลุ่ม / ฝ่าย');
       return;
     }
-    if (!formData.employmentType) {
-      setError('กรุณาเลือกประเภทการจ้างงาน');
+    if (!formData.email.trim()) {
+      setError('กรุณากรอกอีเมล');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      setError('กรุณากรอกอีเมลให้ถูกต้องตามรูปแบบ (เช่น name@example.com)');
       return;
     }
     if (!formData.password) {
@@ -411,7 +451,39 @@ export default function RegisterView({ onSwitchToLogin }) {
                 </div>
               </div>
 
-              {/* 2. ตำแหน่งงาน และ สังกัดกลุ่ม/ฝ่าย (2 columns) */}
+              {/* 2. ประเภทการจ้างงาน (ย้ายมาไว้ข้างบนของตำแหน่งและสังกัด/ฝ่าย) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ประเภทการจ้างงาน <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <UserCheck className="w-4 h-4" />
+                  </div>
+                  <select
+                    aria-label="ประเภทการจ้างงาน"
+                    value={formData.employmentType}
+                    onChange={handleEmploymentTypeChange}
+                    className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer ${
+                      formData.employmentType ? 'text-slate-800' : 'text-slate-400'
+                    }`}
+                  >
+                    <option value="" className="text-slate-400">
+                      -- เลือกประเภทการจ้างงาน --
+                    </option>
+                    {EMPLOYMENT_TYPE_OPTIONS.map((empType) => (
+                      <option key={empType} value={empType} className="text-slate-800">
+                        {empType}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2.5 ตำแหน่งงาน และ สังกัดกลุ่ม/ฝ่าย (2 columns) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* ตำแหน่งงาน */}
                 <div className="min-w-0">
@@ -425,18 +497,26 @@ export default function RegisterView({ onSwitchToLogin }) {
                     <select
                       aria-label="ตำแหน่งงาน"
                       value={formData.title}
+                      disabled={!formData.employmentType}
                       onChange={(e) => {
                         setFormData((prev) => ({ ...prev, title: e.target.value }));
                         setError('');
                       }}
-                      className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer ${
+                      className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                         formData.title ? 'text-slate-800' : 'text-slate-400'
                       }`}
                     >
                       <option value="" className="text-slate-400">
-                        -- เลือกตำแหน่งงาน --
+                        {formData.employmentType
+                          ? `-- เลือกตำแหน่ง (${formData.employmentType}) --`
+                          : '-- กรุณาเลือกประเภทการจ้างงานก่อน --'}
                       </option>
-                      {JOB_TITLE_OPTIONS.map((jobTitle) => (
+                      {formData.title && !availablePositions.includes(formData.title) && (
+                        <option value={formData.title} className="text-slate-800">
+                          {formData.title}
+                        </option>
+                      )}
+                      {availablePositions.map((jobTitle) => (
                         <option key={jobTitle} value={jobTitle} className="text-slate-800">
                           {jobTitle}
                         </option>
@@ -484,45 +564,10 @@ export default function RegisterView({ onSwitchToLogin }) {
                 </div>
               </div>
 
-              {/* 2.5 ประเภทการจ้างงาน */}
+              {/* อีเมล (บังคับใส่อีเมล) */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ประเภทการจ้างงาน <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <UserCheck className="w-4 h-4" />
-                  </div>
-                  <select
-                    aria-label="ประเภทการจ้างงาน"
-                    value={formData.employmentType}
-                    onChange={(e) => {
-                      setFormData((prev) => ({ ...prev, employmentType: e.target.value }));
-                      setError('');
-                    }}
-                    className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all appearance-none cursor-pointer ${
-                      formData.employmentType ? 'text-slate-800' : 'text-slate-400'
-                    }`}
-                  >
-                    <option value="" className="text-slate-400">
-                      -- เลือกประเภทการจ้างงาน --
-                    </option>
-                    {EMPLOYMENT_TYPE_OPTIONS.map((empType) => (
-                      <option key={empType} value={empType} className="text-slate-800">
-                        {empType}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </div>
-              </div>
-
-              {/* อีเมล */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  อีเมล
+                  อีเมล (Email) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -530,12 +575,14 @@ export default function RegisterView({ onSwitchToLogin }) {
                   </div>
                   <input
                     type="email"
+                    required
                     value={formData.email}
                     onChange={(e) => {
                       setIsEmailManuallyEdited(true);
                       setFormData({ ...formData, email: e.target.value });
+                      setError('');
                     }}
-                    placeholder="username@smartleave.com"
+                    placeholder="username@smartleave.com หรืออีเมลของท่าน"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
                   />
                 </div>

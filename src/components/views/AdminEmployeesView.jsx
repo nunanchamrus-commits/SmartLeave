@@ -25,7 +25,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
-import { JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } from '../RegisterView';
+import { POSITIONS_BY_EMPLOYMENT_TYPE, JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } from '../RegisterView';
 
 const LEAVE_QUOTA_TYPES = [
   { key: 'vacation', label: 'ลาพักผ่อน', dotColor: 'bg-emerald-500', textColor: 'text-emerald-700' },
@@ -992,7 +992,10 @@ export default function AdminEmployeesView() {
                         {editForm.title && !JOB_TITLE_OPTIONS.includes(editForm.title) && (
                           <option value={editForm.title}>{editForm.title}</option>
                         )}
-                        {JOB_TITLE_OPTIONS.map((job) => (
+                        {(editForm.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[editForm.employmentType]
+                          ? POSITIONS_BY_EMPLOYMENT_TYPE[editForm.employmentType]
+                          : JOB_TITLE_OPTIONS
+                        ).map((job) => (
                           <option key={job} value={job}>
                             {job}
                           </option>
@@ -1409,7 +1412,10 @@ export default function AdminEmployeesView() {
                     {addForm.title && !JOB_TITLE_OPTIONS.includes(addForm.title) && (
                       <option value={addForm.title}>{addForm.title}</option>
                     )}
-                    {JOB_TITLE_OPTIONS.map((job) => (
+                    {(addForm.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[addForm.employmentType]
+                      ? POSITIONS_BY_EMPLOYMENT_TYPE[addForm.employmentType]
+                      : JOB_TITLE_OPTIONS
+                    ).map((job) => (
                       <option key={job} value={job}>
                         {job}
                       </option>
