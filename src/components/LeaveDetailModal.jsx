@@ -8,8 +8,6 @@ import {
   AlertCircle,
   Check,
   FileDown,
-  Edit3,
-  Trash2,
   Save,
   RotateCcw,
   Calendar,
@@ -713,35 +711,6 @@ export default function LeaveDetailModal() {
                   )}
                 </div>
               )}
-
-              {/* Confirmation Popup before Deleting */}
-              {showDeleteConfirm && (
-                <div className="p-4 bg-red-50 rounded-2xl border border-red-200 space-y-2.5 animate-in fade-in">
-                  <div className="flex items-center space-x-2 text-red-700 font-semibold text-xs sm:text-sm">
-                    <Trash2 className="w-4 h-4 flex-shrink-0" />
-                    <span>ยืนยันการลบคำขอลางานนี้หรือไม่?</span>
-                  </div>
-                  <p className="text-xs text-red-600">
-                    การลบจะลบคำขอลาออกจากระบบ Cloudflare D1 ทันที และคืนโควตาวันลา (หากเคยอนุมัติ)
-                  </p>
-                  <div className="flex items-center justify-end space-x-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50"
-                    >
-                      ยกเลิก
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 shadow-xs"
-                    >
-                      ยืนยันลบคำขอลา
-                    </button>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -749,29 +718,6 @@ export default function LeaveDetailModal() {
         {/* Footer */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 bg-slate-50 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2">
-            {!isEditing && canEdit && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors shadow-2xs"
-                  title="แก้ไขรายละเอียดคำขอลางาน"
-                >
-                  <Edit3 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>แก้ไขรายละเอียด</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white border border-red-200 hover:bg-red-50 text-red-600 font-semibold text-xs transition-colors shadow-2xs"
-                  title="ลบคำขอลางานนี้"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>ลบคำขอลา</span>
-                </button>
-              </>
-            )}
-
             {!isEditing && (
               <button
                 onClick={handleDownloadPdf}
