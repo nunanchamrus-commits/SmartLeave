@@ -30,15 +30,13 @@ export default function HeroBanner() {
           </p>
         </div>
 
-        {/* Right Illustration: 3D Vacation & Leave Scene */}
-        <div className="relative flex-shrink-0 w-64 sm:w-80 md:w-96 flex items-center justify-center">
-          <div className="relative rounded-3xl overflow-hidden shadow-lg border-2 border-white/80 bg-white/40 backdrop-blur-xs transition-transform duration-300 hover:scale-[1.02]">
-            <img
-              src="/Gemini_Generated_Image_abcgrlabcgrlabcg.jpg"
-              alt="ภาพประกอบการลาและท่องเที่ยว SmartLeave"
-              className="w-full h-auto max-h-48 sm:max-h-56 md:max-h-60 object-cover select-none"
-            />
-          </div>
+        {/* Right Illustration: 3D Vacation & Leave Scene (Transparent Background) */}
+        <div className="relative flex-shrink-0 w-64 sm:w-72 md:w-80 lg:w-96 flex items-center justify-center">
+          <img
+            src="/hero-vacation-transparent.png"
+            alt="ภาพประกอบการลาและท่องเที่ยว SmartLeave"
+            className="w-full h-auto max-h-52 sm:max-h-60 md:max-h-64 object-contain select-none filter drop-shadow-[0_12px_24px_rgba(30,86,56,0.18)] transition-all duration-300 hover:scale-105 hover:-translate-y-1"
+          />
         </div>
       </div>
     </div>
