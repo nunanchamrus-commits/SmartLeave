@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Users,
   Search,
@@ -23,6 +23,8 @@ import {
   Eye,
   EyeOff,
   Lock,
+  Camera,
+  Upload,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { POSITIONS_BY_EMPLOYMENT_TYPE, JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } from '../RegisterView';
@@ -65,6 +67,63 @@ export default function AdminEmployeesView() {
 
   // Edit modal show password toggle
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const editAvatarInputRef = useRef(null);
+
+  const handleEditAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      if (showToast) showToast('กรุณาเลือกไฟล์รูปภาพที่ถูกต้อง (PNG, JPG, WEBP)', 'error');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      if (showToast) showToast('ไฟล์รูปภาพมีขนาดใหญ่เกิน 10MB กรุณาเลือกรูปภาพที่มีขนาดเล็กลง', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        setEditForm((prev) => ({ ...prev, avatar: dataUrl }));
+        if (showToast) showToast('นำเข้ารูปภาพจากเครื่องสำเร็จแล้ว กรุณากดปุ่ม "บันทึกข้อมูล"', 'success');
+      };
+      img.onerror = () => {
+        if (showToast) showToast('เกิดข้อผิดพลาดในการอ่านไฟล์รูปภาพ', 'error');
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      if (showToast) showToast('ไม่สามารถอ่านไฟล์ได้', 'error');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // Modal edit form state (Profile + Quotas)
   const [editForm, setEditForm] = useState({
@@ -83,6 +142,7 @@ export default function AdminEmployeesView() {
     role: 'employee',
     email: '',
     phone: '',
+    avatar: '',
     newPassword: '',
     vacationLimit: 10,
     vacationUsed: 0,
@@ -255,6 +315,7 @@ export default function AdminEmployeesView() {
       role: emp.role || 'employee',
       email: emp.email || '',
       phone: emp.phone || '',
+      avatar: emp.avatar || '',
       newPassword: '',
       vacationLimit: stats.vacationLimit,
       vacationUsed: stats.vacationUsed,
@@ -814,14 +875,44 @@ export default function AdminEmployeesView() {
             <form onSubmit={handleSaveEdit} className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
               {/* Employee & Leave Summary Header */}
               <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <input
+                  type="file"
+                  ref={editAvatarInputRef}
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={handleEditAvatarChange}
+                  className="hidden"
+                />
                 <div className="flex items-center space-x-3">
-                  <img
-                    src={editingEmp.avatar}
-                    alt={editingEmp.name}
-                    className="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-xs"
-                  />
+                  <div className="relative group">
+                    <img
+                      src={editForm.avatar || editingEmp.avatar}
+                      alt={editingEmp.name}
+                      className="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-xs cursor-pointer group-hover:opacity-85 transition-opacity"
+                      onClick={() => editAvatarInputRef.current?.click()}
+                      title="คลิกเพื่อนำเข้ารูปภาพจากเครื่อง"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => editAvatarInputRef.current?.click()}
+                      className="absolute -bottom-1 -right-1 p-1 bg-[#2F855A] text-white rounded-full shadow-xs hover:bg-[#256F4A] transition-colors"
+                      title="คลิกเพื่อนำเข้ารูปภาพจากเครื่อง"
+                    >
+                      <Camera className="w-3 h-3" />
+                    </button>
+                  </div>
                   <div>
-                    <p className="font-bold text-slate-800">{editingEmp.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-slate-800">{editingEmp.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => editAvatarInputRef.current?.click()}
+                        className="text-[11px] text-[#2F855A] hover:text-[#256F4A] hover:underline flex items-center gap-1 font-medium bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200/60"
+                        title="นำเข้ารูปภาพจากเครื่อง"
+                      >
+                        <Upload className="w-3 h-3" />
+                        <span>เปลี่ยนรูป</span>
+                      </button>
+                    </div>
                     <p className="text-xs text-slate-500">
                       {editingEmp.title} • {editingEmp.department}
                     </p>

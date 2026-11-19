@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   Mail,
@@ -17,6 +17,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Upload,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { POSITIONS_BY_EMPLOYMENT_TYPE, JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } from '../RegisterView';
@@ -151,6 +152,65 @@ export default function SettingsView() {
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleAvatarFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      if (showToast) showToast('กรุณาเลือกไฟล์รูปภาพที่ถูกต้อง (PNG, JPG, WEBP)', 'error');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      if (showToast) showToast('ไฟล์รูปภาพมีขนาดใหญ่เกิน 10MB กรุณาเลือกรูปภาพที่มีขนาดเล็กลง', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Create canvas to scale down and optimize avatar image for fast loading and database storage
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        setFormData((prev) => ({ ...prev, avatar: dataUrl }));
+        setShowAvatarPicker(false);
+        if (showToast) showToast('นำเข้ารูปภาพจากเครื่องสำเร็จแล้ว กรุณากดปุ่ม "บันทึกข้อมูล" ด้านล่าง', 'success');
+      };
+      img.onerror = () => {
+        if (showToast) showToast('เกิดข้อผิดพลาดในการอ่านไฟล์รูปภาพ', 'error');
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      if (showToast) showToast('ไม่สามารถอ่านไฟล์ได้', 'error');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // ส่วนจัดการรหัสผ่าน (Password Management)
   const [passwordData, setPasswordData] = useState({
@@ -323,9 +383,9 @@ export default function SettingsView() {
               />
               <button
                 type="button"
-                onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-                className="absolute -bottom-2 -right-2 p-1.5 bg-[#2F855A] text-white rounded-xl shadow-md hover:bg-[#256F4A] transition-all"
-                title="เปลี่ยนรูปโปรไฟล์"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute -bottom-2 -right-2 p-1.5 bg-[#2F855A] text-white rounded-xl shadow-md hover:bg-[#256F4A] transition-all cursor-pointer"
+                title="คลิกเพื่อนำเข้ารูปภาพจากเครื่อง"
               >
                 <Camera className="w-4 h-4" />
               </button>
@@ -345,20 +405,40 @@ export default function SettingsView() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-            className="self-start sm:self-center px-3.5 py-2 text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-200/60"
-          >
-            เลือกรูปโปรไฟล์
-          </button>
+          {/* Hidden File Input for Image Upload */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            onChange={handleAvatarFileChange}
+            className="hidden"
+          />
+
+          <div className="flex items-center space-x-2 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3.5 py-2 text-xs font-semibold text-white bg-[#2F855A] hover:bg-[#256F4A] rounded-xl transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer"
+              title="นำเข้ารูปภาพจากเครื่องคอมพิวเตอร์ หรือโทรศัพท์"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>นำเข้ารูปภาพจากเครื่อง</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+              className="px-3.5 py-2 text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-200/60"
+            >
+              เลือกรูปสำเร็จรูป
+            </button>
+          </div>
         </div>
 
-        {/* Avatar Preset Selector */}
+        {/* Avatar Preset & Custom Picker */}
         {showAvatarPicker && (
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 animate-in fade-in">
+          <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 animate-in fade-in">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-700">เลือกรูปภาพโปรไฟล์สำเร็จรูป</span>
+              <span className="text-xs font-bold text-slate-700">เปลี่ยนรูปโปรไฟล์</span>
               <button
                 type="button"
                 onClick={() => setShowAvatarPicker(false)}
@@ -367,28 +447,52 @@ export default function SettingsView() {
                 ปิด
               </button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {AVATAR_PRESETS.map((preset, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSelectAvatar(preset.url, preset.gender)}
-                  className={`flex flex-col items-center p-2 rounded-xl border transition-all ${
-                    formData.avatar === preset.url
-                      ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <img
-                    src={preset.url}
-                    alt={preset.label}
-                    className="w-14 h-14 rounded-xl object-cover mb-1.5 shadow-xs"
-                  />
-                  <span className="text-[10px] text-slate-600 text-center line-clamp-1">{preset.label}</span>
-                </button>
-              ))}
+
+            {/* Upload from Device Box */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-emerald-300 hover:border-emerald-600 bg-emerald-50/50 hover:bg-emerald-50/90 rounded-2xl p-4 text-center cursor-pointer transition-all group"
+            >
+              <div className="flex flex-col items-center justify-center space-y-1.5">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-bold text-emerald-900">
+                  คลิกเพื่อเลือกไฟล์รูปภาพจากเครื่อง (คอมพิวเตอร์ / โน้ตบุ๊ก / มือถือ)
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  รองรับไฟล์รูปภาพ PNG, JPG, JPEG, WEBP (ระบบจะปรับขนาดให้อัตโนมัติอย่างคมชัด)
+                </p>
+              </div>
             </div>
 
+            {/* Presets */}
+            <div className="space-y-2 pt-1 border-t border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block">หรือเลือกรูปภาพสำเร็จรูปของระบบ:</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {AVATAR_PRESETS.map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSelectAvatar(preset.url, preset.gender)}
+                    className={`flex flex-col items-center p-2 rounded-xl border transition-all ${
+                      formData.avatar === preset.url
+                        ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <img
+                      src={preset.url}
+                      alt={preset.label}
+                      className="w-14 h-14 rounded-xl object-cover mb-1.5 shadow-xs"
+                    />
+                    <span className="text-[10px] text-slate-600 text-center line-clamp-1">{preset.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Image URL input */}
             <div className="pt-2 border-t border-slate-200">
               <label className="block text-[11px] text-slate-500 mb-1">หรือระบุลิงก์รูปภาพ (Image URL)</label>
               <input
