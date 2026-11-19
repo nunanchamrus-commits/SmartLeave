@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Search,
   Bell,
   ChevronDown,
   Menu,
@@ -27,8 +26,6 @@ import { useLeave } from '../context/LeaveContext';
 export default function Header({ onMenuClick }) {
   const {
     currentUser,
-    searchQuery,
-    setSearchQuery,
     notifications,
     unreadCount,
     markNotificationRead,
@@ -82,8 +79,8 @@ export default function Header({ onMenuClick }) {
   return (
     <>
     <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-[#F4F7F5]/90 backdrop-blur-md">
-      {/* Left: Mobile Menu + Search bar */}
-      <div className="flex items-center space-x-3 flex-1 max-w-md">
+      {/* Left: Mobile Menu */}
+      <div className="flex items-center space-x-3">
         <button
           onClick={onMenuClick}
           className="lg:hidden p-2 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors"
@@ -98,28 +95,6 @@ export default function Header({ onMenuClick }) {
             alt="โลโก้สำนักงานสหกรณ์จังหวัดขอนแก่น"
             className="w-8 h-8 object-contain"
           />
-        </div>
-
-        {/* Pill Search Input */}
-        <div className="relative w-full">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-4 h-4" />
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหา..."
-            className="w-full pl-10 pr-4 py-2 bg-white rounded-full text-sm text-slate-700 placeholder-slate-400 shadow-sm border border-slate-200/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs text-slate-400 hover:text-slate-600"
-            >
-              ✕
-            </button>
-          )}
         </div>
       </div>
 
