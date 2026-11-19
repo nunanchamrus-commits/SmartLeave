@@ -10,7 +10,9 @@ import {
   Check,
   Clock,
   FileText,
+  FileDown,
 } from 'lucide-react';
+import { downloadCancelLeaveSlipPdf } from '../utils/exportPdf';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
 import ThaiDatePicker from './ThaiDatePicker';
@@ -81,6 +83,8 @@ export default function LeaveRequestModal() {
   const [cancelErrorMsg, setCancelErrorMsg] = useState('');
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false);
   const [isCancelSuccess, setIsCancelSuccess] = useState(false);
+  const [isDownloadingCancelPdf, setIsDownloadingCancelPdf] = useState(false);
+  const [lastCancelledReq, setLastCancelledReq] = useState(null);
 
   // รายการลาของฉันที่สามารถยื่นขอยกเลิกได้ (รองรับรายการที่เคยยกเลิกบางส่วนแล้วยังเหลือวันลาอยู่)
   const cancellableLeaves = (myLeaveRequests || []).filter(
@@ -193,6 +197,34 @@ export default function LeaveRequestModal() {
     e.stopPropagation();
     setFileName('');
     setFileData('');
+  };
+
+  const handleDownloadCancelPdf = async (customReq = null) => {
+    const target = customReq || selectedLeave;
+    if (!target) return;
+    setIsDownloadingCancelPdf(true);
+    try {
+      const effDates = activeCancelDates.length > 0 ? activeCancelDates : [target.startDate];
+      const effStart = effDates[0] || target.startDate;
+      const effEnd = effDates[effDates.length - 1] || target.endDate;
+      const effCancelDays = computedCancelDays > 0 ? computedCancelDays : (target.days || 1);
+      const reqToExport = {
+        ...target,
+        cancelReason: cancelReason.trim() || target.cancelReason || 'มีความจำเป็นเร่งด่วนในการปฏิบัติภารกิจราชการ',
+        cancelStartDate: effStart,
+        cancelEndDate: effEnd,
+        cancelDates: effDates,
+        cancelDays: effCancelDays,
+        cancelRequestedAt: target.cancelRequestedAt || formatThaiDateBE(new Date()),
+        cancelStatus: target.cancelStatus || 'pending',
+      };
+      await downloadCancelLeaveSlipPdf(reqToExport);
+    } catch (err) {
+      console.error('Error downloading cancel leave PDF:', err);
+      setCancelErrorMsg('ไม่สามารถดาวน์โหลดไฟล์ PDF ได้ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsDownloadingCancelPdf(false);
+    }
   };
 
   const handleCancelFileChange = (e) => {
@@ -356,16 +388,18 @@ export default function LeaveRequestModal() {
         cancelDays: computedCancelDays,
       });
       if (res?.success) {
+        const lastReq = {
+          ...selectedLeave,
+          cancelReason: cancelReason.trim(),
+          cancelStartDate: activeCancelDates[0] || selectedLeave.startDate,
+          cancelEndDate: activeCancelDates[activeCancelDates.length - 1] || selectedLeave.endDate,
+          cancelDates: activeCancelDates,
+          cancelDays: computedCancelDays,
+          cancelRequestedAt: formatThaiDateBE(new Date()),
+          cancelStatus: 'pending',
+        };
+        setLastCancelledReq(lastReq);
         setIsCancelSuccess(true);
-        setTimeout(() => {
-          setIsCancelSuccess(false);
-          setCancelReason('');
-          setCancelFileName('');
-          setCancelFileData('');
-          setSelectedCancelId('');
-          setSelectedCancelDates([]);
-          setIsRequestModalOpen(false);
-        }, 1500);
       }
     } finally {
       setIsCancelSubmitting(false);
@@ -674,14 +708,45 @@ export default function LeaveRequestModal() {
         {modalTab === 'cancel' && (
           <>
             {isCancelSuccess ? (
-              <div className="p-10 text-center flex flex-col items-center justify-center space-y-3">
+              <div className="p-8 text-center flex flex-col items-center justify-center space-y-4">
                 <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center animate-bounce">
                   <CheckCircle2 className="w-10 h-10" />
                 </div>
                 <h4 className="text-xl font-bold text-slate-800">ส่งคำขอยกเลิกวันลาเรียบร้อยแล้ว!</h4>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 max-w-sm">
                   คำขอยกเลิกวันลาของคุณถูกส่งไปยังผู้ดูแลระบบเพื่อพิจารณาอนุญาตแล้ว
                 </p>
+                {lastCancelledReq && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadCancelPdf(lastCancelledReq)}
+                    disabled={isDownloadingCancelPdf}
+                    className="flex items-center space-x-2 px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-60 cursor-pointer"
+                  >
+                    {isDownloadingCancelPdf ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <FileDown className="w-4 h-4" />
+                    )}
+                    <span>ดาวน์โหลดใบขอยกเลิกวันลา (PDF)</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCancelSuccess(false);
+                    setCancelReason('');
+                    setCancelFileName('');
+                    setCancelFileData('');
+                    setSelectedCancelId('');
+                    setSelectedCancelDates([]);
+                    setLastCancelledReq(null);
+                    setIsRequestModalOpen(false);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium text-xs transition-colors"
+                >
+                  ปิดหน้าต่าง
+                </button>
               </div>
             ) : (
               <form onSubmit={handleCancelSubmit} className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
@@ -999,21 +1064,39 @@ export default function LeaveRequestModal() {
                 )}
 
                 {/* Footer Buttons */}
-                <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsRequestModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition-colors"
-                  >
-                    ปิด
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={cancellableLeaves.length === 0 || isCancelSubmitting}
-                    className="px-6 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCancelSubmitting ? 'กำลังส่งคำขอ...' : 'ยืนยันการยกเลิกวันลา'}
-                  </button>
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-3 border-t border-slate-100">
+                  {selectedLeave ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadCancelPdf()}
+                      disabled={isDownloadingCancelPdf}
+                      className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 font-semibold text-xs transition-all shadow-2xs hover:shadow-xs disabled:opacity-60"
+                      title="ดาวน์โหลดแบบฟอร์มใบขอยกเลิกวันลา (PDF) ฉบับทางการ"
+                    >
+                      {isDownloadingCancelPdf ? (
+                        <div className="w-3.5 h-3.5 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                      ) : (
+                        <FileDown className="w-3.5 h-3.5 text-rose-600" />
+                      )}
+                      <span>ดาวน์โหลดใบยกเลิก (PDF)</span>
+                    </button>
+                  ) : <div />}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsRequestModalOpen(false)}
+                      className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition-colors"
+                    >
+                      ปิด
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={cancellableLeaves.length === 0 || isCancelSubmitting}
+                      className="px-6 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCancelSubmitting ? 'กำลังส่งคำขอ...' : 'ยืนยันการยกเลิกวันลา'}
+                    </button>
+                  </div>
                 </div>
               </form>
             )}

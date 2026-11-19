@@ -18,7 +18,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
-import { downloadLeaveSlipPdf } from '../utils/exportPdf';
+import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../utils/exportPdf';
 import { formatThaiDateRangeBE } from '../utils/thaiDate';
 import ThaiDatePicker from './ThaiDatePicker';
 
@@ -38,6 +38,7 @@ export default function LeaveDetailModal() {
 
   const [approverRemark, setApproverRemark] = useState('');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingCancelPdf, setIsExportingCancelPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingStatusConfirm, setPendingStatusConfirm] = useState(null);
@@ -148,6 +149,19 @@ export default function LeaveDetailModal() {
       await deleteLeaveRequest(req.id);
     }
     setSelectedLeaveDetail(null);
+  };
+
+  const handleDownloadCancelPdf = async () => {
+    setIsExportingCancelPdf(true);
+    try {
+      await downloadCancelLeaveSlipPdf(req);
+      if (showToast) showToast('ดาวน์โหลดใบขอยกเลิกวันลาเป็น PDF เรียบร้อยแล้ว', 'success');
+    } catch (e) {
+      console.error(e);
+      if (showToast) showToast('เกิดข้อผิดพลาดในการดาวน์โหลดใบยกเลิกวันลา PDF', 'error');
+    } finally {
+      setIsExportingCancelPdf(false);
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -540,6 +554,23 @@ export default function LeaveDetailModal() {
                       )}
                     </div>
                   )}
+                  <div className="pt-2 border-t border-rose-100 flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-[11px] text-rose-800 font-medium">แบบฟอร์มขอยกเลิกวันลา (PDF):</span>
+                    <button
+                      type="button"
+                      onClick={handleDownloadCancelPdf}
+                      disabled={isExportingCancelPdf}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 font-semibold text-xs transition-colors shadow-2xs disabled:opacity-60"
+                      title="ดาวน์โหลดใบขอยกเลิกวันลาเป็น PDF"
+                    >
+                      {isExportingCancelPdf ? (
+                        <div className="w-3.5 h-3.5 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                      ) : (
+                        <FileDown className="w-3.5 h-3.5 text-rose-600" />
+                      )}
+                      <span>ดาวน์โหลดใบยกเลิก (PDF)</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -753,7 +784,23 @@ export default function LeaveDetailModal() {
                 ) : (
                   <FileDown className="w-3.5 h-3.5 text-lime-300" />
                 )}
-                <span>{isExportingPdf ? 'กำลังประมวลผล PDF...' : 'ส่งออกเป็น PDF'}</span>
+                <span>{isExportingPdf ? 'กำลังประมวลผล...' : 'ใบลา (PDF)'}</span>
+              </button>
+            )}
+
+            {!isEditing && (req.cancelStatus || req.status === 'ยกเลิกวันลา' || req.cancelDays > 0) && (
+              <button
+                onClick={handleDownloadCancelPdf}
+                disabled={isExportingCancelPdf}
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors shadow-xs disabled:opacity-60"
+                title="ดาวน์โหลดไฟล์ PDF ใบขอยกเลิกวันลาเข้าสู่เครื่อง"
+              >
+                {isExportingCancelPdf ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <FileDown className="w-3.5 h-3.5 text-rose-200" />
+                )}
+                <span>{isExportingCancelPdf ? 'กำลังประมวลผล...' : 'ใบยกเลิก (PDF)'}</span>
               </button>
             )}
           </div>

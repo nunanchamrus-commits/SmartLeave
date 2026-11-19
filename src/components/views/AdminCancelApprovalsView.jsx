@@ -12,7 +12,9 @@ import {
   Download,
   RotateCcw,
   AlertCircle,
+  FileDown,
 } from 'lucide-react';
+import { downloadCancelLeaveSlipPdf } from '../../utils/exportPdf';
 import { useLeave } from '../../context/LeaveContext';
 
 export default function AdminCancelApprovalsView() {
@@ -32,6 +34,18 @@ export default function AdminCancelApprovalsView() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null); // { name, url }
+  const [exportingPdfId, setExportingPdfId] = useState(null);
+
+  const handleExportCancelPdf = async (req) => {
+    setExportingPdfId(req.id);
+    try {
+      await downloadCancelLeaveSlipPdf(req);
+    } catch (e) {
+      console.error('Error downloading cancel leave PDF:', e);
+    } finally {
+      setExportingPdfId(null);
+    }
+  };
 
   const pendingCancellations = (leaveRequests || []).filter(
     (r) => r.cancelStatus === 'pending'
@@ -291,6 +305,21 @@ export default function AdminCancelApprovalsView() {
                         <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
                           <button
                             type="button"
+                            onClick={() => handleExportCancelPdf(req)}
+                            disabled={exportingPdfId === req.id}
+                            className="px-3 py-2 rounded-xl border border-rose-200 hover:border-rose-400 bg-white hover:bg-rose-50 text-rose-700 font-semibold text-xs transition-colors flex items-center space-x-1.5 shadow-2xs disabled:opacity-60"
+                            title="ดาวน์โหลดหรือพิมพ์ใบขอยกเลิกวันลาเป็น PDF"
+                          >
+                            {exportingPdfId === req.id ? (
+                              <div className="w-3.5 h-3.5 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                            ) : (
+                              <FileDown className="w-3.5 h-3.5 text-rose-600" />
+                            )}
+                            <span>พิมพ์ใบยกเลิก (PDF)</span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => setSelectedLeaveDetail(req)}
                             className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors flex items-center space-x-1"
                           >
@@ -389,6 +418,21 @@ export default function AdminCancelApprovalsView() {
                               <span>ดูเอกสารแนบ</span>
                             </button>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => handleExportCancelPdf(req)}
+                            disabled={exportingPdfId === req.id}
+                            className="px-3 py-1.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-semibold flex items-center space-x-1 transition-colors shadow-2xs disabled:opacity-60"
+                            title="ดาวน์โหลดหรือพิมพ์ใบขอยกเลิกวันลาเป็น PDF"
+                          >
+                            {exportingPdfId === req.id ? (
+                              <div className="w-3 h-3 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                            ) : (
+                              <FileDown className="w-3 h-3 text-rose-600" />
+                            )}
+                            <span>ใบยกเลิก (PDF)</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => setSelectedLeaveDetail(req)}

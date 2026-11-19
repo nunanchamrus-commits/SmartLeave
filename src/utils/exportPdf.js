@@ -613,6 +613,17 @@ async function loadSickPersonalMaternityAssets() {
   return { templateBytes, fontRegBytes, fontBoldBytes };
 }
 
+async function loadCancelLeaveAssets() {
+  const [{ fontRegBytes, fontBoldBytes }, templateBytes] = await Promise.all([
+    loadFontBytes(),
+    loadTemplateBytes('cancelLeave', [
+      '/cancel-leave-template.pdf',
+      encodeURI('/ใบยกเลิกวันลา.pdf'),
+    ]),
+  ]);
+  return { templateBytes, fontRegBytes, fontBoldBytes };
+}
+
 /**
  * Fill the official "ใบลาพักผ่อน.pdf" template directly using pdf-lib & Sarabun Thai font
  */
@@ -1284,7 +1295,239 @@ function getSlipFilenamePrefix(category) {
  * Loads official government PDF templates ("ใบลาพักผ่อน.pdf" or "ใบลาป่วย กิจ คลอดบุตร.pdf")
  * and fills existing employee details directly into the form blanks.
  */
-export async function downloadLeaveSlipPdf(req) {
+/**
+ * Fill the official "ใบยกเลิกวันลา.pdf" template directly using pdf-lib & Sarabun Thai font
+ */
+export async function generateCancelLeavePdfBytes(req) {
+  const { templateBytes, fontRegBytes, fontBoldBytes } = await loadCancelLeaveAssets();
+
+  const templateDoc = await PDFDocument.load(templateBytes);
+  const { width, height } = templateDoc.getPages()[0].getSize();
+
+  // Embed template page into fresh document to isolate its resource tree
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.registerFontkit(fontkit);
+  const [embeddedPage] = await pdfDoc.embedPdf(templateBytes, [0]);
+  const page = pdfDoc.addPage([width, height]);
+  page.drawPage(embeddedPage, { x: 0, y: 0, width, height });
+
+  const font = await pdfDoc.embedFont(fontRegBytes, { subset: false });
+  const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: false });
+
+  const inkColor = rgb(0.04, 0.08, 0.2);
+
+  const drawFittedCentered = (text, centerX, y, baseSize = 11, maxWidth = 300, useBold = false) => {
+    const f = useBold ? fontBold : font;
+    const str = sanitizeTextForFont(f, text);
+    if (!str) return;
+    let size = baseSize;
+    let w = f.widthOfTextAtSize(str, size);
+    while (w > maxWidth && size > 6.5) {
+      size -= 0.4;
+      w = f.widthOfTextAtSize(str, size);
+    }
+    page.drawText(str, {
+      x: Math.round((centerX - w / 2) * 10) / 10,
+      y,
+      size,
+      font: f,
+      color: inkColor,
+    });
+  };
+
+  const drawFittedLeft = (text, x, y, baseSize = 10.5, maxWidth = 300, useBold = false) => {
+    const f = useBold ? fontBold : font;
+    const str = sanitizeTextForFont(f, text);
+    if (!str) return;
+    let size = baseSize;
+    let w = f.widthOfTextAtSize(str, size);
+    while (w > maxWidth && size > 6.5) {
+      size -= 0.4;
+      w = f.widthOfTextAtSize(str, size);
+    }
+    page.drawText(str, { x, y, size, font: f, color: inkColor });
+  };
+
+  const drawCheck = (cx, cy, color = inkColor) => {
+    page.drawLine({
+      start: { x: cx - 3.2, y: cy + 0.2 },
+      end: { x: cx - 0.6, y: cy - 2.6 },
+      thickness: 1.65,
+      color,
+    });
+    page.drawLine({
+      start: { x: cx - 0.6, y: cy - 2.6 },
+      end: { x: cx + 4.2, y: cy + 3.6 },
+      thickness: 1.65,
+      color,
+    });
+  };
+
+  const now = new Date();
+  const reqTime = req.cancelRequestedAt || req.cancelDate || req.appliedDate || now;
+  const appliedParts = parseDateParts(reqTime, now);
+
+  const origStartParts = parseDateParts(req.startDate, now);
+  const origEndParts = parseDateParts(req.endDate, req.startDate ? new Date(req.startDate) : now);
+
+  const cancelStartDate =
+    req.cancelStartDate || (Array.isArray(req.cancelDates) && req.cancelDates[0]) || req.startDate;
+  const cancelEndDate =
+    req.cancelEndDate ||
+    (Array.isArray(req.cancelDates) && req.cancelDates[req.cancelDates.length - 1]) ||
+    req.endDate ||
+    cancelStartDate;
+  const cancelStartParts = parseDateParts(cancelStartDate, now);
+  const cancelEndParts = parseDateParts(cancelEndDate, cancelStartDate ? new Date(cancelStartDate) : now);
+
+  const cancelDays = Number(req.cancelDays) || Number(req.days) || 1;
+  const origDays = Number(req.days) || cancelDays;
+
+  const data = resolveEmployeeBaseProfile(req);
+
+  // 1. Top-right date (เขียนที่ สำนักงานสหกรณ์จังหวัดขอนแก่น วันที่ ... เดือน ... พ.ศ. ...)
+  drawFittedCentered(String(appliedParts.day), 382, 737.86, 11, 30);
+  drawFittedCentered(String(appliedParts.month), 460, 737.86, 11, 65);
+  drawFittedCentered(String(appliedParts.year), 538, 737.86, 11, 40);
+
+  // 2. Main Body Paragraph Line 1 (ข้าพเจ้า ... )
+  drawFittedCentered(data.employeeName, 362, 647.98, 11, 280, true);
+
+  // 3. Line 2 (ตำแหน่ง ... สังกัด ...)
+  drawFittedCentered(data.title, 182, 628.42, 10.5, 115);
+  drawFittedCentered(data.department, 398, 628.42, 10.5, 235);
+
+  // 4. Line 3 (ได้รับอนุญาตให้ลา ... ตั้งแต่วันที่ ...)
+  const cleanLeaveType = (req.type || 'พักผ่อน').replace(/^ลา/, '').trim();
+  drawFittedCentered(cleanLeaveType, 235, 608.98, 11, 135);
+  const origStartStr = `${origStartParts.day} ${origStartParts.month} ${origStartParts.year}`;
+  drawFittedCentered(origStartStr, 445, 608.98, 10.5, 155);
+
+  // 5. Line 4 (ถึงวันที่ ... รวม ... วัน นั้น)
+  const origEndStr = `${origEndParts.day} ${origEndParts.month} ${origEndParts.year}`;
+  drawFittedCentered(origEndStr, 235, 589.42, 10.5, 215);
+  drawFittedCentered(formatLeaveDays(origDays), 408, 589.42, 11, 55, true);
+
+  // 6. Reason for cancellation (เนื่องจาก (ระบุเหตุผล) ...)
+  const cleanReason = (req.cancelReason || req.reason || 'มีความจำเป็นเร่งด่วนในการปฏิบัติภารกิจราชการ')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
+  const [r1, r2, r3] = wrapTextForLines(font, cleanReason, 10.5, [275, 450, 450]);
+  if (r1) drawFittedLeft(r1, 260, 563.95, 10.5, 275);
+  if (r2) drawFittedLeft(r2, 85.1, 544.51, 10.5, 450);
+  if (r3) drawFittedLeft(r3, 85.1, 524.95, 10.5, 450);
+
+  // 7. Cancellation details (จึงขอยกเลิกวันลา ... ตั้งแต่วันที่ ... ถึงวันที่ ... จำนวน ... วัน)
+  drawFittedCentered(cleanLeaveType, 235, 505.51, 11, 135);
+  const cancelStartStr = `${cancelStartParts.day} ${cancelStartParts.month} ${cancelStartParts.year}`;
+  drawFittedCentered(cancelStartStr, 445, 505.51, 10.5, 160);
+
+  const cancelEndStr = `${cancelEndParts.day} ${cancelEndParts.month} ${cancelEndParts.year}`;
+  drawFittedCentered(cancelEndStr, 235, 485.95, 10.5, 215);
+  drawFittedCentered(formatLeaveDays(cancelDays), 420, 485.95, 11, 60, true);
+
+  // 8. Applicant Signature (ลงชื่อ ... (ชื่อเต็ม))
+  drawFittedCentered(data.employeeName, 405, 421.03, 11, 140);
+
+  // 9. Supervisor Opinion & Command Checkbox (หากได้รับการพิจารณาแล้ว)
+  const isCancelApproved =
+    req.cancelStatus === 'approved' ||
+    req.cancelStatus === 'อนุมัติ' ||
+    (req.status === 'ยกเลิกวันลา' && req.cancelStatus !== 'rejected');
+  const isCancelRejected = req.cancelStatus === 'rejected';
+
+  if (isCancelApproved) {
+    drawCheck(166.7, 222);
+    const approverName = req.cancelApprover || req.approver || 'นายทะเบียน สหกรณ์เจริญ';
+    drawFittedCentered(approverName, 405, 127.5, 10.5, 140);
+    drawFittedCentered('สหกรณ์จังหวัดขอนแก่น', 405, 110.5, 10.5, 140);
+    const decParts = parseDateParts(req.cancelDecidedAt || now, now);
+    drawFittedCentered(String(decParts.day), 346, 93.5, 10.5, 25);
+    drawFittedCentered(String(decParts.month), 422, 93.5, 10.5, 65);
+    drawFittedCentered(String(decParts.year), 502, 93.5, 10.5, 35);
+  } else if (isCancelRejected) {
+    drawCheck(235.4, 222);
+    const approverName = req.cancelApprover || req.approver || 'นายทะเบียน สหกรณ์เจริญ';
+    drawFittedCentered(approverName, 405, 127.5, 10.5, 140);
+    drawFittedCentered('สหกรณ์จังหวัดขอนแก่น', 405, 110.5, 10.5, 140);
+    const decParts = parseDateParts(req.cancelDecidedAt || now, now);
+    drawFittedCentered(String(decParts.day), 346, 93.5, 10.5, 25);
+    drawFittedCentered(String(decParts.month), 422, 93.5, 10.5, 65);
+    drawFittedCentered(String(decParts.year), 502, 93.5, 10.5, 35);
+  }
+
+  await fixZeroWidthGlyphs(pdfDoc, font);
+  return await pdfDoc.save();
+}
+
+/**
+ * Download filled official "ใบยกเลิกวันลา.pdf" directly to user device
+ */
+export async function downloadCancelLeaveSlipPdf(req) {
+  const empName = (req.employeeName || 'พนักงาน').replace(/\s+/g, '_');
+  const filename = `ใบขอยกเลิกวันลา_${req.id || Date.now()}_${empName}.pdf`;
+
+  try {
+    const pdfBytes = await generateCancelLeavePdfBytes(req);
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return true;
+  } catch (err) {
+    console.error('Error generating cancel leave PDF:', err);
+    throw err;
+  }
+}
+
+/**
+ * Open Print/Preview Window for Cancel Leave PDF
+ */
+export async function printCancelLeaveSlip(req) {
+  const title = `ใบขอยกเลิกวันลา_${req.id || Date.now()}`;
+  const printWindow = window.open('', '_blank');
+
+  if (printWindow) {
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="th">
+        <head><meta charset="UTF-8"><title>${title}</title></head>
+        <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; color: #334155;">
+          <div>กำลังจัดเตรียมใบขอยกเลิกวันลา PDF...</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
+
+  try {
+    const pdfBytes = await generateCancelLeavePdfBytes(req);
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    if (printWindow && !printWindow.closed) {
+      printWindow.location.replace(url);
+    } else {
+      window.open(url, '_blank');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (err) {
+    console.error('Error opening cancel leave PDF for print:', err);
+    if (printWindow && !printWindow.closed) {
+      printWindow.close();
+    }
+    throw err;
+  }
+}
+
+export async function downloadLeaveSlipPdf(req, options = {}) {
+  if (options.cancelSlip || req.isCancelPdf || req._exportType === 'cancel') {
+    return await downloadCancelLeaveSlipPdf(req);
+  }
   const category = getLeaveCategory(req);
   const cleanName = (req.employeeName || 'ผู้ขอลา').replace(/\s+/g, '_');
   const filenamePrefix = getSlipFilenamePrefix(category);
@@ -1341,7 +1584,10 @@ export async function downloadLeaveSlipPdf(req) {
 /**
  * Open Print Window for browser print-to-PDF (uses filled official PDF templates)
  */
-export async function printLeaveSlip(req) {
+export async function printLeaveSlip(req, options = {}) {
+  if (options.cancelSlip || req.isCancelPdf || req._exportType === 'cancel') {
+    return await printCancelLeaveSlip(req);
+  }
   const category = getLeaveCategory(req);
   const filenamePrefix = getSlipFilenamePrefix(category);
   const title = `${filenamePrefix}_${req.id}`;

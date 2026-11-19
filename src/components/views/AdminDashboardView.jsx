@@ -17,7 +17,7 @@ import {
   FileDown,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
-import { downloadLeaveSlipPdf } from '../../utils/exportPdf';
+import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../../utils/exportPdf';
 import StatusConfirmModal from '../StatusConfirmModal';
 
 const THAI_MONTHS_SHORT = [
@@ -386,6 +386,24 @@ export default function AdminDashboardView() {
                     >
                       <FileDown className="w-3.5 h-3.5" />
                     </button>
+                    {(req.status === 'ยกเลิกวันลา' || req.cancelStatus) && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await downloadCancelLeaveSlipPdf(req);
+                            if (showToast) showToast(`ส่งออกใบยกเลิกวันลา ${req.id} เป็น PDF สำเร็จ`, 'success');
+                          } catch (err) {
+                            console.error(err);
+                            if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF ยกเลิกวันลา', 'error');
+                          }
+                        }}
+                        className="p-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-800 transition-colors shadow-2xs"
+                        title="ส่งออกใบยกเลิกวันลาเป็น PDF"
+                      >
+                        <FileDown className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {req.status === 'ยังไม่ยื่นเอกสาร' ? (
                       <button
                         type="button"

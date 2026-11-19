@@ -14,7 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
-import { downloadLeaveSlipPdf } from '../../utils/exportPdf';
+import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../../utils/exportPdf';
 
 export default function LeaveHistoryView() {
   const {
@@ -55,6 +55,19 @@ export default function LeaveHistoryView() {
       r.employeeName.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchType && matchSearch;
   });
+
+  const handleExportCancelRowPdf = async (req) => {
+    setDownloadingId(`cancel-${req.id}`);
+    try {
+      await downloadCancelLeaveSlipPdf(req);
+      if (showToast) showToast('ดาวน์โหลดใบขอยกเลิกวันลาเป็น PDF เรียบร้อยแล้ว', 'success');
+    } catch (e) {
+      console.error(e);
+      if (showToast) showToast('เกิดข้อผิดพลาดในการดาวน์โหลด PDF ยกเลิกวันลา', 'error');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const handleExportRowPdf = async (req) => {
     setDownloadingId(req.id);
@@ -333,8 +346,28 @@ export default function LeaveHistoryView() {
                           ) : (
                             <FileDown className="w-3.5 h-3.5 text-emerald-600" />
                           )}
-                          <span className="hidden sm:inline">PDF</span>
+                          <span className="hidden sm:inline">ใบลา PDF</span>
                         </button>
+
+                        {(req.cancelStatus || req.status === 'ยกเลิกวันลา' || req.cancelDays > 0) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportCancelRowPdf(req);
+                            }}
+                            disabled={downloadingId === `cancel-${req.id}`}
+                            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-rose-200 hover:border-rose-400 bg-white hover:bg-rose-50 text-rose-700 text-xs font-medium transition-colors shadow-2xs"
+                            title="ดาวน์โหลดใบขอยกเลิกวันลาเป็น PDF"
+                          >
+                            {downloadingId === `cancel-${req.id}` ? (
+                              <div className="w-3.5 h-3.5 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                            ) : (
+                              <FileDown className="w-3.5 h-3.5 text-rose-600" />
+                            )}
+                            <span className="hidden sm:inline">ใบยกเลิก PDF</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setSelectedLeaveDetail(req)}
