@@ -653,7 +653,12 @@ export default function LeaveRequestModal() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-semibold text-slate-700">
-                      เอกสารแนบ (PDF / รูปภาพ) <span className="text-red-500 font-normal text-xs ml-1">หากลาป่วย3วันขึ้นไปต้องแนบใบรับรองแพทย์</span>
+                      เอกสารแนบ (PDF / รูปภาพ)
+                      {leaveType === 'sick' && (
+                        <span className="text-red-500 font-normal text-xs ml-1">
+                          หากลาป่วย3วันขึ้นไปต้องแนบใบรับรองแพทย์
+                        </span>
+                      )}
                     </label>
                     <span className="text-[11px] text-slate-400">ขนาดไม่เกิน 3 MB</span>
                   </div>
