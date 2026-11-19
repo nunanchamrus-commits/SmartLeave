@@ -1026,6 +1026,16 @@ export function LeaveProvider({ children }) {
 
   // Submit a new leave request
   const submitLeaveRequest = async (newRequestData) => {
+    if (
+      newRequestData?.typeKey === 'sick' &&
+      Number(newRequestData?.days) >= 3 &&
+      !newRequestData?.attachment &&
+      !newRequestData?.attachmentName &&
+      !newRequestData?.attachmentUrl
+    ) {
+      if (showToast) showToast('หากลาป่วย 3 วันขึ้นไปต้องแนบใบรับรองแพทย์', 'error');
+      return { success: false, message: 'หากลาป่วย 3 วันขึ้นไปต้องแนบใบรับรองแพทย์' };
+    }
     mutationEpochRef.current += 1;
     const now = new Date();
     const submissionTimeFormatted = formatThaiDateTime(now);

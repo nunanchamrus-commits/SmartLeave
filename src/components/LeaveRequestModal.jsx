@@ -316,6 +316,10 @@ export default function LeaveRequestModal() {
       setErrorMsg(`จำนวนวันลาเกินโควตาคงเหลือ (${quotaInfo.remaining} วัน)`);
       return;
     }
+    if (leaveType === 'sick' && daysCount >= 3 && !fileName && !fileData) {
+      setErrorMsg('หากลาป่วย3วันขึ้นไปต้องแนบใบรับรองแพทย์');
+      return;
+    }
 
     const typeLabels = {
       vacation: 'ลาพักผ่อน',
@@ -648,10 +652,16 @@ export default function LeaveRequestModal() {
                 {/* Attachment */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-semibold text-slate-700">เอกสารแนบ (PDF / รูปภาพ)</label>
+                    <label className="font-semibold text-slate-700">
+                      เอกสารแนบ (PDF / รูปภาพ) <span className="text-red-500 font-normal text-xs ml-1">หากลาป่วย3วันขึ้นไปต้องแนบใบรับรองแพทย์</span>
+                    </label>
                     <span className="text-[11px] text-slate-400">ขนาดไม่เกิน 3 MB</span>
                   </div>
-                  <div className="relative border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-2xl p-3 text-center transition-colors bg-slate-50/50">
+                  <div className={`relative border-2 border-dashed ${
+                    leaveType === 'sick' && daysCount >= 3 && !fileName
+                      ? 'border-red-300 bg-red-50/40 hover:border-red-400'
+                      : 'border-slate-200 hover:border-emerald-400 bg-slate-50/50'
+                  } rounded-2xl p-3 text-center transition-colors`}>
                     <input
                       type="file"
                       accept=".pdf,application/pdf,image/png,image/jpeg,image/webp"
@@ -660,10 +670,14 @@ export default function LeaveRequestModal() {
                     />
                     <div className="flex items-center justify-between px-2 text-xs text-slate-500 relative z-10 pointer-events-none">
                       <div className="flex items-center space-x-2 truncate max-w-[85%]">
-                        <UploadCloud className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <UploadCloud className={`w-4 h-4 ${
+                          leaveType === 'sick' && daysCount >= 3 && !fileName ? 'text-red-500' : 'text-emerald-600'
+                        } flex-shrink-0`} />
                         <span className="truncate">
                           {fileName ? (
                             <span className="font-semibold text-emerald-700">{fileName}</span>
+                          ) : leaveType === 'sick' && daysCount >= 3 ? (
+                            <span className="text-red-500 font-medium">คลิกเพื่อแนบใบรับรองแพทย์ (จำเป็นสำหรับลาป่วย 3 วันขึ้นไป)</span>
                           ) : (
                             'คลิกเพื่อเลือกไฟล์ PDF หรือรูปภาพ (ไม่เกิน 3 MB)'
                           )}
