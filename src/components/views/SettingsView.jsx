@@ -24,29 +24,9 @@ import { POSITIONS_BY_EMPLOYMENT_TYPE, JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } f
 
 const AVATAR_PRESETS = [
   {
-    label: 'รูปโปรไฟล์ตั้งต้น',
+    label: 'รูปโปรไฟล์',
     gender: 'ทั่วไป',
     url: 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg',
-  },
-  {
-    label: 'เจ้าหน้าที่หญิง 1 (ทางการ)',
-    gender: 'หญิง',
-    url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80',
-  },
-  {
-    label: 'เจ้าหน้าที่หญิง 2',
-    gender: 'หญิง',
-    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
-  },
-  {
-    label: 'เจ้าหน้าที่ชาย 1 (ทางการ)',
-    gender: 'ชาย',
-    url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80',
-  },
-  {
-    label: 'เจ้าหน้าที่ชาย 2',
-    gender: 'ชาย',
-    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80',
   },
 ];
 
@@ -480,11 +460,10 @@ export default function SettingsView() {
                     key={idx}
                     type="button"
                     onClick={() => handleSelectAvatar(preset.url, preset.gender)}
-                    className={`flex flex-col items-center p-2 rounded-xl border transition-all ${
-                      formData.avatar === preset.url
-                        ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                    className={`flex flex-col items-center p-2 rounded-xl border transition-all ${formData.avatar === preset.url
+                      ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
                   >
                     <img
                       src={preset.url}
@@ -616,11 +595,10 @@ export default function SettingsView() {
                   key={g.value}
                   type="button"
                   onClick={() => setFormData({ ...formData, gender: g.value })}
-                  className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${
-                    formData.gender === g.value
-                      ? 'bg-[#2F855A] text-white border-[#2F855A] shadow-xs'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
+                  className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${formData.gender === g.value
+                    ? 'bg-[#2F855A] text-white border-[#2F855A] shadow-xs'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
                 >
                   {g.label}
                 </button>
@@ -663,10 +641,10 @@ export default function SettingsView() {
                   onChange={(e) => {
                     const newFirst = e.target.value;
                     const p = formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'));
-                    setFormData({ 
-                      ...formData, 
-                      firstNameEn: newFirst, 
-                      englishName: `${p} ${newFirst} ${formData.lastNameEn || ''}`.trim() 
+                    setFormData({
+                      ...formData,
+                      firstNameEn: newFirst,
+                      englishName: `${p} ${newFirst} ${formData.lastNameEn || ''}`.trim()
                     });
                   }}
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
@@ -682,10 +660,10 @@ export default function SettingsView() {
                   onChange={(e) => {
                     const newLast = e.target.value;
                     const p = formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'));
-                    setFormData({ 
-                      ...formData, 
-                      lastNameEn: newLast, 
-                      englishName: `${p} ${formData.firstNameEn || ''} ${newLast}`.trim() 
+                    setFormData({
+                      ...formData,
+                      lastNameEn: newLast,
+                      englishName: `${p} ${formData.firstNameEn || ''} ${newLast}`.trim()
                     });
                   }}
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
@@ -721,9 +699,8 @@ export default function SettingsView() {
                   aria-label="ตำแหน่งงาน"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${
-                    formData.title ? 'text-slate-800' : 'text-slate-400'
-                  }`}
+                  className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${formData.title ? 'text-slate-800' : 'text-slate-400'
+                    }`}
                 >
                   <option value="" className="text-slate-400">
                     -- เลือกตำแหน่งงาน --
@@ -754,9 +731,8 @@ export default function SettingsView() {
                   aria-label="ฝ่าย / กลุ่มงาน"
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${
-                    formData.department ? 'text-slate-800' : 'text-slate-400'
-                  }`}
+                  className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${formData.department ? 'text-slate-800' : 'text-slate-400'
+                    }`}
                 >
                   <option value="" className="text-slate-400">
                     -- เลือกสังกัดกลุ่ม / ฝ่าย --
@@ -823,11 +799,10 @@ export default function SettingsView() {
 
             <button
               type="submit"
-              className={`flex items-center justify-center space-x-2 px-7 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] ${
-                savedSuccess
-                  ? 'bg-emerald-600 ring-2 ring-emerald-400'
-                  : 'bg-[#2F855A] hover:bg-[#256F4A]'
-              }`}
+              className={`flex items-center justify-center space-x-2 px-7 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] ${savedSuccess
+                ? 'bg-emerald-600 ring-2 ring-emerald-400'
+                : 'bg-[#2F855A] hover:bg-[#256F4A]'
+                }`}
             >
               {savedSuccess ? (
                 <>
@@ -943,11 +918,10 @@ export default function SettingsView() {
             <button
               type="submit"
               disabled={isUpdatingPassword}
-              className={`flex items-center justify-center space-x-2 px-6 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-60 ${
-                passwordSuccess
-                  ? 'bg-emerald-600 ring-2 ring-emerald-400'
-                  : 'bg-[#2F855A] hover:bg-[#256F4A]'
-              }`}
+              className={`flex items-center justify-center space-x-2 px-6 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-60 ${passwordSuccess
+                ? 'bg-emerald-600 ring-2 ring-emerald-400'
+                : 'bg-[#2F855A] hover:bg-[#256F4A]'
+                }`}
             >
               {passwordSuccess ? (
                 <>
