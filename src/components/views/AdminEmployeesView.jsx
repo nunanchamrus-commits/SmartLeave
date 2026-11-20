@@ -548,8 +548,12 @@ export default function AdminEmployeesView() {
     if (showToast) showToast('ส่งออกรายงานข้อมูลวันลาพนักงานเรียบร้อยแล้ว', 'success');
   };
 
+  // รวมตัวเลือกฝ่าย/กลุ่มงานให้ครบถ้วนเหมือนหน้าตั้งค่าระบบ (DEPARTMENT_OPTIONS) และฝ่ายที่มีในฐานข้อมูล
   const uniqueDepartments = Array.from(
-    new Set(employees.map((e) => e.department).filter(Boolean))
+    new Set([
+      ...DEPARTMENT_OPTIONS,
+      ...employees.map((e) => e.department).filter(Boolean),
+    ])
   );
   const departments = [
     { id: 'all', label: 'ทุกฝ่าย / กลุ่มงาน' },
