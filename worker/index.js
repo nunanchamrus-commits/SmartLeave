@@ -2635,6 +2635,20 @@ export async function onRequest(context) {
         ? attachmentName.trim()
         : ((typeof attachment === 'string' && !attachment.startsWith('data:')) ? attachment.trim() : null);
 
+      if (typeKey === 'sick' && safeDays >= 3 && !safeAttachmentUrl && !safeAttachmentName) {
+        return jsonResponse({ success: false, message: 'หากลาป่วย3วันขึ้นไปต้องแนบใบรับรองแพทย์' }, 400);
+      }
+
+      if ((typeKey === 'vacation' || typeKey === 'personal') && safeStart < todayStr) {
+        return jsonResponse({ success: false, message: 'การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้' }, 400);
+      }
+      const d7 = new Date();
+      d7.setDate(d7.getDate() - 7);
+      const sickMinStr = d7.toISOString().slice(0, 10);
+      if (typeKey === 'sick' && safeStart < sickMinStr) {
+        return jsonResponse({ success: false, message: 'การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 7 วัน' }, 400);
+      }
+
       await ensureTableColumns(env.DB, 'leave_requests', SCHEMA_COLUMNS.leave_requests).catch(() => { });
 
       const insertRes = await env.DB.prepare(`

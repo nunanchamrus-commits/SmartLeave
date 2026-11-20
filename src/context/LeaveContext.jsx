@@ -1036,6 +1036,29 @@ export function LeaveProvider({ children }) {
       if (showToast) showToast('หากลาป่วย 3 วันขึ้นไปต้องแนบใบรับรองแพทย์', 'error');
       return { success: false, message: 'หากลาป่วย 3 วันขึ้นไปต้องแนบใบรับรองแพทย์' };
     }
+
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const d7 = new Date();
+    d7.setDate(d7.getDate() - 7);
+    const sickMinIso = d7.toISOString().slice(0, 10);
+
+    if (
+      (newRequestData?.typeKey === 'vacation' || newRequestData?.typeKey === 'personal') &&
+      newRequestData?.startDate &&
+      newRequestData.startDate < todayIso
+    ) {
+      if (showToast) showToast('การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้', 'error');
+      return { success: false, message: 'การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้' };
+    }
+
+    if (
+      newRequestData?.typeKey === 'sick' &&
+      newRequestData?.startDate &&
+      newRequestData.startDate < sickMinIso
+    ) {
+      if (showToast) showToast('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 7 วัน', 'error');
+      return { success: false, message: 'การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 7 วัน' };
+    }
     mutationEpochRef.current += 1;
     const now = new Date();
     const submissionTimeFormatted = formatThaiDateTime(now);

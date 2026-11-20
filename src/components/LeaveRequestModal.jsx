@@ -56,6 +56,15 @@ export default function LeaveRequestModal() {
     return `${y}-${m}-${day}`;
   };
 
+  const getSickMinDateISO = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   // Top-level tab inside modal: 'leave' (ซ้ายมือ: ขอลา) | 'cancel' (ขวามือ: ขอยกเลิกการลา)
   const [modalTab, setModalTab] = useState('leave');
 
@@ -308,6 +317,16 @@ export default function LeaveRequestModal() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const todayIso = getTodayISO();
+    if ((leaveType === 'vacation' || leaveType === 'personal') && startDate < todayIso) {
+      setErrorMsg('การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้');
+      return;
+    }
+    const sickMinIso = getSickMinDateISO();
+    if (leaveType === 'sick' && startDate < sickMinIso) {
+      setErrorMsg('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 7 วัน');
+      return;
+    }
     if (leaveType !== 'vacation' && !reason.trim()) {
       setErrorMsg('กรุณากรอกเหตุผลการลา');
       return;
@@ -539,6 +558,13 @@ export default function LeaveRequestModal() {
                           onClick={() => {
                             setLeaveType(t.id);
                             setErrorMsg('');
+                            const today = getTodayISO();
+                            const sickMin = getSickMinDateISO();
+                            const minForNew = t.id === 'sick' ? sickMin : today;
+                            if (startDate < minForNew) {
+                              setStartDate(today);
+                              if (endDate < today) setEndDate(today);
+                            }
                           }}
                           className={`py-2 px-2 rounded-2xl border text-center transition-all ${
                             leaveType === t.id
@@ -582,29 +608,47 @@ export default function LeaveRequestModal() {
                 </div>
 
                 {/* Date Pickers (พ.ศ.) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      ตั้งแต่วันที่ <span className="text-red-500">*</span>
-                    </label>
-                    <ThaiDatePicker
-                      value={startDate}
-                      onChange={(val) => {
-                        setStartDate(val);
-                        if (val > endDate) setEndDate(val);
-                      }}
-                    />
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        ตั้งแต่วันที่ <span className="text-red-500">*</span>
+                      </label>
+                      <ThaiDatePicker
+                        value={startDate}
+                        min={leaveType === 'sick' ? getSickMinDateISO() : getTodayISO()}
+                        onChange={(val) => {
+                          setStartDate(val);
+                          if (val > endDate) setEndDate(val);
+                          setErrorMsg('');
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        ถึงวันที่ <span className="text-red-500">*</span>
+                      </label>
+                      <ThaiDatePicker
+                        value={endDate}
+                        disabled={durationMode !== 'full'}
+                        onChange={(val) => {
+                          setEndDate(val);
+                          setErrorMsg('');
+                        }}
+                        min={startDate || (leaveType === 'sick' ? getSickMinDateISO() : getTodayISO())}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      ถึงวันที่ <span className="text-red-500">*</span>
-                    </label>
-                    <ThaiDatePicker
-                      value={endDate}
-                      disabled={durationMode !== 'full'}
-                      onChange={(val) => setEndDate(val)}
-                      min={startDate}
-                    />
+                  <div className="text-[11px] px-1">
+                    {leaveType === 'sick' ? (
+                      <span className="text-emerald-700 font-medium">
+                        * การลาป่วยสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 7 วัน
+                      </span>
+                    ) : (leaveType === 'vacation' || leaveType === 'personal') ? (
+                      <span className="text-amber-700 font-medium">
+                        * การ{leaveType === 'vacation' ? 'ลาพักผ่อน' : 'ลากิจ'}ไม่สามารถเลือกวันลาย้อนหลังได้
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
