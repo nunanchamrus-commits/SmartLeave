@@ -136,14 +136,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
         {/* Brand Header */}
         <div className="relative z-10 flex flex-col items-center justify-center pt-7 pb-5 px-6">
           <div className="relative mb-3 group cursor-pointer" onClick={() => setActiveTab(isAdmin ? 'admin-dashboard' : 'dashboard')}>
-            <div className="w-16 h-16 rounded-full bg-white/15 p-1.5 shadow-md shadow-emerald-950/20 border-2 border-white/30 backdrop-blur-xs flex items-center justify-center transition-transform group-hover:scale-105">
+            <div className="w-20 h-20 rounded-full bg-white/15 p-2 shadow-md shadow-emerald-950/20 border-2 border-white/30 backdrop-blur-xs flex items-center justify-center transition-transform group-hover:scale-105">
               <img
                 src="/logo.png"
                 alt="สำนักงานสหกรณ์จังหวัดขอนแก่น"
                 className="w-full h-full object-contain drop-shadow"
               />
             </div>
-            <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-lime-300 rounded-full flex items-center justify-center text-[#2E6F4E] shadow-sm text-[10px] font-bold border border-white/40">
+            <span className="absolute -bottom-1 -right-1 w-5.5 h-5.5 bg-lime-300 rounded-full flex items-center justify-center text-[#2E6F4E] shadow-sm text-[11px] font-bold border border-white/40">
               ✓
             </span>
           </div>
