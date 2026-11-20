@@ -1055,7 +1055,7 @@ async function seedMasterData(db) {
     if (!existingAdmin) {
       await db.prepare(`
         INSERT OR IGNORE INTO users (user_id, employee_code, email, password_hash, prefix, first_name, last_name, prefix_en, first_name_en, last_name_en, english_name, gender, employment_type, phone, department_id, role_id, position, avatar_url, is_active)
-        VALUES (1, 'ADM-001', 'admin@smartleave.com', '12345678', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'Mr.', 'System', 'Administrator', 'Mr. System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80', 1)
+        VALUES (1, 'ADM-001', 'admin@smartleave.com', '12345678', 'นาย', 'ผู้ดูแลระบบ', 'ส่วนกลาง', 'Mr.', 'System', 'Administrator', 'Mr. System Administrator', 'ชาย', 'ข้าราชการ', '02-000-0000', 1, 1, 'System Administrator', 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg', 1)
       `).run().catch(() => { });
 
       await db.batch([
@@ -1215,7 +1215,7 @@ export async function onRequest(context) {
           role: user.role_id === 1 ? 'admin' : (user.role_id === 3 ? 'approver' : 'employee'),
           department: user.department_name || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
           employeeId: user.employee_code,
-          avatar: user.avatar_url || (gender === 'ชาย' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80'),
+          avatar: user.avatar_url || 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg',
         },
       });
     }
@@ -1395,7 +1395,7 @@ export async function onRequest(context) {
           role: user.role_id === 1 ? 'admin' : (user.role_id === 3 ? 'approver' : 'employee'),
           department: user.department_name || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
           employeeId: user.employee_code,
-          avatar: user.avatar_url || (gender === 'ชาย' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80' : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80'),
+          avatar: user.avatar_url || 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg',
         },
       });
     }
@@ -1715,9 +1715,7 @@ export async function onRequest(context) {
       const userGender = gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย');
       const empType = employmentType || 'ข้าราชการ';
       const jobPosition = position || title || 'เจ้าหน้าที่สหกรณ์';
-      const avatarUrl = userGender === 'ชาย'
-        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
-        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80';
+      const avatarUrl = 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
 
       // กำหนดรหัสพนักงานและตรวจสอบความซ้ำซ้อน
       let finalEmpCode = employeeCode ? String(employeeCode).trim() : `EMP-${Date.now().toString().slice(-4)}`;
@@ -1947,7 +1945,7 @@ export async function onRequest(context) {
           u.employee_code as employeeId,
           COALESCE(u.position, 'เจ้าหน้าที่สหกรณ์') as title,
           COALESCE(d.name_th, 'สำนักงานสหกรณ์จังหวัดขอนแก่น') as department,
-          COALESCE(u.avatar_url, 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80') as avatar,
+          COALESCE(u.avatar_url, 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg') as avatar,
           CASE WHEN u.role_id = 1 THEN 'admin' WHEN u.role_id = 3 THEN 'approver' ELSE 'employee' END as role,
           COALESCE(q_vacation.total_quota, 10.0) as vacationLimit,
           COALESCE(q_vacation.used_days, 0.0) as vacationUsed,
@@ -2056,9 +2054,7 @@ export async function onRequest(context) {
       const roleId = (role === 'admin' || role === 'SYSTEM_ADMIN') ? 1 : ((role === 'approver' || role === 'APPROVER') ? 3 : 4);
       const userEmail = email || `${empCode.toLowerCase()}@smartleave.com`;
       const userPhone = phone || '081-234-5678';
-      const avatarUrl = userGender === 'ชาย'
-        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
-        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80';
+      const avatarUrl = 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
 
       let deptId = 6;
       if (department) {

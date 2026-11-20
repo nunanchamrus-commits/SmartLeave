@@ -24,6 +24,11 @@ import { POSITIONS_BY_EMPLOYMENT_TYPE, JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } f
 
 const AVATAR_PRESETS = [
   {
+    label: 'รูปโปรไฟล์ตั้งต้น',
+    gender: 'ทั่วไป',
+    url: 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg',
+  },
+  {
     label: 'เจ้าหน้าที่หญิง 1 (ทางการ)',
     gender: 'หญิง',
     url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&h=256&q=80',
@@ -499,7 +504,13 @@ export default function SettingsView() {
                 type="url"
                 placeholder="https://..."
                 value={formData.avatar}
-                onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
+                onChange={(e) => {
+                  let val = e.target.value;
+                  if (val.includes('pinterest.com/pin/581457001933657636')) {
+                    val = 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
+                  }
+                  setFormData({ ...formData, avatar: val });
+                }}
                 className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>

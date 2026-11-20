@@ -31,7 +31,7 @@ export const DEFAULT_STAFF = [
     title: 'System Administrator',
     role: 'admin',
     department: 'ฝ่ายบริหารทั่วไป',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=256&h=256&q=80',
+    avatar: 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg',
     password: '12345678',
     vacationLimit: 10,
     vacationUsed: 0,
@@ -1828,9 +1828,7 @@ export function LeaveProvider({ children }) {
       maternityRem: matLim,
       maternityLimit: matLim,
       maternityUsed: 0,
-      avatar: newEmpData.avatar || (newEmpData.gender === 'ชาย'
-        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
-        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'),
+      avatar: newEmpData.avatar || 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg',
     };
 
     try {
@@ -2570,10 +2568,7 @@ export function LeaveProvider({ children }) {
       phone: registeredDbUser?.phone || userData.phone || '081-999-8888',
       employeeId: registeredDbUser?.employeeId || empCode,
       avatar:
-        registeredDbUser?.avatar ||
-        (userData.gender === 'ชาย'
-          ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80'
-          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'),
+        registeredDbUser?.avatar || 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg',
       role: 'employee',
       isSickAsActual: regDefs.isSickAsActual,
       vacationLimit: regDefs.vacation,

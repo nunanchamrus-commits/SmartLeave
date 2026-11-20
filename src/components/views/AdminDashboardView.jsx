@@ -479,9 +479,7 @@ export default function AdminDashboardView() {
                   const avatar =
                     emp?.avatar ||
                     req.avatar ||
-                    (emp?.gender === 'ชาย'
-                      ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=128&h=128&q=80'
-                      : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=128&h=128&q=80');
+                    'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
                   const dept = req.department || emp?.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น';
                   const title = emp?.title || emp?.position || req.position || 'เจ้าหน้าที่สหกรณ์';
                   const typeBadgeColor =
