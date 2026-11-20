@@ -143,9 +143,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
                 className="w-full h-full object-contain drop-shadow"
               />
             </div>
-            <span className="absolute -bottom-1 -right-1 w-5.5 h-5.5 bg-lime-300 rounded-full flex items-center justify-center text-[#2E6F4E] shadow-sm text-[11px] font-bold border border-white/40">
-              ✓
-            </span>
           </div>
           <h1 className="text-xl font-bold tracking-tight text-white font-prompt text-center">
             SmartLeave
