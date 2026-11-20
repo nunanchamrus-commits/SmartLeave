@@ -7,13 +7,11 @@ import {
   AlertCircle,
   Check,
   X,
+  ChevronLeft,
   ChevronRight,
   ShieldCheck,
   Calendar,
   Building,
-  UserCheck,
-  Eye,
-  Edit3,
   FileDown,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
@@ -46,7 +44,9 @@ export default function AdminDashboardView() {
     }
   }, []);
 
-  const [searchEmployee, setSearchEmployee] = useState('');
+  // State สำหรับ Pagination (5 รายการต่อหน้า)
+  const [pendingPage, setPendingPage] = useState(1);
+  const [leavesTodayPage, setLeavesTodayPage] = useState(1);
 
   // State สำหรับ Modal กดยืนยันการเปลี่ยนสถานะอีกรอบ
   const [confirmModal, setConfirmModal] = useState({
@@ -110,17 +110,6 @@ export default function AdminDashboardView() {
     });
   }, [leaveRequests, todayStr]);
 
-  // สร้าง Map สำหรับตรวจสอบสถานะพนักงานวันนี้
-  const leavesTodayMap = useMemo(() => {
-    const map = new Map();
-    leavesToday.forEach((req) => {
-      if (req.userId) map.set(String(req.userId), req);
-      if (req.employeeId) map.set(String(req.employeeId).toLowerCase(), req);
-      if (req.employeeName) map.set(req.employeeName.trim().toLowerCase(), req);
-    });
-    return map;
-  }, [leavesToday]);
-
   // คำนวณอัตราการใช้วันลาทั้งองค์กรจากฐานข้อมูลจริง
   const totalApprovedDays = useMemo(() => {
     return approvedRequests.reduce((sum, r) => sum + (Number(r.days) || 0), 0);
@@ -154,15 +143,23 @@ export default function AdminDashboardView() {
     ? ((workingTodayCount / employees.length) * 100).toFixed(1)
     : '100.0';
 
-  // Filter employees
-  const filteredEmployees = searchEmployee
-    ? employees.filter(
-      (e) =>
-        e.name.toLowerCase().includes(searchEmployee.toLowerCase()) ||
-        e.department.toLowerCase().includes(searchEmployee.toLowerCase()) ||
-        e.employeeId.toLowerCase().includes(searchEmployee.toLowerCase())
-    )
-    : employees;
+  // Pagination สำหรับคิวคำขอด่วน (แสดง 5 รายการต่อหน้า)
+  const PENDING_PAGE_SIZE = 5;
+  const totalPendingPages = Math.max(1, Math.ceil(pendingRequests.length / PENDING_PAGE_SIZE));
+  const currentPendingPage = Math.min(pendingPage, totalPendingPages);
+  const paginatedPendingRequests = useMemo(() => {
+    const start = (currentPendingPage - 1) * PENDING_PAGE_SIZE;
+    return pendingRequests.slice(start, start + PENDING_PAGE_SIZE);
+  }, [pendingRequests, currentPendingPage]);
+
+  // Pagination สำหรับสถานะการลาประจำวัน (แสดง 5 รายการต่อหน้า)
+  const LEAVES_TODAY_PAGE_SIZE = 5;
+  const totalLeavesTodayPages = Math.max(1, Math.ceil(leavesToday.length / LEAVES_TODAY_PAGE_SIZE));
+  const currentLeavesTodayPage = Math.min(leavesTodayPage, totalLeavesTodayPages);
+  const paginatedLeavesToday = useMemo(() => {
+    const start = (currentLeavesTodayPage - 1) * LEAVES_TODAY_PAGE_SIZE;
+    return leavesToday.slice(start, start + LEAVES_TODAY_PAGE_SIZE);
+  }, [leavesToday, currentLeavesTodayPage]);
 
   return (
     <div className="space-y-6">
@@ -335,114 +332,145 @@ export default function AdminDashboardView() {
               <p className="text-xs">ทุกคำขอในระบบได้รับการพิจารณาเรียบร้อยแล้ว</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {pendingRequests.map((req) => (
-                <div
-                  key={req.id}
-                  className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-emerald-200 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center flex-wrap gap-1.5">
-                      <span className="font-bold text-xs sm:text-sm text-slate-900">
-                        {req.employeeName}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
-                        {req.type}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${req.status === 'อยู่ระหว่างตรวจสอบ'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-orange-100 text-orange-700'
-                          }`}
-                      >
-                        {req.status}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        {req.days} วัน
-                      </span>
+            <>
+              <div className="space-y-3">
+                {paginatedPendingRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-emerald-200 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center flex-wrap gap-1.5">
+                        <span className="font-bold text-xs sm:text-sm text-slate-900">
+                          {req.employeeName}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                          {req.type}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${req.status === 'อยู่ระหว่างตรวจสอบ'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-orange-100 text-orange-700'
+                            }`}
+                        >
+                          {req.status}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          {req.days} วัน
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600">
+                        <strong>ช่วงวันที่:</strong> {req.dateRange}
+                      </p>
+                      <p className="text-xs text-slate-500 line-clamp-1 italic">
+                        "{req.reason}"
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-600">
-                      <strong>ช่วงวันที่:</strong> {req.dateRange}
-                    </p>
-                    <p className="text-xs text-slate-500 line-clamp-1 italic">
-                      "{req.reason}"
-                    </p>
-                  </div>
 
-                  <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await downloadLeaveSlipPdf(req);
-                          if (showToast) showToast(`ส่งออกใบลา ${req.id} เป็น PDF สำเร็จ`, 'success');
-                        } catch (err) {
-                          console.error(err);
-                          if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF', 'error');
-                        }
-                      }}
-                      className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 transition-colors shadow-2xs"
-                      title="ส่งออกใบลาเป็น PDF"
-                    >
-                      <FileDown className="w-3.5 h-3.5" />
-                    </button>
-                    {(req.status === 'ยกเลิกวันลา' || req.cancelStatus) && (
+                    <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0 self-end sm:self-center">
                       <button
                         type="button"
                         onClick={async () => {
                           try {
-                            await downloadCancelLeaveSlipPdf(req);
-                            if (showToast) showToast(`ส่งออกใบยกเลิกวันลา ${req.id} เป็น PDF สำเร็จ`, 'success');
+                            await downloadLeaveSlipPdf(req);
+                            if (showToast) showToast(`ส่งออกใบลา ${req.id} เป็น PDF สำเร็จ`, 'success');
                           } catch (err) {
                             console.error(err);
-                            if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF ยกเลิกวันลา', 'error');
+                            if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF', 'error');
                           }
                         }}
-                        className="p-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-800 transition-colors shadow-2xs"
-                        title="ส่งออกใบยกเลิกวันลาเป็น PDF"
+                        className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 transition-colors shadow-2xs"
+                        title="ส่งออกใบลาเป็น PDF"
                       >
                         <FileDown className="w-3.5 h-3.5" />
                       </button>
-                    )}
-                    {req.status === 'ยังไม่ยื่นเอกสาร' ? (
+                      {(req.status === 'ยกเลิกวันลา' || req.cancelStatus) && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await downloadCancelLeaveSlipPdf(req);
+                              if (showToast) showToast(`ส่งออกใบยกเลิกวันลา ${req.id} เป็น PDF สำเร็จ`, 'success');
+                            } catch (err) {
+                              console.error(err);
+                              if (showToast) showToast('เกิดข้อผิดพลาดในการสร้าง PDF ยกเลิกวันลา', 'error');
+                            }
+                          }}
+                          className="p-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-800 transition-colors shadow-2xs"
+                          title="ส่งออกใบยกเลิกวันลาเป็น PDF"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {req.status === 'ยังไม่ยื่นเอกสาร' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenConfirm(req, 'อยู่ระหว่างตรวจสอบ')}
+                          className="px-2.5 py-1.5 rounded-xl bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-semibold text-xs transition-colors flex items-center space-x-1"
+                        >
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>อยู่ระหว่างตรวจสอบ</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenConfirm(req, 'ยังไม่ยื่นเอกสาร')}
+                          className="px-2.5 py-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 font-semibold text-xs transition-colors flex items-center space-x-1"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>ยังไม่ยื่นเอกสาร</span>
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => handleOpenConfirm(req, 'อยู่ระหว่างตรวจสอบ')}
-                        className="px-2.5 py-1.5 rounded-xl bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-semibold text-xs transition-colors flex items-center space-x-1"
+                        onClick={() => handleOpenConfirm(req, 'ไม่อนุมัติ')}
+                        className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs transition-colors flex items-center space-x-1"
                       >
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>อยู่ระหว่างตรวจสอบ</span>
+                        <X className="w-3.5 h-3.5" />
+                        <span>ไม่อนุมัติ</span>
                       </button>
-                    ) : (
                       <button
                         type="button"
-                        onClick={() => handleOpenConfirm(req, 'ยังไม่ยื่นเอกสาร')}
-                        className="px-2.5 py-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 font-semibold text-xs transition-colors flex items-center space-x-1"
+                        onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-xs flex items-center space-x-1"
                       >
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>ยังไม่ยื่นเอกสาร</span>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>อนุมัติ</span>
                       </button>
-                    )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPendingPages > 1 && (
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
+                  <span>
+                    หน้า {currentPendingPage} จาก {totalPendingPages} (ทั้งหมด {pendingRequests.length} รายการ)
+                  </span>
+                  <div className="flex items-center space-x-1.5">
                     <button
                       type="button"
-                      onClick={() => handleOpenConfirm(req, 'ไม่อนุมัติ')}
-                      className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs transition-colors flex items-center space-x-1"
+                      disabled={currentPendingPage <= 1}
+                      onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
                     >
-                      <X className="w-3.5 h-3.5" />
-                      <span>ไม่อนุมัติ</span>
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>ก่อนหน้า</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
-                      className="px-3.5 py-1.5 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-xs flex items-center space-x-1"
+                      disabled={currentPendingPage >= totalPendingPages}
+                      onClick={() => setPendingPage((p) => Math.min(totalPendingPages, p + 1))}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
                     >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>อนุมัติ</span>
+                      <span>ถัดไป</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
 
@@ -469,55 +497,88 @@ export default function AdminDashboardView() {
                   <p className="text-[11px] text-slate-400">บุคลากรทุกคนปฏิบัติหน้าที่ตามปกติ (เข้างานครบ 100%)</p>
                 </div>
               ) : (
-                leavesToday.map((req) => {
-                  const emp = employees.find(
-                    (e) =>
-                      (req.userId && (e.id === req.userId || e.raw_id === req.userId || String(e.raw_id) === String(req.userId))) ||
-                      (req.employeeId && e.employeeId && e.employeeId.toLowerCase() === req.employeeId.toLowerCase()) ||
-                      (req.employeeName && e.name && e.name.trim() === req.employeeName.trim())
-                  );
-                  const avatar =
-                    emp?.avatar ||
-                    req.avatar ||
-                    'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
-                  const dept = req.department || emp?.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น';
-                  const title = emp?.title || emp?.position || req.position || 'เจ้าหน้าที่สหกรณ์';
-                  const typeBadgeColor =
-                    req.typeKey === 'sick'
-                      ? 'bg-rose-100 text-rose-800'
-                      : req.typeKey === 'personal'
-                      ? 'bg-teal-100 text-teal-800'
-                      : req.typeKey === 'maternity'
-                      ? 'bg-purple-100 text-purple-800'
-                      : 'bg-emerald-100 text-emerald-800';
+                <>
+                  <div className="space-y-3">
+                    {paginatedLeavesToday.map((req) => {
+                      const emp = employees.find(
+                        (e) =>
+                          (req.userId && (e.id === req.userId || e.raw_id === req.userId || String(e.raw_id) === String(req.userId))) ||
+                          (req.employeeId && e.employeeId && e.employeeId.toLowerCase() === req.employeeId.toLowerCase()) ||
+                          (req.employeeName && e.name && e.name.trim() === req.employeeName.trim())
+                      );
+                      const avatar =
+                        emp?.avatar ||
+                        req.avatar ||
+                        'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
+                      const dept = req.department || emp?.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น';
+                      const title = emp?.title || emp?.position || req.position || 'เจ้าหน้าที่สหกรณ์';
+                      const typeBadgeColor =
+                        req.typeKey === 'sick'
+                          ? 'bg-rose-100 text-rose-800'
+                          : req.typeKey === 'personal'
+                          ? 'bg-teal-100 text-teal-800'
+                          : req.typeKey === 'maternity'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-emerald-100 text-emerald-800';
 
-                  return (
-                    <div
-                      key={req.id}
-                      onClick={() => {
-                        if (setSelectedLeaveDetail) setSelectedLeaveDetail(req);
-                      }}
-                      className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-100 hover:border-emerald-200 transition-colors flex items-center space-x-3 cursor-pointer group"
-                    >
-                      <img
-                        src={avatar}
-                        alt={req.employeeName}
-                        className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-800 transition-colors">
-                          {req.employeeName || emp?.name || 'เจ้าหน้าที่'}
-                        </p>
-                        <p className="text-[11px] text-slate-500 truncate">
-                          {title} • {dept}
-                        </p>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${typeBadgeColor}`}>
-                        {req.type || 'ลางาน'} ({req.days} วัน)
+                      return (
+                        <div
+                          key={req.id}
+                          onClick={() => {
+                            if (setSelectedLeaveDetail) setSelectedLeaveDetail(req);
+                          }}
+                          className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-100 hover:border-emerald-200 transition-colors flex items-center space-x-3 cursor-pointer group"
+                        >
+                          <img
+                            src={avatar}
+                            alt={req.employeeName}
+                            className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-800 transition-colors">
+                              {req.employeeName || emp?.name || 'เจ้าหน้าที่'}
+                            </p>
+                            <p className="text-[11px] text-slate-500 truncate">
+                              {title} • {dept}
+                            </p>
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${typeBadgeColor}`}>
+                            {req.type || 'ลางาน'} ({req.days} วัน)
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {totalLeavesTodayPages > 1 && (
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
+                      <span>
+                        หน้า {currentLeavesTodayPage} จาก {totalLeavesTodayPages} (ทั้งหมด {leavesToday.length} รายการ)
                       </span>
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          disabled={currentLeavesTodayPage <= 1}
+                          onClick={() => setLeavesTodayPage((p) => Math.max(1, p - 1))}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                          <span>ก่อนหน้า</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={currentLeavesTodayPage >= totalLeavesTodayPages}
+                          onClick={() => setLeavesTodayPage((p) => Math.min(totalLeavesTodayPages, p + 1))}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+                        >
+                          <span>ถัดไป</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  );
-                })
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -529,96 +590,6 @@ export default function AdminDashboardView() {
             <Calendar className="w-4 h-4 text-emerald-600" />
             <span>เปิดดูปฏิทินวันลาทั้งองค์กร</span>
           </button>
-        </div>
-      </div>
-
-      {/* 4. Bottom Section: Employee Quotas Snapshot */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="font-bold text-base text-slate-800 font-prompt">
-              ภาพรวมโควตาวันลาพนักงานรายบุคคล (Staff Quota Snapshot)
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              ตรวจสอบสิทธิวันลาคงเหลือของพนักงานแต่ละแผนกในสังกัด
-            </p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={searchEmployee}
-              onChange={(e) => setSearchEmployee(e.target.value)}
-              placeholder="ค้นหาชื่อพนักงาน หรือแผนก..."
-              className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 w-48 sm:w-64"
-            />
-            <button
-              onClick={() => setActiveTab('employees')}
-              className="px-3.5 py-1.5 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-xs font-semibold whitespace-nowrap transition-colors"
-            >
-              จัดการพนักงาน ➔
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-semibold">
-              <tr>
-                <th className="py-2.5 px-4">พนักงาน</th>
-                <th className="py-2.5 px-4">ฝ่าย / แผนก</th>
-                <th className="py-2.5 px-4 text-center">ลาพักผ่อนคงเหลือ</th>
-                <th className="py-2.5 px-4 text-center">กิจส่วนตัว</th>
-                <th className="py-2.5 px-4 text-center">ลาป่วย</th>
-                <th className="py-2.5 px-4 text-center">สถานะ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredEmployees.slice(0, 5).map((emp) => {
-                const todayLeave =
-                  leavesTodayMap.get(String(emp.id)) ||
-                  leavesTodayMap.get(String(emp.raw_id)) ||
-                  leavesTodayMap.get(String(emp.employeeId || '').toLowerCase()) ||
-                  leavesTodayMap.get(String(emp.name || '').trim().toLowerCase());
-                const isLeave = Boolean(todayLeave);
-                const statusText = isLeave ? (todayLeave.type || 'ลางาน') : 'ปกติ';
-                const badgeClass = isLeave
-                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                  : 'bg-emerald-50 text-emerald-800 border border-emerald-100';
-
-                return (
-                  <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-slate-800 flex items-center space-x-2.5">
-                      <img
-                        src={emp.avatar}
-                        alt={emp.name}
-                        className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
-                      />
-                      <div>
-                        <p className="font-bold text-slate-800">{emp.name}</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{emp.department}</td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700">
-                      {emp.vacationRem} / {emp.vacationLimit ?? 10} วัน
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-teal-700">
-                      {emp.personalRem} / {emp.personalLimit ?? (emp.employmentType === 'พนักงานราชการ' ? 10 : 45)} วัน
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-rose-600">
-                      {emp.employmentType === 'พนักงานราชการ' || emp.isSickAsActual || Number(emp.sickLimit) === 999
-                        ? 'เท่าที่ป่วยจริง'
-                        : `${emp.sickRem} / ${emp.sickLimit ?? 60} วัน`}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeClass}`}>
-                        {statusText}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         </div>
       </div>
 
