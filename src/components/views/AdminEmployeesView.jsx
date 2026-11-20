@@ -162,7 +162,7 @@ export default function AdminEmployeesView() {
     prefix: 'นางสาว',
     firstName: '',
     lastName: '',
-    prefixEn: 'Ms.',
+    prefixEn: 'Miss',
     firstNameEn: '',
     lastNameEn: '',
     gender: 'หญิง',
@@ -434,6 +434,10 @@ export default function AdminEmployeesView() {
     };
 
     if (editForm.newPassword && editForm.newPassword.trim()) {
+      if (editForm.newPassword.trim().length < 8) {
+        if (showToast) showToast('กำหนดรหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร', 'error');
+        return;
+      }
       payload.newPassword = editForm.newPassword.trim();
     }
 
@@ -991,10 +995,7 @@ export default function AdminEmployeesView() {
                         >
                           <option value="Mr.">Mr.</option>
                           <option value="Mrs.">Mrs.</option>
-                          <option value="Ms.">Ms.</option>
                           <option value="Miss">Miss</option>
-                          <option value="Dr.">Dr.</option>
-                          <option value="">(None)</option>
                         </select>
                       </div>
                       <div className="col-span-4 sm:col-span-5">
@@ -1170,10 +1171,10 @@ export default function AdminEmployeesView() {
                         </label>
                         <button
                           type="button"
-                          onClick={() => setEditForm((p) => ({ ...p, newPassword: '123456' }))}
+                          onClick={() => setEditForm((p) => ({ ...p, newPassword: '12345678' }))}
                           className="text-[11px] text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200 transition-colors"
                         >
-                          ใช้รหัสเริ่มต้น 123456
+                          ใช้รหัสเริ่มต้น 12345678
                         </button>
                       </div>
                       <div className="relative">
@@ -1181,8 +1182,13 @@ export default function AdminEmployeesView() {
                           type={showEditPassword ? 'text' : 'password'}
                           value={editForm.newPassword || ''}
                           onChange={(e) => setEditForm((p) => ({ ...p, newPassword: e.target.value }))}
-                          placeholder="เว้นว่างไว้หากไม่ต้องการเปลี่ยนรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)"
-                          className="w-full px-3 py-2 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none text-xs sm:text-sm"
+                          placeholder="เว้นว่างไว้หากไม่ต้องการเปลี่ยนรหัสผ่าน (อย่างน้อย 8 ตัวอักษร)"
+                          minLength={8}
+                          className={`w-full px-3 py-2 pr-10 bg-slate-50 border ${
+                            editForm.newPassword && editForm.newPassword.trim().length < 8
+                              ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20'
+                              : 'border-slate-200 focus:border-emerald-600 focus:ring-emerald-500/20'
+                          } rounded-xl text-slate-700 font-medium focus:ring-2 outline-none text-xs sm:text-sm`}
                         />
                         <button
                           type="button"
@@ -1192,9 +1198,15 @@ export default function AdminEmployeesView() {
                           {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        หากระบุและกดบันทึก รหัสผ่านของพนักงานคนนี้จะถูกอัปเดตลงฐานข้อมูลทันที
-                      </p>
+                      {editForm.newPassword && editForm.newPassword.trim().length > 0 && editForm.newPassword.trim().length < 8 ? (
+                        <p className="text-[11px] text-rose-500 mt-1 font-medium">
+                          * รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร (ปัจจุบัน {editForm.newPassword.trim().length} ตัวอักษร)
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          หากระบุและกดบันทึก รหัสผ่านของพนักงานคนนี้จะถูกอัปเดตลงฐานข้อมูลทันที
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1420,9 +1432,7 @@ export default function AdminEmployeesView() {
                     >
                       <option value="Mr.">Mr.</option>
                       <option value="Mrs.">Mrs.</option>
-                      <option value="Ms.">Ms.</option>
                       <option value="Miss">Miss</option>
-                      <option value="Dr.">Dr.</option>
                     </select>
                   </div>
                   <div className="col-span-4 sm:col-span-5">
