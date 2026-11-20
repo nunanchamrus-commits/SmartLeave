@@ -639,17 +639,13 @@ export default function LeaveRequestModal() {
                       />
                     </div>
                   </div>
-                  <div className="text-[11px] px-1">
-                    {leaveType === 'sick' ? (
-                      <span className="text-emerald-700 font-medium">
+                  {leaveType === 'sick' && (
+                    <div className="text-[11px] px-1">
+                      <span className="text-red-500 font-medium">
                         * การลาป่วยสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 7 วัน
                       </span>
-                    ) : (leaveType === 'vacation' || leaveType === 'personal') ? (
-                      <span className="text-amber-700 font-medium">
-                        * การ{leaveType === 'vacation' ? 'ลาพักผ่อน' : 'ลากิจ'}ไม่สามารถเลือกวันลาย้อนหลังได้
-                      </span>
-                    ) : null}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Calculated duration summary badge */}
