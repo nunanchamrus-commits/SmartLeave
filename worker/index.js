@@ -231,19 +231,51 @@ async function findLeaveRequest(db, rawLeaveId) {
 
 function extractFiscalYear(dateStr) {
   if (typeof dateStr === 'string') {
-    const m = dateStr.trim().match(/^(\d{4})/);
+    const trimmed = dateStr.trim();
+    if (/^\d{4}$/.test(trimmed)) {
+      let y = Number(trimmed);
+      if (y > 2400) y -= 543;
+      if (y >= 2000 && y <= 2200) return y;
+    }
+    const m = trimmed.match(/^(\d{4})-(\d{1,2})/);
     if (m) {
       let y = Number(m[1]);
+      const month = Number(m[2]);
       if (y > 2400) y -= 543;
+      if (month >= 10) y += 1; // 1 ต.ค. เป็นต้นไป เข้าสู่ปีงบประมาณถัดไป
       if (y >= 2000 && y <= 2200) return y;
     }
   }
   const parsed = dateStr ? new Date(dateStr) : null;
   if (parsed && !Number.isNaN(parsed.getTime())) {
-    const y = parsed.getFullYear();
-    return y > 2400 ? y - 543 : y;
+    let y = parsed.getFullYear();
+    if (y > 2400) y -= 543;
+    const month = parsed.getMonth() + 1;
+    if (month >= 10) y += 1;
+    return y;
   }
-  return new Date().getFullYear();
+  const now = new Date();
+  let y = now.getFullYear();
+  if (now.getMonth() + 1 >= 10) y += 1;
+  return y;
+}
+
+function extractFiscalRound(dateStr) {
+  if (typeof dateStr === 'string') {
+    const m = dateStr.trim().match(/^\d{4}-(\d{1,2})/);
+    if (m) {
+      const month = Number(m[1]);
+      return (month >= 10 || month <= 3) ? 1 : 2;
+    }
+  }
+  const parsed = dateStr ? new Date(dateStr) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) {
+    const month = parsed.getMonth() + 1;
+    return (month >= 10 || month <= 3) ? 1 : 2;
+  }
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  return (month >= 10 || month <= 3) ? 1 : 2;
 }
 
 async function resolveSubstituteUserId(db, rawSub) {
@@ -1804,7 +1836,7 @@ export async function onRequest(context) {
 
       // สร้างโควตาวันลาเริ่มต้นประจำปีให้พนักงานใหม่ใน D1
       if (newUserId) {
-        const currentYear = new Date().getFullYear();
+        const currentYear = extractFiscalYear();
         const isGov = empType === 'พนักงานราชการ';
         const matQuota = userGender === 'ชาย' ? 0.0 : 90.0;
         const sicQuota = isGov ? 999.0 : 60.0;
@@ -1925,7 +1957,9 @@ export async function onRequest(context) {
     // GET /api/employees
     // -------------------------------------------------------------
     if (path === '/employees' && method === 'GET') {
-      const currentYear = new Date().getFullYear();
+      const urlObj = new URL(request.url);
+      const yearQuery = urlObj.searchParams.get('year') || urlObj.searchParams.get('fiscalYear');
+      const currentYear = yearQuery ? extractFiscalYear(yearQuery) : extractFiscalYear();
       const { results } = await env.DB.prepare(`
         SELECT 
           u.user_id as raw_id,
@@ -2387,7 +2421,7 @@ export async function onRequest(context) {
       const rawParam = idMatch[1];
       const cleanId = rawParam.replace(/^usr-/, '').trim();
       const body = await request.json().catch(() => ({}));
-      const currentYear = Number(body.year) || new Date().getFullYear();
+      const currentYear = extractFiscalYear(body.year || body.fiscalYear);
 
       let user = null;
       if (/^\d+$/.test(cleanId)) {

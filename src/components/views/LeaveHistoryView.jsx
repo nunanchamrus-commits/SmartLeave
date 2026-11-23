@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   FileText,
   Search,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../../utils/exportPdf';
+import { getFiscalYearInfo, isDateInFiscalYear, isDateInFiscalRound } from '../../utils/thaiDate';
 
 export default function LeaveHistoryView() {
   const {
@@ -30,9 +31,23 @@ export default function LeaveHistoryView() {
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [fiscalFilter, setFiscalFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [downloadingId, setDownloadingId] = useState(null);
   const [adminScope, setAdminScope] = useState('all'); // 'all' | 'my' (เฉพาะ Admin เท่านั้นที่เลือกได้)
+
+  // รายการปีงบประมาณและรอบที่มีในระบบ
+  const fiscalOptions = useMemo(() => {
+    const yearsSet = new Set([2569, 2570]);
+    (leaveRequests || []).forEach((r) => {
+      const d = r.startDate || r.dateRange;
+      if (d) {
+        const fy = getFiscalYearInfo(d).fiscalYearBE;
+        if (fy) yearsSet.add(fy);
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [leaveRequests]);
 
   // สำหรับ User ทั่วไป แสดงเฉพาะคำขอลาของตนเองเท่านั้น 100%
   const baseRequests = (leaveRequests || []).filter((r) => {
@@ -53,7 +68,19 @@ export default function LeaveHistoryView() {
       r.reason.toLowerCase().includes(search.toLowerCase()) ||
       r.dateRange.includes(search) ||
       r.employeeName.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchType && matchSearch;
+
+    let matchFiscal = true;
+    if (fiscalFilter !== 'all') {
+      const [fYear, fRound] = fiscalFilter.split('-');
+      const d = r.startDate || r.dateRange;
+      if (!isDateInFiscalYear(d, Number(fYear))) {
+        matchFiscal = false;
+      } else if (fRound && fRound !== 'all' && !isDateInFiscalRound(d, Number(fYear), Number(fRound))) {
+        matchFiscal = false;
+      }
+    }
+
+    return matchStatus && matchType && matchSearch && matchFiscal;
   });
 
   const handleExportCancelRowPdf = async (req) => {
@@ -243,7 +270,7 @@ export default function LeaveHistoryView() {
 
         {/* Inputs */}
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-          <div className="sm:col-span-8 relative">
+          <div className="sm:col-span-6 relative">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -254,17 +281,34 @@ export default function LeaveHistoryView() {
             />
           </div>
 
-          <div className="sm:col-span-4">
+          <div className="sm:col-span-3">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none text-slate-700"
             >
-              <option value="all">ประเภทการลาทั้งหมด</option>
+              <option value="all">ทุกประเภทการลา</option>
               <option value="vacation">ลาพักผ่อน</option>
               <option value="personal">ลากิจส่วนตัว</option>
               <option value="sick">ลาป่วย</option>
               <option value="maternity">ลาคลอดบุตร</option>
+            </select>
+          </div>
+
+          <div className="sm:col-span-3">
+            <select
+              value={fiscalFilter}
+              onChange={(e) => setFiscalFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none text-slate-700"
+            >
+              <option value="all">ทุกรอบปีงบประมาณ</option>
+              {fiscalOptions.map((y) => (
+                <React.Fragment key={y}>
+                  <option value={`${y}-all`}>ปีงบประมาณ {y} (ทั้งปี)</option>
+                  <option value={`${y}-1`}>ปี {y} - รอบที่ 1 (1 ต.ค. {y - 1} - 31 มี.ค. {y})</option>
+                  <option value={`${y}-2`}>ปี {y} - รอบที่ 2 (1 เม.ย. {y} - 30 ก.ย. {y})</option>
+                </React.Fragment>
+              ))}
             </select>
           </div>
         </div>

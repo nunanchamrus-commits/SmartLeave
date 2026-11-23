@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../../utils/exportPdf';
+import { getFiscalYearInfo } from '../../utils/thaiDate';
 import StatusConfirmModal from '../StatusConfirmModal';
 
 const THAI_MONTHS_SHORT = [
@@ -90,7 +91,8 @@ export default function AdminDashboardView() {
   };
 
   const now = new Date();
-  const currentYearBE = now.getFullYear() + 543;
+  const fiscalYearInfo = useMemo(() => getFiscalYearInfo(now), []);
+  const currentYearBE = fiscalYearInfo.fiscalYearBE;
   const currentMonthYearBE = `${THAI_MONTHS_SHORT[now.getMonth()]} ${currentYearBE}`;
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
@@ -170,11 +172,14 @@ export default function AdminDashboardView() {
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-amber-400 text-amber-950 flex items-center space-x-1 shadow-sm">
                 <span>👑 ผู้ดูแลระบบและผู้อนุมัติ</span>
               </span>
-              <span className="text-xs text-emerald-200/80">Executive HR Portal</span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-800/70 text-emerald-100 border border-emerald-500/30">
+                ประจำปีงบประมาณ {fiscalYearInfo.fiscalYearBE} ({fiscalYearInfo.roundTitle})
+              </span>
+              <span className="text-xs text-emerald-200/80 hidden sm:inline">Executive HR Portal</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-prompt">
               ยินดีต้อนรับ {currentUser?.name || 'ผู้ดูแลระบบ'} 👋

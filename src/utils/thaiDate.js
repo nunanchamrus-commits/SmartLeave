@@ -187,6 +187,185 @@ export function formatCancelDatesBE(cancelDates, cancelStartDate, cancelEndDate,
 }
 
 /**
+ * คำนวณข้อมูลปีงบประมาณและรอบการตัดวันลาตามระเบียบทางราชการไทย
+ * - ปีงบประมาณ: 1 ตุลาคม ปีก่อนหน้า ถึง 30 กันยายน ปีงบประมาณ
+ * - รอบที่ 1: 1 ตุลาคม ถึง 31 มีนาคม (เช่น ปี 2569: 1 ต.ค. 2568 - 31 มี.ค. 2569)
+ * - รอบที่ 2: 1 เมษายน ถึง 30 กันยายน (เช่น ปี 2569: 1 เม.ย. 2569 - 30 ก.ย. 2569)
+ */
+export function getFiscalYearInfo(dateInput = new Date()) {
+  let d;
+  if (!dateInput) {
+    d = new Date();
+  } else if (dateInput instanceof Date) {
+    d = dateInput;
+  } else if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      let y = parseInt(isoMatch[1], 10);
+      const mo = parseInt(isoMatch[2], 10) - 1;
+      const day = parseInt(isoMatch[3], 10);
+      if (y > 2400) y -= 543;
+      d = new Date(y, mo, day);
+    } else {
+      d = new Date(dateInput);
+    }
+  } else {
+    d = new Date(dateInput);
+  }
+
+  if (isNaN(d.getTime())) {
+    d = new Date();
+  }
+
+  const month = d.getMonth() + 1; // 1-12
+  let yearCE = d.getFullYear();
+  if (yearCE > 2400) yearCE -= 543;
+
+  // เดือน ต.ค. (10), พ.ย. (11), ธ.ค. (12) เข้าสู่ปีงบประมาณถัดไป
+  const fiscalYearCE = month >= 10 ? yearCE + 1 : yearCE;
+  const fiscalYearBE = fiscalYearCE + 543;
+
+  // รอบที่ 1: 1 ต.ค. - 31 มี.ค. (เดือน 10, 11, 12, 1, 2, 3)
+  // รอบที่ 2: 1 เม.ย. - 30 ก.ย. (เดือน 4, 5, 6, 7, 8, 9)
+  const round = (month >= 10 || month <= 3) ? 1 : 2;
+  const roundLabel = `รอบที่ ${round}`;
+  const roundTitle = round === 1
+    ? `รอบที่ 1 (1 ต.ค. ${fiscalYearBE - 1} - 31 มี.ค. ${fiscalYearBE})`
+    : `รอบที่ 2 (1 เม.ย. ${fiscalYearBE} - 30 ก.ย. ${fiscalYearBE})`;
+
+  const roundStartDateCE = round === 1 ? `${fiscalYearCE - 1}-10-01` : `${fiscalYearCE}-04-01`;
+  const roundEndDateCE = round === 1 ? `${fiscalYearCE}-03-31` : `${fiscalYearCE}-09-30`;
+
+  const roundDateRangeBE = round === 1
+    ? `1 ตุลาคม ${fiscalYearBE - 1} - 31 มีนาคม ${fiscalYearBE}`
+    : `1 เมษายน ${fiscalYearBE} - 30 กันยายน ${fiscalYearBE}`;
+
+  const roundDateRangeShortBE = round === 1
+    ? `1 ต.ค. ${fiscalYearBE - 1} - 31 มี.ค. ${fiscalYearBE}`
+    : `1 เม.ย. ${fiscalYearBE} - 30 ก.ย. ${fiscalYearBE}`;
+
+  const fiscalYearStartDateCE = `${fiscalYearCE - 1}-10-01`;
+  const fiscalYearEndDateCE = `${fiscalYearCE}-09-30`;
+  const fiscalYearRangeBE = `1 ตุลาคม ${fiscalYearBE - 1} - 30 กันยายน ${fiscalYearBE}`;
+  const fiscalYearRangeShortBE = `1 ต.ค. ${fiscalYearBE - 1} - 30 ก.ย. ${fiscalYearBE}`;
+
+  return {
+    fiscalYearCE,
+    fiscalYearBE,
+    round,
+    roundLabel,
+    roundTitle,
+    roundStartDateCE,
+    roundEndDateCE,
+    roundDateRangeBE,
+    roundDateRangeShortBE,
+    fiscalYearStartDateCE,
+    fiscalYearEndDateCE,
+    fiscalYearRangeBE,
+    fiscalYearRangeShortBE,
+  };
+}
+
+/**
+ * ดึงปีงบประมาณ พ.ศ. ปัจจุบัน
+ */
+export function getCurrentFiscalYearBE() {
+  return getFiscalYearInfo(new Date()).fiscalYearBE;
+}
+
+/**
+ * รายละเอียดของปีงบประมาณและทั้ง 2 รอบการตัดวันลา
+ */
+export function getFiscalYearDetails(fiscalYearBE) {
+  const be = Number(fiscalYearBE) || getCurrentFiscalYearBE();
+  const ce = be - 543;
+  return {
+    fiscalYearBE: be,
+    fiscalYearCE: ce,
+    fiscalYearLabel: `ประจำปีงบประมาณ ${be}`,
+    fiscalYearRangeBE: `1 ตุลาคม ${be - 1} - 30 กันยายน ${be}`,
+    fiscalYearRangeShortBE: `1 ต.ค. ${be - 1} - 30 ก.ย. ${be}`,
+    startDateCE: `${ce - 1}-10-01`,
+    endDateCE: `${ce}-09-30`,
+    rounds: [
+      {
+        round: 1,
+        roundLabel: 'รอบที่ 1',
+        roundTitle: `รอบที่ 1 (1 ต.ค. ${be - 1} - 31 มี.ค. ${be})`,
+        roundDateRangeBE: `1 ตุลาคม ${be - 1} - 31 มีนาคม ${be}`,
+        roundDateRangeShortBE: `1 ต.ค. ${be - 1} - 31 มี.ค. ${be}`,
+        startDateCE: `${ce - 1}-10-01`,
+        endDateCE: `${ce}-03-31`,
+      },
+      {
+        round: 2,
+        roundLabel: 'รอบที่ 2',
+        roundTitle: `รอบที่ 2 (1 เม.ย. ${be} - 30 ก.ย. ${be})`,
+        roundDateRangeBE: `1 เมษายน ${be} - 30 กันยายน ${be}`,
+        roundDateRangeShortBE: `1 เม.ย. ${be} - 30 ก.ย. ${be}`,
+        startDateCE: `${ce}-04-01`,
+        endDateCE: `${ce}-09-30`,
+      },
+    ],
+  };
+}
+
+/**
+ * แปลงวันที่หรือสตริงวันที่ให้ได้ปีงบประมาณ พ.ศ.
+ */
+export function getFiscalYearBE(dateInput) {
+  return getFiscalYearInfo(dateInput).fiscalYearBE;
+}
+
+/**
+ * ตรวจสอบว่าวันที่ที่กำหนดอยู่ในปีงบประมาณเป้าหมายหรือไม่
+ */
+export function isDateInFiscalYear(dateInput, targetFiscalYearBE) {
+  if (!dateInput) return false;
+  const info = getFiscalYearInfo(dateInput);
+  return info.fiscalYearBE === Number(targetFiscalYearBE);
+}
+
+/**
+ * ตรวจสอบว่าวันที่ที่กำหนดอยู่ในรอบการตัดวันลาที่กำหนดหรือไม่
+ * targetRound: 1, 2 หรือ 'all'
+ */
+export function isDateInFiscalRound(dateInput, targetFiscalYearBE, targetRound = 'all') {
+  if (!dateInput) return false;
+  const info = getFiscalYearInfo(dateInput);
+  if (targetFiscalYearBE && info.fiscalYearBE !== Number(targetFiscalYearBE)) {
+    return false;
+  }
+  if (targetRound === 'all' || !targetRound) {
+    return true;
+  }
+  return info.round === Number(targetRound);
+}
+
+/**
+ * ดึงรายการ 12 เดือนของปีงบประมาณ เรียงตามลำดับปีงบประมาณ (ต.ค. -> ก.ย.)
+ */
+export function getFiscalMonthsList(fiscalYearBE) {
+  const be = Number(fiscalYearBE) || getCurrentFiscalYearBE();
+  const ce = be - 543;
+  return [
+    { monthIndex: 9, monthNum: '10', nameShort: 'ต.ค.', yearCE: ce - 1, yearBE: be - 1, round: 1, label: `ต.ค. ${be - 1}` },
+    { monthIndex: 10, monthNum: '11', nameShort: 'พ.ย.', yearCE: ce - 1, yearBE: be - 1, round: 1, label: `พ.ย. ${be - 1}` },
+    { monthIndex: 11, monthNum: '12', nameShort: 'ธ.ค.', yearCE: ce - 1, yearBE: be - 1, round: 1, label: `ธ.ค. ${be - 1}` },
+    { monthIndex: 0, monthNum: '01', nameShort: 'ม.ค.', yearCE: ce, yearBE: be, round: 1, label: `ม.ค. ${be}` },
+    { monthIndex: 1, monthNum: '02', nameShort: 'ก.พ.', yearCE: ce, yearBE: be, round: 1, label: `ก.พ. ${be}` },
+    { monthIndex: 2, monthNum: '03', nameShort: 'มี.ค.', yearCE: ce, yearBE: be, round: 1, label: `มี.ค. ${be}` },
+    { monthIndex: 3, monthNum: '04', nameShort: 'เม.ย.', yearCE: ce, yearBE: be, round: 2, label: `เม.ย. ${be}` },
+    { monthIndex: 4, monthNum: '05', nameShort: 'พ.ค.', yearCE: ce, yearBE: be, round: 2, label: `พ.ค. ${be}` },
+    { monthIndex: 5, monthNum: '06', nameShort: 'มิ.ย.', yearCE: ce, yearBE: be, round: 2, label: `มิ.ย. ${be}` },
+    { monthIndex: 6, monthNum: '07', nameShort: 'ก.ค.', yearCE: ce, yearBE: be, round: 2, label: `ก.ค. ${be}` },
+    { monthIndex: 7, monthNum: '08', nameShort: 'ส.ค.', yearCE: ce, yearBE: be, round: 2, label: `ส.ค. ${be}` },
+    { monthIndex: 8, monthNum: '09', nameShort: 'ก.ย.', yearCE: ce, yearBE: be, round: 2, label: `ก.ย. ${be}` },
+  ];
+}
+
+/**
  * คำนวณวันที่คงเหลือหลังหักวันที่ขอยกเลิกออก
  */
 export function computeRemainingDatesAfterCancel(startIso, endIso, cancelDates, cancelStartDate, cancelEndDate) {

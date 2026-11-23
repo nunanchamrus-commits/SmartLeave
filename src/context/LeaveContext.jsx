@@ -7,6 +7,11 @@ import {
   replaceIsoDatesWithThaiBE,
   formatCancelDatesBE,
   computeRemainingDatesAfterCancel,
+  getFiscalYearInfo,
+  getCurrentFiscalYearBE,
+  getFiscalYearDetails,
+  isDateInFiscalYear,
+  isDateInFiscalRound,
 } from '../utils/thaiDate';
 
 const LeaveContext = createContext();
@@ -478,6 +483,8 @@ export function LeaveProvider({ children }) {
 
   const [quotas, setQuotas] = useState(() => initialQuotas);
 
+  const fiscalYearInfo = useMemo(() => getFiscalYearInfo(new Date()), []);
+
   const [notifications, setNotifications] = useState([]);
 
   const [employees, setEmployees] = useState([]);
@@ -942,6 +949,7 @@ export function LeaveProvider({ children }) {
       setQuotas({
         totalRemaining: totalRem,
         totalLimit: totalLim,
+        fiscalYear: targetUser?.fiscalYearBE || fiscalYearInfo.fiscalYearBE,
         vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: vacLimit },
         personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: perLimit, name: 'ลากิจ' },
         sick: {
@@ -956,9 +964,21 @@ export function LeaveProvider({ children }) {
       return;
     }
 
+    const activeFiscalYearBE = targetUser?.fiscalYearBE || fiscalYearInfo.fiscalYearBE;
     const userApprovedRequests = requests.filter(
-      (r) => doesLeaveBelongToUser(r, targetUser) && r.status === 'อนุมัติ'
+      (r) =>
+        doesLeaveBelongToUser(r, targetUser) &&
+        r.status === 'อนุมัติ' &&
+        isDateInFiscalYear(r.startDate || r.dateRange, activeFiscalYearBE)
     );
+
+    const round1Requests = userApprovedRequests.filter((r) =>
+      isDateInFiscalRound(r.startDate || r.dateRange, activeFiscalYearBE, 1)
+    );
+    const round2Requests = userApprovedRequests.filter((r) =>
+      isDateInFiscalRound(r.startDate || r.dateRange, activeFiscalYearBE, 2)
+    );
+
     const vacationUsed = userApprovedRequests
       .filter((r) => r.typeKey === 'vacation')
       .reduce((sum, r) => sum + Number(r.days || 0), 0);
@@ -974,6 +994,15 @@ export function LeaveProvider({ children }) {
         .filter((r) => r.typeKey === 'maternity')
         .reduce((sum, r) => sum + Number(r.days || 0), 0);
 
+    const vacationRound1 = round1Requests.filter((r) => r.typeKey === 'vacation').reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const vacationRound2 = round2Requests.filter((r) => r.typeKey === 'vacation').reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const personalRound1 = round1Requests.filter((r) => r.typeKey === 'personal').reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const personalRound2 = round2Requests.filter((r) => r.typeKey === 'personal').reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const sickRound1 = round1Requests.filter((r) => r.typeKey === 'sick').reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const sickRound2 = round2Requests.filter((r) => r.typeKey === 'sick').reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const maternityRound1 = isMale ? 0 : round1Requests.filter((r) => r.typeKey === 'maternity').reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const maternityRound2 = isMale ? 0 : round2Requests.filter((r) => r.typeKey === 'maternity').reduce((sum, r) => sum + Number(r.days || 0), 0);
+
     const vacationRem = Math.max(0, vacLimit - vacationUsed);
     const personalRem = Math.max(0, perLimit - personalUsed);
     const sickRem = isSickActual ? 'เท่าที่ป่วยจริง' : Math.max(0, sicLimit - sickUsed);
@@ -988,16 +1017,19 @@ export function LeaveProvider({ children }) {
     setQuotas({
       totalRemaining: totalRem,
       totalLimit: totalLim,
-      vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: vacLimit },
-      personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: perLimit, name: 'ลากิจ' },
+      fiscalYear: activeFiscalYearBE,
+      vacation: { ...initialQuotas.vacation, remaining: vacationRem, used: vacationUsed, limit: vacLimit, round1Used: vacationRound1, round2Used: vacationRound2 },
+      personal: { ...initialQuotas.personal, remaining: personalRem, used: personalUsed, limit: perLimit, name: 'ลากิจ', round1Used: personalRound1, round2Used: personalRound2 },
       sick: {
         ...initialQuotas.sick,
         remaining: isSickActual ? 'เท่าที่ป่วยจริง' : sickRem,
         used: sickUsed,
         limit: isSickActual ? 'เท่าที่ป่วยจริง' : sicLimit,
         isSickAsActual: isSickActual,
+        round1Used: sickRound1,
+        round2Used: sickRound2,
       },
-      maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: matLimit },
+      maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: matLimit, round1Used: maternityRound1, round2Used: maternityRound2 },
     });
   };
 
@@ -2737,6 +2769,7 @@ export function LeaveProvider({ children }) {
         searchQuery,
         setSearchQuery,
         quotas,
+        fiscalYearInfo,
         leaveRequests,
         myLeaveRequests,
         doesLeaveBelongToUser,

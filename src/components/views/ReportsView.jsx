@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Calendar,
   CheckCircle2,
@@ -9,16 +9,26 @@ import {
   BarChart3,
   TrendingUp,
   FileText,
+  Filter,
+  Layers,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
+import {
+  getFiscalYearInfo,
+  getFiscalYearDetails,
+  isDateInFiscalYear,
+  isDateInFiscalRound,
+  getFiscalMonthsList,
+  getCurrentFiscalYearBE,
+} from '../../utils/thaiDate';
 
 export default function ReportsView() {
-  const { leaveRequests, employees, fetchLiveDatabaseData } = useLeave();
+  const { leaveRequests, employees, fetchLiveDatabaseData, fiscalYearInfo } = useLeave();
 
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentYearBE = currentYear + 543;
-  const currentMonthIndex = now.getMonth();
+  // กำหนดปีงบประมาณเริ่มต้นจากระบบ (เช่น 2569)
+  const defaultFiscalYearBE = fiscalYearInfo?.fiscalYearBE || getCurrentFiscalYearBE() || 2569;
+  const [selectedFiscalYearBE, setSelectedFiscalYearBE] = useState(defaultFiscalYearBE);
+  const [selectedRound, setSelectedRound] = useState('all'); // 'all' | 1 | 2
 
   // ซิงค์ข้อมูลล่าสุดกับ Database เมื่อเข้าสู่หน้านี้
   useEffect(() => {
@@ -27,22 +37,57 @@ export default function ReportsView() {
     }
   }, []);
 
-  // 1. คำนวณสถิติรายเดือนจากฐานข้อมูลจริง 100% (ไม่มีการ Hardcode ค่าจำลอง)
-  const thaiMonthsShort = [
-    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
-  ];
+  // รายการปีงบประมาณที่มีในระบบให้เลือก (ดึงจากคำขอลา + ปีปัจจุบัน + ปีถัดไป)
+  const availableFiscalYears = useMemo(() => {
+    const yearsSet = new Set([defaultFiscalYearBE, 2569, defaultFiscalYearBE + 1]);
+    (leaveRequests || []).forEach((r) => {
+      if (r.startDate) {
+        const fy = getFiscalYearInfo(r.startDate).fiscalYearBE;
+        if (fy) yearsSet.add(fy);
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [leaveRequests, defaultFiscalYearBE]);
 
-  const monthlyData = thaiMonthsShort.map((m, idx) => {
-    const monthNum = String(idx + 1).padStart(2, '0');
-    const prefix = `${currentYear}-${monthNum}`;
-    const monthRequests = (leaveRequests || []).filter(
+  // รายละเอียดปีงบประมาณที่เลือก (รอบที่ 1 และ รอบที่ 2)
+  const fiscalDetails = useMemo(() => {
+    return getFiscalYearDetails(selectedFiscalYearBE);
+  }, [selectedFiscalYearBE]);
+
+  // กรองคำขอลาตามปีงบประมาณและรอบที่เลือก
+  const filteredLeaveRequests = useMemo(() => {
+    return (leaveRequests || []).filter((r) => {
+      const dateVal = r.startDate || r.dateRange;
+      if (!dateVal) return false;
+      const inYear = isDateInFiscalYear(dateVal, selectedFiscalYearBE);
+      if (!inYear) return false;
+      if (selectedRound === 'all') return true;
+      return isDateInFiscalRound(dateVal, selectedFiscalYearBE, selectedRound);
+    });
+  }, [leaveRequests, selectedFiscalYearBE, selectedRound]);
+
+  // คำนวณเดือนตามปีงบประมาณ (ต.ค. -> ก.ย.)
+  const allFiscalMonths = useMemo(() => {
+    return getFiscalMonthsList(selectedFiscalYearBE);
+  }, [selectedFiscalYearBE]);
+
+  // เดือนที่จะนำมาแสดงในกราฟ (ถ้าเลือกรอบที่ 1 จะแสดง 6 เดือนแรก, รอบที่ 2 แสดง 6 เดือนหลัง)
+  const displayedMonths = useMemo(() => {
+    if (selectedRound === 'all') return allFiscalMonths;
+    return allFiscalMonths.filter((m) => m.round === Number(selectedRound));
+  }, [allFiscalMonths, selectedRound]);
+
+  const monthlyData = displayedMonths.map((mObj) => {
+    const prefix = `${mObj.yearCE}-${mObj.monthNum}`;
+    const monthRequests = filteredLeaveRequests.filter(
       (r) => r.startDate && String(r.startDate).startsWith(prefix)
     );
     const totalDays = monthRequests.reduce((sum, r) => sum + Number(r.days || 1), 0);
     return {
-      m,
-      monthIndex: idx,
+      name: mObj.nameShort,
+      label: mObj.label,
+      round: mObj.round,
+      yearBE: mObj.yearBE,
       days: totalDays,
       requestsCount: monthRequests.length,
     };
@@ -50,7 +95,7 @@ export default function ReportsView() {
 
   const maxMonthDays = Math.max(...monthlyData.map((d) => d.days), 1);
 
-  // 2. คำนวณสัดส่วนประเภทการลาจากข้อมูลใน Database
+  // สัดส่วนประเภทการลา
   const typeDefinitions = [
     { key: 'vacation', label: 'ลาพักผ่อน (Vacation Leave)', color: 'bg-emerald-500', barColor: 'bg-emerald-500' },
     { key: 'personal', label: 'ลากิจส่วนตัว (Personal Leave)', color: 'bg-teal-500', barColor: 'bg-teal-500' },
@@ -59,7 +104,7 @@ export default function ReportsView() {
   ];
 
   const typeStats = typeDefinitions.map((def) => {
-    const matching = (leaveRequests || []).filter(
+    const matching = filteredLeaveRequests.filter(
       (r) => (r.typeKey || 'vacation') === def.key
     );
     const totalDays = matching.reduce((sum, r) => sum + Number(r.days || 1), 0);
@@ -72,20 +117,20 @@ export default function ReportsView() {
 
   const totalLeaveDaysAcrossAll = typeStats.reduce((sum, t) => sum + t.totalDays, 0);
 
-  // 3. สถิติสถานะคำขอลาจาก Database
+  // สถิติสถานะคำขอลา
   const statusStats = {
-    total: (leaveRequests || []).length,
-    approved: (leaveRequests || []).filter((r) => r.status === 'อนุมัติ').length,
-    checking: (leaveRequests || []).filter(
+    total: filteredLeaveRequests.length,
+    approved: filteredLeaveRequests.filter((r) => r.status === 'อนุมัติ').length,
+    checking: filteredLeaveRequests.filter(
       (r) => r.status === 'อยู่ระหว่างตรวจสอบ' || r.status === 'รออนุมัติ'
     ).length,
-    notSubmitted: (leaveRequests || []).filter((r) => r.status === 'ยังไม่ยื่นเอกสาร').length,
-    rejected: (leaveRequests || []).filter((r) => r.status === 'ไม่อนุมัติ').length,
+    notSubmitted: filteredLeaveRequests.filter((r) => r.status === 'ยังไม่ยื่นเอกสาร').length,
+    rejected: filteredLeaveRequests.filter((r) => r.status === 'ไม่อนุมัติ').length,
   };
 
-  // 4. สถิติการลาแยกตามกลุ่ม/ฝ่าย จาก Database
+  // สถิติการลาแยกตามกลุ่ม/ฝ่าย
   const departmentStats = {};
-  (leaveRequests || []).forEach((r) => {
+  filteredLeaveRequests.forEach((r) => {
     const dept = r.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น';
     if (!departmentStats[dept]) {
       departmentStats[dept] = { requests: 0, days: 0 };
@@ -94,20 +139,91 @@ export default function ReportsView() {
     departmentStats[dept].days += Number(r.days || 1);
   });
 
-  const sortedDepartments = Object.entries(departmentStats)
-    .sort((a, b) => b[1].days - a[1].days);
+  const sortedDepartments = Object.entries(departmentStats).sort((a, b) => b[1].days - a[1].days);
+
+  // ข้อความช่วงเวลาที่เลือก
+  const activePeriodLabel = useMemo(() => {
+    if (selectedRound === 'all') {
+      return `ทั้งปีงบประมาณ (${fiscalDetails.fiscalYearRangeBE})`;
+    }
+    if (Number(selectedRound) === 1) {
+      return `รอบที่ 1 (${fiscalDetails.rounds[0].roundDateRangeBE})`;
+    }
+    return `รอบที่ 2 (${fiscalDetails.rounds[1].roundDateRangeBE})`;
+  }, [selectedRound, fiscalDetails]);
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Page Header & Fiscal Year Controls */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-xs">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 font-prompt">
-            รายงานสถิติการลา
+          <div className="flex items-center space-x-2">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+              ระบบตัดรอบปีงบประมาณ
+            </span>
+            <span className="text-xs text-slate-400">ระเบียบทางราชการ</span>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 font-prompt mt-1">
+            รายงานสถิติการลาประจำปีงบประมาณ {selectedFiscalYearBE}
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ข้อมูลสถิติการลาประจำปี พ.ศ. {currentYearBE}
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            {activePeriodLabel}
           </p>
+        </div>
+
+        {/* Filter Toolbar: Fiscal Year + Round Selector */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Fiscal Year Dropdown */}
+          <div className="flex items-center space-x-1.5 bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-200">
+            <Calendar className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-semibold text-slate-600">ปีงบประมาณ:</span>
+            <select
+              value={selectedFiscalYearBE}
+              onChange={(e) => setSelectedFiscalYearBE(Number(e.target.value))}
+              aria-label="เลือกปีงบประมาณ"
+              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-hidden cursor-pointer"
+            >
+              {availableFiscalYears.map((y) => (
+                <option key={y} value={y}>
+                  พ.ศ. {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Round Toggle Buttons */}
+          <div className="inline-flex rounded-2xl bg-slate-100 p-1 border border-slate-200/80">
+            <button
+              onClick={() => setSelectedRound('all')}
+              className={`px-3 py-1 text-xs font-medium rounded-xl transition-all ${
+                selectedRound === 'all'
+                  ? 'bg-white text-emerald-700 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              ทั้งปี
+            </button>
+            <button
+              onClick={() => setSelectedRound(1)}
+              className={`px-3 py-1 text-xs font-medium rounded-xl transition-all ${
+                Number(selectedRound) === 1
+                  ? 'bg-white text-emerald-700 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              รอบที่ 1 (ต.ค.-มี.ค.)
+            </button>
+            <button
+              onClick={() => setSelectedRound(2)}
+              className={`px-3 py-1 text-xs font-medium rounded-xl transition-all ${
+                Number(selectedRound) === 2
+                  ? 'bg-white text-emerald-700 font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              รอบที่ 2 (เม.ย.-ก.ย.)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -119,7 +235,7 @@ export default function ReportsView() {
             <FileText className="w-4 h-4 text-slate-400" />
           </div>
           <p className="text-2xl font-bold text-slate-800 font-prompt">{statusStats.total}</p>
-          <p className="text-[11px] text-slate-400">รายการคำขอลาในระบบ</p>
+          <p className="text-[11px] text-slate-400">รายการในรอบที่เลือก</p>
         </div>
 
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1">
@@ -161,25 +277,26 @@ export default function ReportsView() {
 
       {/* Visual Chart Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Trend Simulated Bar Chart */}
+        {/* Monthly Trend Bar Chart ตามปีงบประมาณ */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-base text-slate-800 font-prompt">
-                สถิติการลาประจำเดือน (ปี {currentYearBE})
-              </h3>
-              <p className="text-xs text-slate-500">
-                คำนวณจากวันลาจริงในระบบ
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-base text-slate-800 font-prompt">
+                  สถิติการลาประจำเดือน (ปีงบประมาณ {selectedFiscalYearBE})
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                เรียงตามรอบการตัดวันลา: รอบ 1 (ต.ค.-มี.ค.) และ รอบ 2 (เม.ย.-ก.ย.)
               </p>
             </div>
-            <span className="text-xs px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 font-medium">
+            <span className="text-xs px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 font-medium">
               รวม {totalLeaveDaysAcrossAll} วัน
             </span>
           </div>
 
-          <div className="pt-4 flex items-end justify-between h-48 gap-2">
+          <div className="pt-4 flex items-end justify-between h-48 gap-1.5 sm:gap-2">
             {monthlyData.map((item, idx) => {
-              const isCurrentMonth = idx === currentMonthIndex;
               const barHeightPercent = item.days > 0 ? Math.min(100, Math.max(12, (item.days / maxMonthDays) * 100)) : 4;
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
@@ -188,31 +305,31 @@ export default function ReportsView() {
                   </span>
                   <div
                     style={{ height: `${barHeightPercent}%` }}
-                    title={`${item.m}: ${item.days} วัน (${item.requestsCount} คำขอ)`}
+                    title={`${item.label} (รอบที่ ${item.round}): ${item.days} วัน (${item.requestsCount} คำขอ)`}
                     className={`w-full rounded-t-lg transition-all duration-500 ${
-                      isCurrentMonth
-                        ? 'bg-[#2F855A] shadow-md ring-2 ring-emerald-300'
-                        : item.days > 0
-                        ? 'bg-emerald-400 hover:bg-emerald-500'
+                      item.days > 0
+                        ? item.round === 1
+                          ? 'bg-[#2F855A] hover:bg-[#276e4a]'
+                          : 'bg-teal-500 hover:bg-teal-600'
                         : 'bg-slate-100'
                     }`}
                   />
-                  <span className={`text-[10px] ${isCurrentMonth ? 'font-bold text-[#2F855A]' : 'text-slate-400'}`}>
-                    {item.m}
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    {item.name}
                   </span>
                 </div>
               );
             })}
           </div>
 
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
             <span className="flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-[#2F855A]" />
-              <span>เดือนปัจจุบัน ({thaiMonthsShort[currentMonthIndex]})</span>
+              <span>รอบที่ 1 (1 ต.ค. {selectedFiscalYearBE - 1} - 31 มี.ค. {selectedFiscalYearBE})</span>
             </span>
             <span className="flex items-center space-x-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />
-              <span>มีสถิติการลา</span>
+              <span className="w-2.5 h-2.5 rounded-sm bg-teal-500" />
+              <span>รอบที่ 2 (1 เม.ย. {selectedFiscalYearBE} - 30 ก.ย. {selectedFiscalYearBE})</span>
             </span>
             <span className="flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-slate-100" />
@@ -229,7 +346,7 @@ export default function ReportsView() {
                 สัดส่วนการลาแต่ละประเภท
               </h3>
               <p className="text-xs text-slate-500">
-                รวมจำนวนวันลาแยกตามประเภทจากคำขอในฐานข้อมูล D1
+                รวมจำนวนวันลาตามรอบปีงบประมาณ {selectedFiscalYearBE}
               </p>
             </div>
             <span className="text-xs px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 font-medium">
@@ -265,7 +382,7 @@ export default function ReportsView() {
           </div>
 
           <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs text-slate-600">
-            <span>วันลาที่บันทึกในฐานข้อมูลรวมทั้งหมด</span>
+            <span>วันลาที่บันทึกในรอบที่เลือกรวมทั้งหมด</span>
             <span className="font-bold text-slate-800 font-prompt text-sm">{totalLeaveDaysAcrossAll} วัน</span>
           </div>
         </div>
@@ -281,7 +398,7 @@ export default function ReportsView() {
                 สถิติการลาแยกตามกลุ่ม / ฝ่ายในสังกัด
               </h3>
               <p className="text-xs text-slate-500">
-                สรุปคำขอลาและจำนวนวันลาแยกตามแผนกงานจากข้อมูลใน D1
+                สรุปคำขอลาและจำนวนวันลาตามรอบปีงบประมาณ {selectedFiscalYearBE}
               </p>
             </div>
           </div>
@@ -292,7 +409,7 @@ export default function ReportsView() {
 
         {sortedDepartments.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
-            ยังไม่พบข้อมูลการลาแยกตามกลุ่มงาน
+            ยังไม่พบข้อมูลการลาแยกตามกลุ่มงานในรอบนี้
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

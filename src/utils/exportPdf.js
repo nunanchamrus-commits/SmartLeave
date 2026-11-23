@@ -1,6 +1,7 @@
 import html2pdf from 'html2pdf.js';
 import { PDFDocument, PDFName, PDFNumber, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
+import { getFiscalYearInfo } from './thaiDate';
 
 const MONTHS_THAI_FULL = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -882,7 +883,8 @@ export async function generateSickPersonalMaternityPdfBytes(req) {
   drawFittedCentered(String(appliedParts.year), 476, 362.5, 10, 32);
 
   // 9. Leave Statistics Table (สถิติการลา ปีงบประมาณ ...)
-  const fiscalYearText = String(req.fiscalYear || appliedParts.year);
+  const fInfo = getFiscalYearInfo(req.startDate || req.appliedDate || appliedParts);
+  const fiscalYearText = String(req.fiscalYear || fInfo.fiscalYearBE);
   drawFittedCentered(fiscalYearText, 235, 251, 10, 90, true);
 
   const statRows = [
