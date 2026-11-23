@@ -256,7 +256,7 @@ export default function ApproverView() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto pt-2 lg:pt-0 border-t border-slate-100 lg:border-t-0 flex-shrink-0">
                         {/* Download PDF button */}
                         <button
                           type="button"
@@ -318,7 +318,7 @@ export default function ApproverView() {
                         <button
                           type="button"
                           onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
-                          className="px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1"
+                          className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>อนุมัติ</span>

@@ -55,7 +55,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F7F5] flex items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden font-prompt">
+    <div className="min-h-screen bg-[#F4F7F5] flex items-center justify-center p-3 sm:p-6 lg:p-8 relative overflow-hidden font-prompt">
       {/* Decorative background glow & shapes */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-200/40 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-teal-200/30 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
@@ -64,7 +64,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
       <div className="relative z-10 w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[620px]">
 
         {/* Left Side: Brand Visual & Feature Highlights (5 of 12 cols) */}
-        <div className="lg:col-span-5 bg-gradient-to-br from-[#2E6F4E] via-[#38845D] to-[#45966C] p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
+        <div className="hidden lg:flex lg:col-span-5 bg-gradient-to-br from-[#2E6F4E] via-[#38845D] to-[#45966C] p-8 sm:p-10 text-white flex-col justify-between relative overflow-hidden">
           {/* Subtle leafy background curves */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-lime-400/10 rounded-full blur-3xl pointer-events-none" />
@@ -111,7 +111,7 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
         </div>
 
         {/* Right Side: Login Form (7 of 12 cols) */}
-        <div className="lg:col-span-7 p-8 sm:p-12 flex flex-col justify-between">
+        <div className="lg:col-span-7 p-5 sm:p-12 flex flex-col justify-between">
           <div>
             {/* Mobile Brand Header */}
             <div className="flex lg:hidden items-center space-x-3 mb-6 pb-4 border-b border-slate-100">

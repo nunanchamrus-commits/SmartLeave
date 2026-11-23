@@ -302,7 +302,7 @@ export default function AdminCancelApprovalsView() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto pt-2 lg:pt-0 border-t border-slate-100 lg:border-t-0 flex-shrink-0">
                           <button
                             type="button"
                             onClick={() => handleExportCancelPdf(req)}
@@ -453,8 +453,8 @@ export default function AdminCancelApprovalsView() {
 
       {/* Confirm Approve / Reject Cancellation Modal */}
       {confirmModal.isOpen && confirmModal.req && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden max-h-[92dvh] flex flex-col">
             <div
               className={`px-6 py-4 flex items-center justify-between text-white ${
                 confirmModal.action === 'approve' ? 'bg-[#2F855A]' : 'bg-red-600'
@@ -483,7 +483,7 @@ export default function AdminCancelApprovalsView() {
               </button>
             </div>
 
-            <form onSubmit={handleConfirmSubmit} className="p-6 space-y-4 text-xs sm:text-sm">
+            <form onSubmit={handleConfirmSubmit} className="p-4 sm:p-6 space-y-4 text-xs sm:text-sm overflow-y-auto">
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-slate-500">ผู้ยื่นคำขอ:</span>
@@ -555,7 +555,7 @@ export default function AdminCancelApprovalsView() {
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-100">
+              <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2 sm:space-x-2.5 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={closeConfirm}
@@ -586,8 +586,8 @@ export default function AdminCancelApprovalsView() {
 
       {/* Document Preview Modal */}
       {previewDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/70 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90vh]">
             <div className="px-6 py-4 bg-[#2E6F4E] text-white flex items-center justify-between">
               <div className="flex items-center space-x-2 truncate">
                 <Paperclip className="w-4 h-4 text-emerald-300 flex-shrink-0" />

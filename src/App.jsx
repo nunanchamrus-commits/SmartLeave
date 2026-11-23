@@ -19,6 +19,7 @@ import SettingsView from './components/views/SettingsView';
 import LeaveRequestModal from './components/LeaveRequestModal';
 import LeaveDetailModal from './components/LeaveDetailModal';
 import AnnouncementsModal from './components/AnnouncementsModal';
+import MobileBottomNav from './components/MobileBottomNav';
 
 function MainLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -48,7 +49,7 @@ function MainLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F4F7F5] overflow-hidden">
+    <div className="flex h-screen h-[100dvh] bg-[#F4F7F5] overflow-hidden">
       {/* Sidebar Navigation */}
       <Sidebar
         mobileOpen={mobileMenuOpen}
@@ -61,12 +62,15 @@ function MainLayout() {
         <Header onMenuClick={() => setMobileMenuOpen(true)} />
 
         {/* Content Body */}
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 pb-10">
+        <main className="flex-1 px-3 sm:px-6 lg:px-8 pb-24 lg:pb-10">
           <div className="max-w-7xl mx-auto">
             {renderActiveView()}
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav onMoreClick={() => setMobileMenuOpen(true)} />
 
       {/* Global Interactive Modals */}
       <LeaveRequestModal />

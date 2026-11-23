@@ -210,53 +210,53 @@ export default function AdminDashboardView() {
       </div>
 
       {/* 2. Admin Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
         {/* Card 1: Pending Approvals */}
         <div
           onClick={() => setActiveTab('approver')}
-          className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-amber-200 transition-all cursor-pointer group flex flex-col justify-between"
+          className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 hover:shadow-md hover:border-amber-200 transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Clock className="w-6 h-6" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-800 animate-pulse">
               ต้องดำเนินการ
             </span>
           </div>
-          <div className="mt-4">
-            <p className="text-xs font-medium text-slate-500">คำขอที่รอตรวจสอบ/อนุมัติ</p>
-            <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+          <div className="mt-3 sm:mt-4">
+            <p className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">คำขอที่รอตรวจสอบ/อนุมัติ</p>
+            <h3 className="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
               {pendingRequests.length} รายการ
             </h3>
-            <p className="text-[11px] text-amber-600 font-medium mt-1">
-              คลิกเพื่อเปิดดูคิวรอพิจารณา ➔
+            <p className="text-[10px] sm:text-[11px] text-amber-600 font-medium mt-1 truncate">
+              เปิดดูคิวรอพิจารณา ➔
             </p>
           </div>
         </div>
 
         {/* Card 2: On leave today (จากฐานข้อมูลจริง) */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
-              <Calendar className="w-6 h-6" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-100 text-teal-800">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-teal-100 text-teal-800">
               วันนี้
             </span>
           </div>
-          <div className="mt-4">
-            <p className="text-xs font-medium text-slate-500">พนักงานที่ลาวันนี้</p>
-            <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+          <div className="mt-3 sm:mt-4">
+            <p className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">พนักงานที่ลาวันนี้</p>
+            <h3 className="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
               {leavesToday.length} คน
             </h3>
             <p
-              className="text-[11px] text-slate-400 mt-1 truncate"
+              className="text-[10px] sm:text-[11px] text-slate-400 mt-1 truncate"
               title={leavesToday.length > 0 ? leavesToday.map((r) => `${r.employeeName || 'เจ้าหน้าที่'} (${r.type || 'ลา'})`).join(', ') : 'ไม่มีพนักงานลางานวันนี้'}
             >
               {leavesToday.length > 0
                 ? leavesToday.map((r) => `${r.employeeName || 'เจ้าหน้าที่'} (${r.type || 'ลา'})`).join(', ')
-                : 'ไม่มีพนักงานลางานในวันนี้'}
+                : 'ไม่มีพนักงานลาวันนี้'}
             </p>
           </div>
         </div>
@@ -264,23 +264,23 @@ export default function AdminDashboardView() {
         {/* Card 3: Total Headcount */}
         <div
           onClick={() => setActiveTab('employees')}
-          className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group flex flex-col justify-between"
+          className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Users className="w-6 h-6" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Users className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-emerald-100 text-emerald-800">
               กำลังพล
             </span>
           </div>
-          <div className="mt-4">
-            <p className="text-xs font-medium text-slate-500">พนักงานทั้งหมดในองค์กร</p>
-            <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+          <div className="mt-3 sm:mt-4">
+            <p className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">พนักงานทั้งหมด</p>
+            <h3 className="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
               {employees.length} คน
             </h3>
-            <p className="text-[11px] text-emerald-700 font-medium mt-1">
-              เข้างานปกติ {workingTodayCount} คน ({workingTodayPercent}%)
+            <p className="text-[10px] sm:text-[11px] text-emerald-700 font-medium mt-1 truncate">
+              เข้างาน {workingTodayCount} คน ({workingTodayPercent}%)
             </p>
           </div>
         </div>
@@ -288,23 +288,23 @@ export default function AdminDashboardView() {
         {/* Card 4: Org Utilization (คำนวณจากฐานข้อมูลจริง) */}
         <div
           onClick={() => setActiveTab('reports')}
-          className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group flex flex-col justify-between"
+          className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-blue-100 text-blue-800">
               ปี {currentYearBE}
             </span>
           </div>
-          <div className="mt-4">
-            <p className="text-xs font-medium text-slate-500">อัตราการใช้วันลาทั้งองค์กร</p>
-            <h3 className="text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+          <div className="mt-3 sm:mt-4">
+            <p className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">อัตราการใช้วันลา</p>
+            <h3 className="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
               {orgUtilizationRate}%
             </h3>
-            <p className="text-[11px] text-slate-400 mt-1">
-              อนุมัติไปแล้ว {approvedRequests.length} คำขอ ({daysUsedForRate.toFixed(1)} วัน)
+            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-1 truncate">
+              อนุมัติ {approvedRequests.length} คำขอ ({daysUsedForRate.toFixed(1)} วัน)
             </p>
           </div>
         </div>

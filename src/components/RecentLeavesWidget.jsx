@@ -142,36 +142,44 @@ export default function RecentLeavesWidget() {
             <div
               key={req.id}
               onClick={() => setSelectedLeaveDetail(req)}
-              className="py-3 px-2 sm:px-3 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
+              className="py-3 px-3 flex flex-col sm:grid sm:grid-cols-12 gap-2 sm:items-center hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
             >
-              {/* Date */}
-              <div className="col-span-3 font-semibold text-xs sm:text-sm text-slate-800">
-                {req.dateRange}
+              <div className="flex sm:contents items-center justify-between">
+                {/* Date */}
+                <div className="sm:col-span-3 font-semibold text-xs sm:text-sm text-slate-800">
+                  {req.dateRange}
+                </div>
+                {/* Status Badge on mobile */}
+                <div className="sm:hidden">
+                  {getStatusBadge(req.status)}
+                </div>
               </div>
 
-              {/* Leave Type */}
-              <div className="col-span-3 flex items-center space-x-2">
-                <span className="p-1 rounded-md bg-slate-50 group-hover:bg-white transition-colors">
-                  {getLeaveIcon(req.typeKey)}
-                </span>
-                <span className="text-xs sm:text-sm font-medium text-slate-700">
-                  {req.type}
-                </span>
-              </div>
+              <div className="flex sm:contents items-center justify-between text-xs sm:text-sm">
+                {/* Leave Type */}
+                <div className="sm:col-span-3 flex items-center space-x-2">
+                  <span className="p-1 rounded-md bg-slate-50 group-hover:bg-white transition-colors">
+                    {getLeaveIcon(req.typeKey)}
+                  </span>
+                  <span className="font-medium text-slate-700">
+                    {req.type}
+                  </span>
+                </div>
 
-              {/* Days Count */}
-              <div className="col-span-2 text-left sm:text-center text-xs sm:text-sm font-medium text-slate-600">
-                {req.days} วัน
-              </div>
+                {/* Days Count */}
+                <div className="sm:col-span-2 text-slate-600 font-semibold sm:font-medium sm:text-center">
+                  {req.days} วัน
+                </div>
 
-              {/* Status Badge */}
-              <div className="col-span-3 flex sm:justify-center">
-                {getStatusBadge(req.status)}
-              </div>
+                {/* Status Badge on desktop */}
+                <div className="hidden sm:flex sm:col-span-3 sm:justify-center">
+                  {getStatusBadge(req.status)}
+                </div>
 
-              {/* Chevron Arrow */}
-              <div className="col-span-1 flex justify-end">
-                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-all" />
+                {/* Chevron Arrow */}
+                <div className="sm:col-span-1 flex justify-end text-emerald-700">
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
             </div>
           ))

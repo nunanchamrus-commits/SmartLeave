@@ -16,11 +16,11 @@ export default function PrivacyPolicyModal() {
   if (!isPrivacyModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden font-prompt">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full max-h-[92dvh] sm:max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden font-prompt">
         
         {/* Header */}
-        <div className="px-6 py-5 bg-gradient-to-r from-[#2E6F4E] via-[#38845D] to-[#45966C] text-white flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 bg-gradient-to-r from-[#2E6F4E] via-[#38845D] to-[#45966C] text-white flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
               <ShieldCheck className="w-6 h-6 text-emerald-300" />

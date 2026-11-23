@@ -131,7 +131,7 @@ export default function ThaiDatePicker({
       </button>
 
       {open && !disabled && (
-        <div className="absolute left-0 mt-1.5 z-50 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-3.5 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute left-0 sm:left-auto right-auto mt-1.5 z-50 w-[min(calc(100vw-2.5rem),18rem)] bg-white rounded-2xl shadow-xl border border-slate-200 p-3 sm:p-3.5 animate-in fade-in zoom-in-95 duration-150">
           {/* Month / Year (พ.ศ.) Header */}
           <div className="flex items-center justify-between mb-3 gap-1">
             <button

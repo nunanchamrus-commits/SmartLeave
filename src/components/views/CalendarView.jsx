@@ -239,7 +239,7 @@ export default function CalendarView() {
       </div>
 
       {/* Calendar Card */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 sm:p-6 space-y-4">
+      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-3 sm:p-6 space-y-4">
         {/* Month Navigation Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center space-x-2">
@@ -279,16 +279,17 @@ export default function CalendarView() {
         </div>
 
         {/* Days of Week Header */}
-        <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-500 py-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-500 py-2">
           {daysOfWeek.map((d, i) => (
             <div key={i} className={i === 0 || i === 6 ? 'text-red-400' : ''}>
-              {d}
+              <span className="sm:hidden">{['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][i]}</span>
+              <span className="hidden sm:inline">{d}</span>
             </div>
           ))}
         </div>
 
         {/* Grid Days (คลิกที่แต่ละวันเพื่อเปิดดูรายการลาในวันนั้นได้ทันที ไม่ต้องเลื่อนดูในช่องเล็ก) */}
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {days.map((item, idx) => {
             const maxPreview = item.holiday ? 1 : 2;
             const visibleEvents = (item.events || []).slice(0, maxPreview);
@@ -302,7 +303,7 @@ export default function CalendarView() {
                     setSelectedDayStr(item.dateStr);
                   }
                 }}
-                className={`min-h-[96px] sm:min-h-[116px] p-2 rounded-2xl border transition-all flex flex-col justify-between ${
+                className={`min-h-[72px] sm:min-h-[116px] p-1 sm:p-2 rounded-xl sm:rounded-2xl border transition-all flex flex-col justify-between ${
                   item.isCurrent
                     ? item.isToday
                       ? 'bg-emerald-50/40 border-emerald-400 ring-2 ring-emerald-500/20 shadow-xs cursor-pointer hover:bg-emerald-50/70'
@@ -377,11 +378,11 @@ export default function CalendarView() {
       {/* Day Leave Details Modal (คลิกวันที่ในปฏิทินเพื่อดูรายการลาทั้งหมดของวันนั้น) */}
       {selectedDayItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150"
           onClick={() => setSelectedDayStr(null)}
         >
           <div
-            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh]"
+            className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}

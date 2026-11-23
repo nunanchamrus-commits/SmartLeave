@@ -13,6 +13,7 @@ import {
   CheckSquare,
   Shield,
   User,
+  X,
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 
@@ -135,6 +136,18 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
 
         {/* Brand Header */}
         <div className="relative z-10 flex flex-col items-center justify-center pt-7 pb-5 px-6">
+          {/* Mobile Close Button */}
+          {setMobileOpen && (
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              className="lg:hidden absolute top-4 right-4 p-2 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white transition-colors"
+              title="ปิดเมนู"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+
           <div className="relative mb-3 group cursor-pointer" onClick={() => setActiveTab(isAdmin ? 'admin-dashboard' : 'dashboard')}>
             <div className="w-20 h-20 rounded-full bg-white/15 p-2 shadow-md shadow-emerald-950/20 border-2 border-white/30 backdrop-blur-xs flex items-center justify-center transition-transform group-hover:scale-105">
               <img

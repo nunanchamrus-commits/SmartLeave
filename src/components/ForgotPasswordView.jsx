@@ -211,7 +211,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F7F5] flex items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden font-prompt">
+    <div className="min-h-screen bg-[#F4F7F5] flex items-center justify-center p-3 sm:p-6 lg:p-8 relative overflow-hidden font-prompt">
       {/* Decorative background glow & shapes */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-200/40 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-teal-200/30 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
@@ -219,7 +219,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
       {/* Main Container Card */}
       <div className="relative z-10 w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[640px]">
         {/* Left Side: Brand Visual & Security Guidelines (5 of 12 cols) */}
-        <div className="lg:col-span-5 bg-gradient-to-br from-[#2E6F4E] via-[#38845D] to-[#45966C] p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
+        <div className="hidden lg:flex lg:col-span-5 bg-gradient-to-br from-[#2E6F4E] via-[#38845D] to-[#45966C] p-8 sm:p-10 text-white flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-lime-400/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -298,8 +298,23 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
         </div>
 
         {/* Right Side: Forgot Password & OTP Form (7 of 12 cols) */}
-        <div className="lg:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-between">
+        <div className="lg:col-span-7 p-5 sm:p-10 lg:p-12 flex flex-col justify-between">
           <div>
+            {/* Mobile Brand Header */}
+            <div className="flex lg:hidden items-center space-x-3 mb-4 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-full p-1 bg-emerald-50 border border-emerald-200 shadow-xs flex items-center justify-center flex-shrink-0">
+                <img
+                  src="/logo.png"
+                  alt="สำนักงานสหกรณ์จังหวัดขอนแก่น"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-[#1E5638] font-prompt leading-tight">SmartLeave</h1>
+                <p className="text-[11px] text-slate-500 font-medium">สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
+              </div>
+            </div>
+
             {/* Top Navigation & Back Button */}
             <div className="flex items-center justify-between mb-4">
               <button

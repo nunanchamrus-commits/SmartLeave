@@ -654,7 +654,7 @@ export default function AdminEmployeesView() {
 
       {/* Employees Table */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold">
               <tr>
@@ -830,13 +830,130 @@ export default function AdminEmployeesView() {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Employee Cards (lg:hidden) */}
+        <div className="lg:hidden divide-y divide-slate-100">
+          {filteredEmployees.length === 0 ? (
+            <div className="py-12 px-4 text-center text-slate-400 text-xs sm:text-sm">
+              <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+              ไม่พบรายชื่อพนักงานที่ตรงกับเงื่อนไขการค้นหา
+            </div>
+          ) : (
+            filteredEmployees.map((emp) => {
+              const s = getEmployeeLeaveStats(emp);
+              const isMale = isMaleEmployee(emp) || s.isMale;
+              return (
+                <div key={emp.id} className="p-4 hover:bg-slate-50/80 transition-colors space-y-3">
+                  {/* Top: Avatar, Name, Gender & Dept */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <img
+                        src={emp.avatar}
+                        alt={emp.name}
+                        className="w-12 h-12 rounded-full object-cover ring-2 ring-slate-200 flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                          <p className="font-bold text-sm text-slate-900 truncate">{emp.name}</p>
+                          {(emp.gender || (isMale ? 'ชาย' : '')) && (
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                (emp.gender || (isMale ? 'ชาย' : '')) === 'หญิง'
+                                  ? 'bg-pink-50 text-pink-700 border border-pink-200/60'
+                                  : 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                              }`}
+                            >
+                              {emp.gender || (isMale ? 'ชาย' : '')}
+                            </span>
+                          )}
+                          {emp.employmentType && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                              {emp.employmentType}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 truncate">{emp.title}</p>
+                        <p className="text-[11px] text-slate-400 truncate">{emp.department}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        <CalendarCheck className="w-3.5 h-3.5" />
+                        <span>ลา {s.approvedCount} ครั้ง</span>
+                      </span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">ใช้ไป {s.totalUsedDays} วัน</p>
+                    </div>
+                  </div>
+
+                  {/* Quota Chips Grid (2x2) */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+                    <div className="p-2 bg-white rounded-xl border border-slate-100">
+                      <span className="text-[10px] text-slate-400 block font-medium">ลาพักผ่อน</span>
+                      <span className="font-bold text-emerald-700">{s.vacationRem}/{s.vacationLimit} วัน</span>
+                      <span className="text-[10px] text-slate-400 block">ใช้ {s.vacationUsed} วัน</span>
+                    </div>
+
+                    <div className="p-2 bg-white rounded-xl border border-slate-100">
+                      <span className="text-[10px] text-slate-400 block font-medium">ลากิจ</span>
+                      <span className="font-bold text-teal-700">{s.personalRem}/{s.personalLimit} วัน</span>
+                      <span className="text-[10px] text-slate-400 block">ใช้ {s.personalUsed} วัน</span>
+                    </div>
+
+                    <div className="p-2 bg-white rounded-xl border border-slate-100">
+                      <span className="text-[10px] text-slate-400 block font-medium">ลาป่วย</span>
+                      <span className="font-bold text-rose-600">
+                        {s.isSickAsActual ? 'เท่าที่ป่วยจริง' : `${s.sickRem}/${s.sickLimit} วัน`}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">ใช้ {s.sickUsed} วัน</span>
+                    </div>
+
+                    <div className="p-2 bg-white rounded-xl border border-slate-100">
+                      <span className="text-[10px] text-slate-400 block font-medium">
+                        {isMale ? 'สิทธิ์รวมคงเหลือ' : 'ลาคลอด'}
+                      </span>
+                      {isMale ? (
+                        <span className="font-bold text-slate-800">{s.generalRem}/{s.generalLimit} วัน</span>
+                      ) : (
+                        <span className="font-bold text-pink-600">{s.maternityRem}/{s.maternityLimit} วัน</span>
+                      )}
+                      <span className="text-[10px] text-slate-400 block">
+                        {isMale ? 'วันลาสะสม' : `ใช้ ${s.maternityUsed} วัน`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end space-x-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(emp)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>แก้ไขข้อมูลและสิทธิ์</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingEmp(emp)}
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 font-bold text-xs transition-colors flex items-center justify-center"
+                      title="ลบพนักงาน"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Edit Employee & Quota Modal */}
       {editingEmp && editingStats && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-4 bg-[#2E6F4E] text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90vh]">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-[#2E6F4E] text-white">
               <div className="flex items-center space-x-2.5">
                 <Shield className="w-5 h-5 text-amber-400" />
                 <h3 className="font-bold text-base font-prompt">
@@ -1360,9 +1477,9 @@ export default function AdminEmployeesView() {
 
       {/* Add Employee Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-4 bg-[#2E6F4E] text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90vh]">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-[#2E6F4E] text-white">
               <div className="flex items-center space-x-2.5">
                 <UserPlus className="w-5 h-5 text-amber-400" />
                 <h3 className="font-bold text-base font-prompt">เพิ่มพนักงานใหม่เข้าสู่ระบบ</h3>

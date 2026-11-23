@@ -102,37 +102,37 @@ export default function StatCards() {
       </div>
 
       <div
-        className={`grid grid-cols-1 sm:grid-cols-2 ${
+        className={`grid grid-cols-2 ${
           cards.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
-        } gap-4 sm:gap-5`}
+        } gap-2.5 sm:gap-4`}
       >
         {cards.map((card) => (
           <div
             key={card.id}
             onClick={() => setActiveTab('history')}
-            className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-emerald-100 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
+            className="bg-white rounded-2xl p-3 sm:p-5 shadow-xs border border-slate-100 hover:shadow-md hover:border-emerald-100 transition-all duration-200 cursor-pointer group flex flex-col justify-between"
           >
             {/* Top Row: Icon + Value & Label */}
-            <div className="flex items-center space-x-3 sm:space-x-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3.5">
               <div className="group-hover:scale-105 transition-transform duration-200 flex-shrink-0">
                 {card.icon}
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-medium text-slate-500">
+                <p className="text-[11px] sm:text-sm font-medium text-slate-500 truncate">
                   {card.title}
                 </p>
-                <h3 className="text-xl xl:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+                <h3 className="text-base sm:text-xl xl:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5 truncate">
                   {card.value}
                 </h3>
-                <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+                <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5 truncate">
                   {card.subtext}
                 </p>
               </div>
             </div>
 
             {/* Bottom Progress Bar */}
-            <div className="mt-4 pt-1">
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+            <div className="mt-3 sm:mt-4 pt-1">
+              <div className="w-full bg-slate-100 h-1.5 sm:h-2 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ease-out ${card.barColor}`}
                   style={{ width: `${Math.min(100, Math.max(0, card.percent))}%` }}

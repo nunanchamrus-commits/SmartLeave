@@ -172,15 +172,15 @@ export default function CalendarWidget() {
   };
 
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
+    <div className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 flex flex-col justify-between">
       {/* Real-time Date & Time Indicator Banner */}
-      <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-100/80 rounded-xl px-3 py-2 mb-3 text-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 bg-emerald-50/80 border border-emerald-100/80 rounded-xl px-3 py-2 mb-3 text-xs">
         <div className="flex items-center space-x-1.5 text-emerald-950 font-medium">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-semibold">{todayDescription}</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+          <span className="font-semibold truncate">{todayDescription}</span>
         </div>
-        <div className="flex items-center space-x-1 font-mono font-bold text-[#2F855A] bg-white px-2 py-0.5 rounded-lg border border-emerald-200/60 shadow-xs">
-          <Clock className="w-3 h-3 text-emerald-600" />
+        <div className="flex items-center space-x-1 font-mono font-bold text-[#2F855A] bg-white px-2 py-0.5 rounded-lg border border-emerald-200/60 shadow-xs w-fit">
+          <Clock className="w-3 h-3 text-emerald-600 flex-shrink-0" />
           <span>{formattedTime} น.</span>
         </div>
       </div>

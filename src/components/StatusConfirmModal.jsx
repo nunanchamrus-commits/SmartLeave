@@ -67,10 +67,10 @@ export default function StatusConfirmModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92dvh] sm:max-h-[90vh]">
         {/* Header */}
-        <div className={`px-6 py-4 flex items-center justify-between text-white ${headerBg}`}>
+        <div className={`px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between text-white ${headerBg}`}>
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
               {isApprove && <Check className="w-4 h-4 text-white" />}
@@ -93,7 +93,7 @@ export default function StatusConfirmModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
           {/* Summary Box */}
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
             <div className="flex items-center justify-between">
@@ -161,7 +161,7 @@ export default function StatusConfirmModal({
           </p>
 
           {/* Footer Buttons */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2.5">
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2 sm:space-x-2.5">
             <button
               type="button"
               onClick={onClose}

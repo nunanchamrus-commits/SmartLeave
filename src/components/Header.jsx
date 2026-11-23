@@ -78,7 +78,7 @@ export default function Header({ onMenuClick }) {
 
   return (
     <>
-    <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-[#F4F7F5]/90 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-4 bg-[#F4F7F5]/90 backdrop-blur-md">
       {/* Left: Mobile Menu */}
       <div className="flex items-center space-x-3">
         <button
@@ -126,7 +126,7 @@ export default function Header({ onMenuClick }) {
 
           {/* Notifications Dropdown Panel */}
           {isNotifDropdownOpen && (
-            <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 -mr-12 sm:mr-0 mt-3 w-[calc(100vw-1.5rem)] max-w-sm sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
                 <div className="flex items-center space-x-2">
                   <span className="font-semibold text-sm text-slate-800">การแจ้งเตือน</span>
@@ -276,7 +276,7 @@ export default function Header({ onMenuClick }) {
 
           {/* Profile Menu Dropdown */}
           {isProfileMenuOpen && (
-            <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-xs sm:w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="p-3 border-b border-slate-100 flex items-center space-x-3">
                 <button
                   type="button"
