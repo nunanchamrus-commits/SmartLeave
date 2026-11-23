@@ -66,6 +66,11 @@ export default function ReportsView() {
     });
   }, [leaveRequests, selectedFiscalYearBE, selectedRound]);
 
+  // คำขอลาที่ได้รับการอนุมัติแล้วเท่านั้น สำหรับนำมาแสดงในกราฟและสถิติต่างๆ
+  const approvedLeaveRequests = useMemo(() => {
+    return filteredLeaveRequests.filter((r) => r.status === 'อนุมัติ');
+  }, [filteredLeaveRequests]);
+
   // คำนวณเดือนตามปีงบประมาณ (ต.ค. -> ก.ย.)
   const allFiscalMonths = useMemo(() => {
     return getFiscalMonthsList(selectedFiscalYearBE);
@@ -79,7 +84,7 @@ export default function ReportsView() {
 
   const monthlyData = displayedMonths.map((mObj) => {
     const prefix = `${mObj.yearCE}-${mObj.monthNum}`;
-    const monthRequests = filteredLeaveRequests.filter(
+    const monthRequests = approvedLeaveRequests.filter(
       (r) => r.startDate && String(r.startDate).startsWith(prefix)
     );
     const totalDays = monthRequests.reduce((sum, r) => sum + Number(r.days || 1), 0);
@@ -95,7 +100,7 @@ export default function ReportsView() {
 
   const maxMonthDays = Math.max(...monthlyData.map((d) => d.days), 1);
 
-  // สัดส่วนประเภทการลา
+  // สัดส่วนประเภทการลา (นับเฉพาะคำขอที่อนุมัติแล้ว)
   const typeDefinitions = [
     { key: 'vacation', label: 'ลาพักผ่อน (Vacation Leave)', color: 'bg-emerald-500', barColor: 'bg-emerald-500' },
     { key: 'personal', label: 'ลากิจส่วนตัว (Personal Leave)', color: 'bg-teal-500', barColor: 'bg-teal-500' },
@@ -104,7 +109,7 @@ export default function ReportsView() {
   ];
 
   const typeStats = typeDefinitions.map((def) => {
-    const matching = filteredLeaveRequests.filter(
+    const matching = approvedLeaveRequests.filter(
       (r) => (r.typeKey || 'vacation') === def.key
     );
     const totalDays = matching.reduce((sum, r) => sum + Number(r.days || 1), 0);
@@ -120,7 +125,7 @@ export default function ReportsView() {
   // สถิติสถานะคำขอลา
   const statusStats = {
     total: filteredLeaveRequests.length,
-    approved: filteredLeaveRequests.filter((r) => r.status === 'อนุมัติ').length,
+    approved: approvedLeaveRequests.length,
     checking: filteredLeaveRequests.filter(
       (r) => r.status === 'อยู่ระหว่างตรวจสอบ' || r.status === 'รออนุมัติ'
     ).length,
@@ -128,9 +133,9 @@ export default function ReportsView() {
     rejected: filteredLeaveRequests.filter((r) => r.status === 'ไม่อนุมัติ').length,
   };
 
-  // สถิติการลาแยกตามกลุ่ม/ฝ่าย
+  // สถิติการลาแยกตามกลุ่ม/ฝ่าย (นับเฉพาะคำขอที่อนุมัติแล้ว)
   const departmentStats = {};
-  filteredLeaveRequests.forEach((r) => {
+  approvedLeaveRequests.forEach((r) => {
     const dept = r.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น';
     if (!departmentStats[dept]) {
       departmentStats[dept] = { requests: 0, days: 0 };
@@ -262,7 +267,7 @@ export default function ReportsView() {
             <TrendingUp className="w-4 h-4 text-blue-600" />
           </div>
           <p className="text-2xl font-bold text-blue-700 font-prompt">{totalLeaveDaysAcrossAll}</p>
-          <p className="text-[11px] text-blue-600/80">วันทำการที่ใช้ไป</p>
+          <p className="text-[11px] text-blue-600/80">วันทำการที่อนุมัติแล้ว</p>
         </div>
 
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-xs space-y-1 col-span-2 lg:col-span-1">
@@ -285,6 +290,9 @@ export default function ReportsView() {
                 <h3 className="font-bold text-base text-slate-800 font-prompt">
                   สถิติการลาประจำเดือน (ปีงบประมาณ {selectedFiscalYearBE})
                 </h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                  เฉพาะอนุมัติแล้ว
+                </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 เรียงตามรอบการตัดวันลา: รอบ 1 (ต.ค.-มี.ค.) และ รอบ 2 (เม.ย.-ก.ย.)
@@ -305,7 +313,7 @@ export default function ReportsView() {
                   </span>
                   <div
                     style={{ height: `${barHeightPercent}%` }}
-                    title={`${item.label} (รอบที่ ${item.round}): ${item.days} วัน (${item.requestsCount} คำขอ)`}
+                    title={`${item.label} (รอบที่ ${item.round}): ${item.days} วัน (${item.requestsCount} คำขอที่อนุมัติแล้ว)`}
                     className={`w-full rounded-t-lg transition-all duration-500 ${
                       item.days > 0
                         ? item.round === 1
@@ -342,9 +350,14 @@ export default function ReportsView() {
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-base text-slate-800 font-prompt">
-                สัดส่วนการลาแต่ละประเภท
-              </h3>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-base text-slate-800 font-prompt">
+                  สัดส่วนการลาแต่ละประเภท
+                </h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                  เฉพาะอนุมัติแล้ว
+                </span>
+              </div>
               <p className="text-xs text-slate-500">
                 รวมจำนวนวันลาตามรอบปีงบประมาณ {selectedFiscalYearBE}
               </p>
@@ -367,7 +380,7 @@ export default function ReportsView() {
                       <span>{item.label}</span>
                     </span>
                     <span className="text-slate-600">
-                      {item.totalDays} วัน ({item.requestsCount} คำขอ • {pct}%)
+                      {item.totalDays} วัน ({item.requestsCount} คำขอที่อนุมัติ • {pct}%)
                     </span>
                   </div>
                   <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
@@ -382,7 +395,7 @@ export default function ReportsView() {
           </div>
 
           <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs text-slate-600">
-            <span>วันลาที่บันทึกในรอบที่เลือกรวมทั้งหมด</span>
+            <span>วันลาที่อนุมัติแล้วในรอบที่เลือกรวมทั้งหมด</span>
             <span className="font-bold text-slate-800 font-prompt text-sm">{totalLeaveDaysAcrossAll} วัน</span>
           </div>
         </div>
@@ -394,9 +407,14 @@ export default function ReportsView() {
           <div className="flex items-center space-x-2.5">
             <Building className="w-5 h-5 text-emerald-600" />
             <div>
-              <h3 className="font-bold text-base text-slate-800 font-prompt">
-                สถิติการลาแยกตามกลุ่ม / ฝ่ายในสังกัด
-              </h3>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-base text-slate-800 font-prompt">
+                  สถิติการลาแยกตามกลุ่ม / ฝ่ายในสังกัด
+                </h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                  เฉพาะอนุมัติแล้ว
+                </span>
+              </div>
               <p className="text-xs text-slate-500">
                 สรุปคำขอลาและจำนวนวันลาตามรอบปีงบประมาณ {selectedFiscalYearBE}
               </p>
@@ -422,7 +440,7 @@ export default function ReportsView() {
                   <p className="text-xs font-semibold text-slate-800 truncate" title={deptName}>
                     {deptName}
                   </p>
-                  <p className="text-[11px] text-slate-500">{stat.requests} คำขอ</p>
+                  <p className="text-[11px] text-slate-500">{stat.requests} คำขอที่อนุมัติ</p>
                 </div>
                 <div className="text-right">
                   <span className="text-sm font-bold text-emerald-700 font-prompt">{stat.days}</span>
