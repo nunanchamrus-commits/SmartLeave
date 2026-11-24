@@ -1493,7 +1493,7 @@ export async function onRequest(context) {
 
       // ยกเลิกรหัส OTP เดิมที่ยังไม่ได้ใช้ของอีเมลนี้
       await env.DB.prepare(
-        'UPDATE password_reset_otps SET is_used = 1 WHERE LOWER(email) = ? AND is_used = 0'
+        "UPDATE password_reset_otps SET is_used = 1 WHERE TRIM(LOWER(email)) = ? AND (is_used = 0 OR is_used = '0' OR is_used IS NULL)"
       ).bind(cleanEmail).run().catch(() => { });
 
       // บันทึก OTP ลงตาราง
@@ -1538,14 +1538,20 @@ export async function onRequest(context) {
       }
 
       const cleanEmail = email.trim().toLowerCase();
-      const cleanOtp = String(otp).trim();
+      const cleanOtp = String(otp).trim().replace(/\D/g, '');
+      const numOtp = Number(cleanOtp) || 0;
 
       const record = await env.DB.prepare(
         `SELECT id, email, otp_code, expires_at, is_used 
          FROM password_reset_otps 
-         WHERE LOWER(email) = ? AND otp_code = ? AND is_used = 0
+         WHERE TRIM(LOWER(email)) = ? 
+           AND (TRIM(CAST(otp_code AS TEXT)) = ? OR otp_code = ?) 
+           AND (is_used = 0 OR is_used = '0' OR is_used IS NULL)
          ORDER BY id DESC LIMIT 1`
-      ).bind(cleanEmail, cleanOtp).first().catch(() => null);
+      ).bind(cleanEmail, cleanOtp, numOtp).first().catch((err) => {
+        console.error('[verify-otp db error]:', err?.message);
+        return null;
+      });
 
       if (!record) {
         return jsonResponse({ success: false, message: 'รหัส OTP ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' }, 400);
@@ -1577,12 +1583,18 @@ export async function onRequest(context) {
       // หากส่ง otp มาด้วย ให้ตรวจสอบความถูกต้องและหมดอายุ
       if (otp && email) {
         const cleanEmail = email.trim().toLowerCase();
-        const cleanOtp = String(otp).trim();
+        const cleanOtp = String(otp).trim().replace(/\D/g, '');
+        const numOtp = Number(cleanOtp) || 0;
         const record = await env.DB.prepare(
           `SELECT id, expires_at, is_used FROM password_reset_otps 
-           WHERE LOWER(email) = ? AND otp_code = ? AND is_used = 0 
+           WHERE TRIM(LOWER(email)) = ? 
+             AND (TRIM(CAST(otp_code AS TEXT)) = ? OR otp_code = ?) 
+             AND (is_used = 0 OR is_used = '0' OR is_used IS NULL) 
            ORDER BY id DESC LIMIT 1`
-        ).bind(cleanEmail, cleanOtp).first().catch(() => null);
+        ).bind(cleanEmail, cleanOtp, numOtp).first().catch((err) => {
+          console.error('[reset-password otp error]:', err?.message);
+          return null;
+        });
 
         if (!record) {
           return jsonResponse({ success: false, message: 'รหัส OTP ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' }, 400);

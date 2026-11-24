@@ -148,7 +148,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
       return;
     }
 
-    const enteredOtp = otpDigits.join('');
+    const enteredOtp = otpDigits.join('').replace(/\D/g, '').trim();
     if (enteredOtp.length < 6) {
       setError('กรุณากรอกรหัส OTP ให้ครบทั้ง 6 หลัก');
       return;
@@ -191,7 +191,7 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
 
     setIsVerifying(true);
     try {
-      const enteredOtp = otpDigits.join('');
+      const enteredOtp = otpDigits.join('').replace(/\D/g, '').trim();
       const success = await resetPassword(email.trim(), newPassword.trim(), enteredOtp);
       if (success) {
         confetti({
