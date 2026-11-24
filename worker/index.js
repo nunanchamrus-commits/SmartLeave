@@ -1491,15 +1491,37 @@ export async function onRequest(context) {
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
 
+      // ตรวจสอบให้แน่ใจว่ามีตาราง password_reset_otps
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS password_reset_otps (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT NOT NULL,
+          otp_code TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          is_used INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now', '+7 hours'))
+        )
+      `).run().catch(() => { });
+
       // ยกเลิกรหัส OTP เดิมที่ยังไม่ได้ใช้ของอีเมลนี้
       await env.DB.prepare(
         "UPDATE password_reset_otps SET is_used = 1 WHERE TRIM(LOWER(email)) = ? AND (is_used = 0 OR is_used = '0' OR is_used IS NULL)"
       ).bind(cleanEmail).run().catch(() => { });
 
       // บันทึก OTP ลงตาราง
-      await env.DB.prepare(
+      const insertOtpRes = await env.DB.prepare(
         'INSERT INTO password_reset_otps (email, otp_code, expires_at, is_used) VALUES (?, ?, ?, 0)'
-      ).bind(cleanEmail, otpCode, expiresAt).run().catch(() => { });
+      ).bind(cleanEmail, otpCode, expiresAt).run().catch((err) => {
+        console.error('[send-otp insert error]:', err?.message);
+        return null;
+      });
+
+      if (!insertOtpRes) {
+        return jsonResponse({
+          success: false,
+          message: 'ไม่สามารถบันทึกรหัส OTP ลงฐานข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+        }, 500);
+      }
 
       const userName = `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim() || user.english_name || 'ผู้ใช้งาน';
 
@@ -1534,36 +1556,104 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const { email, otp } = body;
       if (!email || !otp) {
-        return jsonResponse({ success: false, message: 'กรุณาระบุอีเมลและรหัส OTP' }, 400);
+        return jsonResponse({ success: false, message: 'กรุณาระบุอีเมลและรหัส OTP ให้ครบถ้วน' }, 400);
       }
 
       const cleanEmail = email.trim().toLowerCase();
       const cleanOtp = String(otp).trim().replace(/\D/g, '');
-      const numOtp = Number(cleanOtp) || 0;
 
-      const record = await env.DB.prepare(
-        `SELECT id, email, otp_code, expires_at, is_used 
-         FROM password_reset_otps 
-         WHERE TRIM(LOWER(email)) = ? 
-           AND (TRIM(CAST(otp_code AS TEXT)) = ? OR otp_code = ?) 
-           AND (is_used = 0 OR is_used = '0' OR is_used IS NULL)
-         ORDER BY id DESC LIMIT 1`
-      ).bind(cleanEmail, cleanOtp, numOtp).first().catch((err) => {
-        console.error('[verify-otp db error]:', err?.message);
-        return null;
+      if (cleanOtp.length < 6) {
+        return jsonResponse({ success: false, message: 'รหัส OTP ต้องเป็นตัวเลข 6 หลัก' }, 400);
+      }
+
+      // ดึงประวัติ OTP ทั้งหมดของอีเมลนี้ (5 รายการล่าสุด) เพื่อตรวจสอบสถานะอย่างละเอียด
+      let otpsForEmail = [];
+      try {
+        const queryRes = await env.DB.prepare(
+          `SELECT id, email, otp_code, expires_at, is_used, created_at 
+           FROM password_reset_otps 
+           WHERE TRIM(LOWER(email)) = ? 
+           ORDER BY id DESC LIMIT 5`
+        ).bind(cleanEmail).all();
+        otpsForEmail = queryRes?.results || [];
+      } catch (err) {
+        console.error('[verify-otp db query error]:', err?.message);
+        return jsonResponse({
+          success: false,
+          message: `เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล D1: ${err?.message || 'DB Query Error'}`,
+        }, 500);
+      }
+
+      // 1) หากไม่พบประวัติ OTP สำหรับอีเมลนี้เลย
+      if (otpsForEmail.length === 0) {
+        const userExists = await env.DB.prepare(
+          'SELECT email FROM users WHERE TRIM(LOWER(email)) = ? LIMIT 1'
+        ).bind(cleanEmail).first().catch(() => null);
+
+        if (!userExists) {
+          return jsonResponse({
+            success: false,
+            message: `ไม่พบที่อยู่อีเมล "${cleanEmail}" ในฐานข้อมูลผู้ใช้งาน กรุณาตรวจสอบอีเมลให้ถูกต้อง`,
+          }, 404);
+        }
+
+        return jsonResponse({
+          success: false,
+          message: `ยังไม่มีประวัติการส่งรหัส OTP ไปยังอีเมล "${cleanEmail}" กรุณากดปุ่ม "ส่งรหัส OTP" ก่อน`,
+        }, 400);
+      }
+
+      // 2) ตรวจสอบว่ารหัสที่กรอก ตรงกับ OTP รายการใดในประวัติของอีเมลนี้หรือไม่
+      const matchingOtpRow = otpsForEmail.find((row) => {
+        const dbCodeStr = String(row.otp_code).trim().replace(/\D/g, '');
+        return dbCodeStr === cleanOtp || Number(dbCodeStr) === Number(cleanOtp);
       });
 
-      if (!record) {
-        return jsonResponse({ success: false, message: 'รหัส OTP ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' }, 400);
+      if (!matchingOtpRow) {
+        // ไม่ตรงกับ OTP ใดๆ ของอีเมลนี้เลย -> ตรวจสอบว่าผู้ใช้เผลอกรอก OTP ของอีเมลอื่นที่สร้างไว้หรือไม่
+        const otherEmailRow = await env.DB.prepare(
+          `SELECT email FROM password_reset_otps 
+           WHERE (TRIM(CAST(otp_code AS TEXT)) = ? OR otp_code = ?) 
+           ORDER BY id DESC LIMIT 1`
+        ).bind(cleanOtp, Number(cleanOtp) || 0).first().catch(() => null);
+
+        if (otherEmailRow && otherEmailRow.email && otherEmailRow.email.trim().toLowerCase() !== cleanEmail) {
+          return jsonResponse({
+            success: false,
+            message: `รหัส OTP นี้ถูกสร้างขึ้นสำหรับอีเมล "${otherEmailRow.email}" แต่คุณกำลังยืนยันด้วยอีเมล "${cleanEmail}" (อีเมลไม่ตรงกัน)`,
+          }, 400);
+        }
+
+        return jsonResponse({
+          success: false,
+          message: 'รหัส OTP 6 หลักไม่ถูกต้อง กรุณาตรวจสอบรหัสล่าสุดจากอีเมลของคุณอีกครั้ง',
+        }, 400);
       }
 
+      // 3) หากรหัสตรง แต่ถูกใช้งานหรือถูกยกเลิกไปแล้ว (เช่น มีการกดขอรหัสใหม่ซ้ำ)
+      if (Number(matchingOtpRow.is_used) === 1 || String(matchingOtpRow.is_used) === '1') {
+        return jsonResponse({
+          success: false,
+          message: 'รหัส OTP นี้ถูกยกเลิกแล้ว (เนื่องจากมีการกดขอรหัสใหม่ซ้ำ หรือถูกใช้งานไปแล้ว) กรุณาใช้รหัส OTP จากอีเมลฉบับล่าสุด',
+        }, 400);
+      }
+
+      // 4) ตรวจสอบเวลาหมดอายุ (5 นาที)
       const now = new Date();
-      const expiresAt = new Date(record.expires_at);
-      if (now > expiresAt) {
-        return jsonResponse({ success: false, message: 'รหัส OTP นี้หมดอายุแล้ว (อายุการใช้งาน 5 นาที) กรุณากดขอรหัสใหม่' }, 400);
+      const expiresAt = new Date(matchingOtpRow.expires_at);
+      if (Number.isNaN(expiresAt.getTime()) || now > expiresAt) {
+        return jsonResponse({
+          success: false,
+          message: 'รหัส OTP นี้หมดอายุแล้ว (อายุการใช้งาน 5 นาที) กรุณากดขอรหัสใหม่อีกครั้ง',
+        }, 400);
       }
 
-      return jsonResponse({ success: true, message: 'ตรวจสอบรหัส OTP ถูกต้อง' });
+      // รหัสถูกต้อง ครบถ้วน ไม่หมดอายุ และยังไม่ถูกใช้งาน
+      return jsonResponse({
+        success: true,
+        message: 'ตรวจสอบรหัส OTP ถูกต้องเรียบร้อย',
+        otpId: matchingOtpRow.id,
+      });
     }
 
     // -------------------------------------------------------------
@@ -1584,30 +1674,42 @@ export async function onRequest(context) {
       if (otp && email) {
         const cleanEmail = email.trim().toLowerCase();
         const cleanOtp = String(otp).trim().replace(/\D/g, '');
-        const numOtp = Number(cleanOtp) || 0;
-        const record = await env.DB.prepare(
-          `SELECT id, expires_at, is_used FROM password_reset_otps 
-           WHERE TRIM(LOWER(email)) = ? 
-             AND (TRIM(CAST(otp_code AS TEXT)) = ? OR otp_code = ?) 
-             AND (is_used = 0 OR is_used = '0' OR is_used IS NULL) 
-           ORDER BY id DESC LIMIT 1`
-        ).bind(cleanEmail, cleanOtp, numOtp).first().catch((err) => {
+
+        let otpsForEmail = [];
+        try {
+          const queryRes = await env.DB.prepare(
+            `SELECT id, email, otp_code, expires_at, is_used 
+             FROM password_reset_otps 
+             WHERE TRIM(LOWER(email)) = ? 
+             ORDER BY id DESC LIMIT 5`
+          ).bind(cleanEmail).all();
+          otpsForEmail = queryRes?.results || [];
+        } catch (err) {
           console.error('[reset-password otp error]:', err?.message);
-          return null;
+        }
+
+        const matchingOtpRow = otpsForEmail.find((row) => {
+          const dbCodeStr = String(row.otp_code).trim().replace(/\D/g, '');
+          return dbCodeStr === cleanOtp || Number(dbCodeStr) === Number(cleanOtp);
         });
 
-        if (!record) {
-          return jsonResponse({ success: false, message: 'รหัส OTP ไม่ถูกต้องหรือถูกใช้งานไปแล้ว' }, 400);
+        if (!matchingOtpRow) {
+          return jsonResponse({ success: false, message: 'รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบรหัสจากอีเมลล่าสุดอีกครั้ง' }, 400);
         }
+
+        if (Number(matchingOtpRow.is_used) === 1 || String(matchingOtpRow.is_used) === '1') {
+          return jsonResponse({ success: false, message: 'รหัส OTP นี้ถูกใช้งานหรือถูกยกเลิกไปแล้ว กรุณากดขอรหัสใหม่' }, 400);
+        }
+
         const now = new Date();
-        const expiresAt = new Date(record.expires_at);
-        if (now > expiresAt) {
-          return jsonResponse({ success: false, message: 'รหัส OTP หมดอายุแล้ว กรุณาขอรหัสใหม่' }, 400);
+        const expiresAt = new Date(matchingOtpRow.expires_at);
+        if (Number.isNaN(expiresAt.getTime()) || now > expiresAt) {
+          return jsonResponse({ success: false, message: 'รหัส OTP นี้หมดอายุแล้ว (อายุการใช้งาน 5 นาที) กรุณากดขอรหัสใหม่' }, 400);
         }
 
         // ทำเครื่องหมายว่า OTP ถูกใช้งานแล้ว
         await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE id = ?')
-          .bind(record.id).run().catch(() => { });
+          .bind(matchingOtpRow.id).run().catch(() => { });
       }
 
       let updateResult = null;
