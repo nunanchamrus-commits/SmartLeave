@@ -42,6 +42,19 @@ function formatThaiDateRangeBE(startDate, endDate, totalDays = null) {
   return e ? `${s} – ${e}` : s;
 }
 
+function formatThaiDateTimeBE(date = new Date()) {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const thDate = new Date(d.getTime() + (7 * 60 + d.getTimezoneOffset()) * 60 * 1000);
+  const day = thDate.getDate();
+  const month = THAI_MONTHS_SHORT[thDate.getMonth()];
+  let year = thDate.getFullYear();
+  if (year < 2400) year += 543;
+  const hours = String(thDate.getHours()).padStart(2, '0');
+  const minutes = String(thDate.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+}
+
 function enumerateIsoDatesWorker(startIso, endIso, maxDays = 120) {
   if (!startIso || typeof startIso !== 'string') return [];
   const sMatch = startIso.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
@@ -393,7 +406,7 @@ async function upsertEmployeeQuotaType(db, userId, leaveTypeId, fiscalYear, defa
   `).bind(userId, leaveTypeId, year, total, used, rem).run().catch(() => { });
 }
 
-async function createLeaveStatusNotification(db, reqInfo, displayStatus, remark = '') {
+async function createLeaveStatusNotification(db, reqInfo, displayStatus, remark = '', env = null, baseUrl = '') {
   if (!reqInfo || !reqInfo.user_id) return;
   const notifType =
     displayStatus === 'อนุมัติ'
@@ -419,6 +432,17 @@ async function createLeaveStatusNotification(db, reqInfo, displayStatus, remark 
     `).bind(reqInfo.user_id, notifTitle, notifDesc, notifType).run();
   } catch (notifErr) {
     console.log('[Notification Insert Note]:', notifErr.message);
+  }
+
+  // ส่งอีเมลแจ้งเตือนผู้ใช้งานเมื่อคำขอได้รับการ "อนุมัติ" หรือ "ไม่อนุมัติ"
+  if (env && (displayStatus === 'อนุมัติ' || displayStatus === 'ไม่อนุมัติ')) {
+    await notifyUserLeaveDecisionEmail({
+      env,
+      reqInfo,
+      displayStatus,
+      remark: cleanRemark,
+      baseUrl,
+    }).catch((err) => console.error('[Email User Decision Error]:', err?.message));
   }
 }
 
@@ -808,6 +832,481 @@ async function sendOtpEmail({ scriptUrl, apiKey, toEmail, otpCode, userName, fro
     error: 'EMAIL_SERVICE_NOT_CONFIGURED',
     message: 'ยังไม่ได้ระบุ GOOGLE_SCRIPT_URL หรือ RESEND_API_KEY ในระบบ',
   };
+}
+
+/**
+ * ฟังก์ชันกลางสำหรับส่งอีเมลแจ้งเตือนทุกประเภทของ SmartLeave ผ่าน Google Apps Script หรือ Resend API
+ */
+async function sendSmartLeaveEmail({ env, toEmail, toName, subject, htmlContent, textContent }) {
+  if (!toEmail || typeof toEmail !== 'string' || !toEmail.includes('@')) {
+    return { success: false, error: 'INVALID_TO_EMAIL' };
+  }
+
+  const cleanEmail = toEmail.trim().toLowerCase();
+
+  // ดึงค่า GOOGLE_SCRIPT_URL และ RESEND_API_KEY จาก env หรือ system_settings
+  let scriptUrl = env.GOOGLE_SCRIPT_URL || '';
+  let resendApiKey = env.RESEND_API_KEY || '';
+
+  try {
+    const settingRows = await env.DB.prepare(
+      "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('google_script_url', 'resend_api_key')"
+    ).all().catch(() => ({ results: [] }));
+    for (const row of (settingRows?.results || [])) {
+      if (row.setting_key === 'google_script_url' && row.setting_value) {
+        scriptUrl = row.setting_value;
+      }
+      if (row.setting_key === 'resend_api_key' && row.setting_value) {
+        resendApiKey = row.setting_value;
+      }
+    }
+  } catch (err) { }
+
+  if (!scriptUrl && !resendApiKey) {
+    console.warn('[sendSmartLeaveEmail] ยังไม่ได้ตั้งค่า GOOGLE_SCRIPT_URL หรือ RESEND_API_KEY');
+    return { success: false, error: 'EMAIL_SERVICE_NOT_CONFIGURED' };
+  }
+
+  // ส่งผ่าน Google Apps Script (ลำดับแรก - ส่งฟรีทุกอีเมล)
+  if (scriptUrl && scriptUrl.trim()) {
+    try {
+      const response = await fetch(scriptUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: cleanEmail,
+          subject,
+          html: htmlContent,
+          text: textContent || subject,
+          type: 'leave_notification',
+        }),
+        redirect: 'follow',
+      });
+      const respText = await response.text();
+      let respJson = null;
+      try { respJson = JSON.parse(respText); } catch (e) { }
+      if (respJson && respJson.success === false) {
+        console.error('[sendSmartLeaveEmail GAS returned error]:', respJson.error);
+      } else {
+        return { success: true, provider: 'google_script' };
+      }
+    } catch (err) {
+      console.error('[sendSmartLeaveEmail GAS fetch error]:', err?.message);
+    }
+  }
+
+  // ส่งผ่าน Resend API (สำรอง)
+  if (resendApiKey && resendApiKey.trim() && resendApiKey !== 're_your_api_key_here') {
+    try {
+      const fromEmail = env.RESEND_FROM_EMAIL || 'SmartLeave <onboarding@resend.dev>';
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [cleanEmail],
+          subject,
+          html: htmlContent,
+          text: textContent || subject,
+        }),
+      });
+      if (res.ok) {
+        return { success: true, provider: 'resend' };
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error('[sendSmartLeaveEmail Resend returned error]:', errData);
+      }
+    } catch (err) {
+      console.error('[sendSmartLeaveEmail Resend fetch error]:', err?.message);
+    }
+  }
+
+  return { success: false, error: 'SEND_FAILED' };
+}
+
+// -----------------------------------------------------------------------------
+// HTML Email Templates (Branded with SmartLeave & สำนักงานสหกรณ์จังหวัดขอนแก่น)
+// -----------------------------------------------------------------------------
+
+function getNewLeaveAdminEmailHtml({ reqNo, requesterName, typeName, dateRangeText, totalDays, reason, substituteName, submitDateTime, actionUrl }) {
+  return `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>มีคำขอลาใหม่รอการตรวจสอบ</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f5; font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7f5; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 580px; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #0F3D24 0%, #155A32 100%); padding: 28px 24px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">SmartLeave</h1>
+              <p style="margin: 4px 0 0 0; color: #a7f3d0; font-size: 13px; font-weight: 500;">สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 28px 24px;">
+              <div style="display: inline-block; background-color: #fef3c7; color: #92400e; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 9999px; margin-bottom: 16px;">
+                🔔 มีคำขอลาใหม่เข้าสู่ระบบ
+              </div>
+              <h2 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">
+                เรียน ผู้ดูแลระบบ / ผู้อนุมัติ
+              </h2>
+              <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                มีคำขอลางานใหม่ยื่นเข้ามาในระบบ SmartLeave รอให้ท่านพิจารณาตรวจสอบรายละเอียดดังนี้:
+              </p>
+
+              <table role="presentation" width="100%" style="background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 24px; border-collapse: separate; border-spacing: 0;">
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; width: 35%; border-bottom: 1px solid #e2e8f0;">เลขที่คำขอ</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${reqNo}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ผู้ยื่นคำขอ</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${requesterName}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ประเภทการลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #15803d; border-bottom: 1px solid #e2e8f0;">${typeName}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ช่วงวันที่ลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${dateRangeText}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">จำนวนวันลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${totalDays} วัน</td>
+                </tr>
+                ${reason ? `<tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">เหตุผลการลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #334155; border-bottom: 1px solid #e2e8f0;">${reason}</td>
+                </tr>` : ''}
+                ${substituteName ? `<tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ผู้ปฏิบัติงานแทน</td>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #334155; border-bottom: 1px solid #e2e8f0;">${substituteName}</td>
+                </tr>` : ''}
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b;">วันที่ยื่นคำขอ</td>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #475569;">${submitDateTime}</td>
+                </tr>
+              </table>
+
+              <div style="text-align: center; margin: 28px 0 16px 0;">
+                <a href="${actionUrl}" target="_blank" style="display: inline-block; background-color: #15803d; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 10px; box-shadow: 0 4px 6px rgba(21, 128, 61, 0.2);">
+                  เข้าสู่ระบบเพื่อพิจารณาคำขอลา &rarr;
+                </a>
+              </div>
+
+              <p style="margin: 24px 0 0 0; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                อีเมลแจ้งเตือนอัตโนมัติจากระบบ SmartLeave สำนักงานสหกรณ์จังหวัดขอนแก่น
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function getApprovedEmailHtml({ userName, reqNo, typeName, dateRangeText, totalDays, remark, decisionDateTime, actionUrl }) {
+  return `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คำขอลาได้รับการอนุมัติ</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f5; font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7f5; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 580px; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #0F3D24 0%, #155A32 100%); padding: 28px 24px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">SmartLeave</h1>
+              <p style="margin: 4px 0 0 0; color: #a7f3d0; font-size: 13px; font-weight: 500;">สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 28px 24px;">
+              <div style="display: inline-block; background-color: #dcfce7; color: #166534; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 9999px; margin-bottom: 16px;">
+                ✅ ได้รับการอนุมัติเรียบร้อยแล้ว
+              </div>
+              <h2 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">
+                เรียน คุณ${userName}
+              </h2>
+              <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                คำขอลาของท่านได้รับการ <strong style="color: #15803d;">อนุมัติ</strong> เรียบร้อยแล้ว โดยมีรายละเอียดดังนี้:
+              </p>
+
+              <table role="presentation" width="100%" style="background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 24px; border-collapse: separate; border-spacing: 0;">
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; width: 35%; border-bottom: 1px solid #e2e8f0;">เลขที่คำขอ</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${reqNo}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ประเภทการลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #15803d; border-bottom: 1px solid #e2e8f0;">${typeName}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ช่วงวันที่ลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${dateRangeText}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">จำนวนวันลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${totalDays} วัน</td>
+                </tr>
+                ${remark ? `<tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ความเห็นผู้อนุมัติ</td>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #334155; border-bottom: 1px solid #e2e8f0;">${remark}</td>
+                </tr>` : ''}
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b;">วันที่พิจารณา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #475569;">${decisionDateTime}</td>
+                </tr>
+              </table>
+
+              <div style="text-align: center; margin: 28px 0 16px 0;">
+                <a href="${actionUrl}" target="_blank" style="display: inline-block; background-color: #15803d; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 10px; box-shadow: 0 4px 6px rgba(21, 128, 61, 0.2);">
+                  ดูรายละเอียดประวัติการลา &rarr;
+                </a>
+              </div>
+
+              <p style="margin: 24px 0 0 0; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                อีเมลแจ้งเตือนอัตโนมัติจากระบบ SmartLeave สำนักงานสหกรณ์จังหวัดขอนแก่น
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function getRejectedEmailHtml({ userName, reqNo, typeName, dateRangeText, totalDays, reasonText, decisionDateTime, actionUrl }) {
+  return `<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คำขอลาไม่ได้รับการอนุมัติ</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f5; font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7f5; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 580px; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%); padding: 28px 24px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">SmartLeave</h1>
+              <p style="margin: 4px 0 0 0; color: #fecaca; font-size: 13px; font-weight: 500;">สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 28px 24px;">
+              <div style="display: inline-block; background-color: #fee2e2; color: #991b1b; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 9999px; margin-bottom: 16px;">
+                ❌ ไม่ได้รับการอนุมัติ
+              </div>
+              <h2 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">
+                เรียน คุณ${userName}
+              </h2>
+              <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                คำขอลาของท่าน <strong style="color: #dc2626;">ไม่ได้รับการอนุมัติ</strong> โดยมีรายละเอียดดังต่อไปนี้:
+              </p>
+
+              <table role="presentation" width="100%" style="background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 24px; border-collapse: separate; border-spacing: 0;">
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; width: 35%; border-bottom: 1px solid #e2e8f0;">เลขที่คำขอ</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${reqNo}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ประเภทการลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #334155; border-bottom: 1px solid #e2e8f0;">${typeName}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">ช่วงวันที่ลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${dateRangeText}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">จำนวนวันลา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #e2e8f0;">${totalDays} วัน</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #b91c1c; font-weight: 600; border-bottom: 1px solid #e2e8f0;">เหตุผลที่ไม่อนุมัติ</td>
+                  <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #b91c1c; background-color: #fef2f2; border-bottom: 1px solid #e2e8f0;">${reasonText}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #64748b;">วันที่พิจารณา</td>
+                  <td style="padding: 12px 16px; font-size: 13px; color: #475569;">${decisionDateTime}</td>
+                </tr>
+              </table>
+
+              <div style="text-align: center; margin: 28px 0 16px 0;">
+                <a href="${actionUrl}" target="_blank" style="display: inline-block; background-color: #475569; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 10px;">
+                  เข้าสู่ระบบ SmartLeave &rarr;
+                </a>
+              </div>
+
+              <p style="margin: 24px 0 0 0; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                หากมีข้อสงสัยเกี่ยวกับผลการพิจารณา กรุณาติดต่อผู้บังคับบัญชาหรือผู้ดูแลระบบ<br/>
+                อีเมลแจ้งเตือนอัตโนมัติจากระบบ SmartLeave สำนักงานสหกรณ์จังหวัดขอนแก่น
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// -----------------------------------------------------------------------------
+// Notification Dispatchers (Admin & User)
+// -----------------------------------------------------------------------------
+
+/**
+ * ส่งอีเมลแจ้งเตือนไปยัง Admin และ ผู้อนุมัติ เมื่อมีคำขอลาใหม่เข้าสู่ระบบ
+ */
+async function notifyAdminNewLeaveRequestEmail({ env, reqInfo, requester, baseUrl }) {
+  if (!env || !reqInfo) return;
+
+  try {
+    // 1. ดึงอีเมลผู้ดูแลระบบ (Admin: role_id = 1) และผู้อนุมัติ (Approver: role_id = 3) ที่เปิดใช้งาน
+    const adminRows = await env.DB.prepare(
+      "SELECT email, prefix, first_name, last_name, english_name FROM users WHERE (role_id = 1 OR role_id = 3) AND is_active = 1 AND email IS NOT NULL AND email LIKE '%@%'"
+    ).all().catch(() => ({ results: [] }));
+
+    const adminEmails = new Set();
+    for (const row of (adminRows?.results || [])) {
+      if (row.email && row.email.includes('@')) {
+        adminEmails.add(row.email.trim().toLowerCase());
+      }
+    }
+
+    // 2. ตรวจสอบอีเมล admin เพิ่มเติมจาก system_settings (ถ้ามี)
+    try {
+      const extraSetting = await env.DB.prepare(
+        "SELECT setting_value FROM system_settings WHERE setting_key = 'admin_notification_email'"
+      ).first().catch(() => null);
+      if (extraSetting && extraSetting.setting_value) {
+        extraSetting.setting_value.split(',').forEach((em) => {
+          const clean = em.trim().toLowerCase();
+          if (clean.includes('@')) adminEmails.add(clean);
+        });
+      }
+    } catch (e) { }
+
+    if (adminEmails.size === 0) {
+      console.log('[notifyAdminNewLeaveRequestEmail] ไม่พบบัญชีอีเมล Admin/Approver ที่เปิดใช้งาน');
+      return;
+    }
+
+    const reqNo = reqInfo.request_no || 'LV-NEW';
+    const requesterName = requester?.name || 'เจ้าหน้าที่';
+    const typeName = reqInfo.type_name || 'การลา';
+    const totalDays = Number(reqInfo.total_days || 1);
+    const dateRangeText = formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, totalDays);
+    const submitDateTime = formatThaiDateTimeBE(new Date());
+    const actionUrl = baseUrl ? `${baseUrl}/approver` : 'https://smartleave.pages.dev';
+
+    const subject = `[SmartLeave] มีคำขอลาใหม่: ${reqNo} จาก ${requesterName} (${typeName})`;
+    const htmlContent = getNewLeaveAdminEmailHtml({
+      reqNo,
+      requesterName,
+      typeName,
+      dateRangeText,
+      totalDays,
+      reason: reqInfo.reason,
+      substituteName: reqInfo.substitute_name,
+      submitDateTime,
+      actionUrl,
+    });
+    const textContent = `มีคำขอลาใหม่รอการตรวจสอบ: ${reqNo}\nผู้ยื่นคำขอ: ${requesterName}\nประเภท: ${typeName}\nช่วงวันที่: ${dateRangeText} (${totalDays} วัน)\nเหตุผล: ${reqInfo.reason || '-'}\nเข้าสู่ระบบเพื่อพิจารณา: ${actionUrl}`;
+
+    for (const toEmail of adminEmails) {
+      await sendSmartLeaveEmail({
+        env,
+        toEmail,
+        toName: 'ผู้ดูแลระบบ',
+        subject,
+        htmlContent,
+        textContent,
+      }).catch((err) => console.error(`[notifyAdminNewLeaveRequestEmail -> ${toEmail} Error]:`, err?.message));
+    }
+  } catch (err) {
+    console.error('[notifyAdminNewLeaveRequestEmail Error]:', err?.message);
+  }
+}
+
+/**
+ * ส่งอีเมลแจ้งเตือนไปยัง User เมื่อคำขอลาได้รับการ "อนุมัติ" หรือ "ไม่อนุมัติ"
+ */
+async function notifyUserLeaveDecisionEmail({ env, reqInfo, displayStatus, remark, baseUrl }) {
+  if (!env || !reqInfo || !reqInfo.user_id) return;
+  // ส่งเฉพาะกรณี "อนุมัติ" หรือ "ไม่อนุมัติ" ตามคำขอของผู้ใช้
+  if (displayStatus !== 'อนุมัติ' && displayStatus !== 'ไม่อนุมัติ') return;
+
+  try {
+    const user = await env.DB.prepare(
+      'SELECT email, prefix, first_name, last_name, english_name FROM users WHERE user_id = ?'
+    ).bind(reqInfo.user_id).first().catch(() => null);
+
+    if (!user || !user.email || !user.email.includes('@')) {
+      console.log(`[notifyUserLeaveDecisionEmail] ผู้ใช้งาน user_id #${reqInfo.user_id} ไม่มีอีเมลในระบบ`);
+      return;
+    }
+
+    const userName = `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim() || user.english_name || 'ผู้ใช้งาน';
+    const reqNo = reqInfo.request_no || `#${reqInfo.request_id}`;
+    let typeName = reqInfo.type_name || '';
+    if (!typeName && reqInfo.leave_type_id) {
+      const lt = await env.DB.prepare('SELECT name_th FROM leave_types WHERE leave_type_id = ?').bind(reqInfo.leave_type_id).first().catch(() => null);
+      if (lt?.name_th) typeName = lt.name_th;
+    }
+    if (!typeName) typeName = 'การลา';
+
+    const totalDays = Number(reqInfo.total_days || 1);
+    const dateRangeText = formatThaiDateRangeBE(reqInfo.start_date, reqInfo.end_date, totalDays);
+    const decisionDateTime = formatThaiDateTimeBE(new Date());
+    const actionUrl = baseUrl ? `${baseUrl}/history` : 'https://smartleave.pages.dev';
+
+    const isApproved = displayStatus === 'อนุมัติ';
+    const subject = isApproved
+      ? `[SmartLeave] คำขอลา ${reqNo} ได้รับการอนุมัติแล้ว`
+      : `[SmartLeave] คำขอลา ${reqNo} ไม่ได้รับการอนุมัติ`;
+
+    const cleanRemark = typeof remark === 'string' ? remark.trim() : (reqInfo.rejection_reason || '');
+
+    const htmlContent = isApproved
+      ? getApprovedEmailHtml({ userName, reqNo, typeName, dateRangeText, totalDays, remark: cleanRemark, decisionDateTime, actionUrl })
+      : getRejectedEmailHtml({ userName, reqNo, typeName, dateRangeText, totalDays, reasonText: cleanRemark || 'ติดภารกิจราชการเร่งด่วน', decisionDateTime, actionUrl });
+
+    const textContent = isApproved
+      ? `เรียน คุณ${userName}\nคำขอลา ${reqNo} (${typeName}) วันที่ ${dateRangeText} (${totalDays} วัน) ได้รับการอนุมัติเรียบร้อยแล้ว\nตรวจสอบรายละเอียดได้ที่: ${actionUrl}`
+      : `เรียน คุณ${userName}\nคำขอลา ${reqNo} (${typeName}) วันที่ ${dateRangeText} (${totalDays} วัน) ไม่ได้รับการอนุมัติ\nเหตุผล: ${cleanRemark || 'ไม่ระบุ'}\nเข้าสู่ระบบ SmartLeave: ${actionUrl}`;
+
+    await sendSmartLeaveEmail({
+      env,
+      toEmail: user.email.trim(),
+      toName: userName,
+      subject,
+      htmlContent,
+      textContent,
+    });
+  } catch (err) {
+    console.error('[notifyUserLeaveDecisionEmail Error]:', err?.message);
+  }
 }
 
 async function autoMigrateDatabase(db) {
@@ -1746,16 +2245,19 @@ export async function onRequest(context) {
     if (path === '/settings/email-config' && method === 'GET') {
       let googleScriptUrl = env.GOOGLE_SCRIPT_URL || '';
       let resendApiKey = env.RESEND_API_KEY ? 'configured' : '';
+      let adminNotificationEmail = '';
       try {
-        const rows = await env.DB.prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('google_script_url', 'resend_api_key')").all().catch(() => ({ results: [] }));
+        const rows = await env.DB.prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('google_script_url', 'resend_api_key', 'admin_notification_email')").all().catch(() => ({ results: [] }));
         for (const r of (rows.results || [])) {
           if (r.setting_key === 'google_script_url' && r.setting_value) googleScriptUrl = r.setting_value;
           if (r.setting_key === 'resend_api_key' && r.setting_value) resendApiKey = 'configured';
+          if (r.setting_key === 'admin_notification_email' && r.setting_value) adminNotificationEmail = r.setting_value;
         }
       } catch (err) { }
       return jsonResponse({
         success: true,
         googleScriptUrl: googleScriptUrl ? `${googleScriptUrl.slice(0, 35)}...` : '',
+        adminNotificationEmail,
         isGoogleScriptConfigured: Boolean(googleScriptUrl),
         isResendConfigured: Boolean(resendApiKey),
         activeProvider: googleScriptUrl ? 'google_script' : (resendApiKey ? 'resend' : 'none'),
@@ -1764,7 +2266,7 @@ export async function onRequest(context) {
 
     if (path === '/settings/email-config' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const { googleScriptUrl, resendApiKey } = body;
+      const { googleScriptUrl, resendApiKey, adminNotificationEmail } = body;
       if (googleScriptUrl !== undefined) {
         await env.DB.prepare(
           "INSERT INTO system_settings (setting_key, setting_value, updated_at) VALUES ('google_script_url', ?, datetime('now', 'localtime')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at"
@@ -1775,7 +2277,43 @@ export async function onRequest(context) {
           "INSERT INTO system_settings (setting_key, setting_value, updated_at) VALUES ('resend_api_key', ?, datetime('now', 'localtime')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at"
         ).bind(String(resendApiKey).trim()).run().catch(() => { });
       }
+      if (adminNotificationEmail !== undefined) {
+        await env.DB.prepare(
+          "INSERT INTO system_settings (setting_key, setting_value, updated_at) VALUES ('admin_notification_email', ?, datetime('now', 'localtime')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = excluded.updated_at"
+        ).bind(String(adminNotificationEmail).trim()).run().catch(() => { });
+      }
       return jsonResponse({ success: true, message: 'บันทึกการตั้งค่าระบบอีเมลเรียบร้อยแล้ว' });
+    }
+
+    // -------------------------------------------------------------
+    // ทดสอบส่งอีเมลระบบ (Test Email Dispatcher)
+    // POST /api/settings/test-email
+    // -------------------------------------------------------------
+    if (path === '/settings/test-email' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { email } = body;
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return jsonResponse({ success: false, message: 'กรุณาระบุที่อยู่อีเมลที่ต้องการทดสอบส่ง' }, 400);
+      }
+      const testResult = await sendSmartLeaveEmail({
+        env,
+        toEmail: email.trim(),
+        toName: 'ผู้ทดสอบระบบ',
+        subject: '[SmartLeave] ทดสอบการส่งอีเมลแจ้งเตือนระบบ',
+        htmlContent: `<div style="font-family: sans-serif; padding: 20px; line-height: 1.6;">
+          <h2 style="color: #15803d;">✅ ทดสอบการส่งอีเมล SmartLeave สำเร็จ</h2>
+          <p>นี่คืออีเมลทดสอบการเชื่อมต่อระบบแจ้งเตือน SmartLeave สำนักงานสหกรณ์จังหวัดขอนแก่น</p>
+          <p><strong>เวลาที่ส่ง:</strong> ${formatThaiDateTimeBE(new Date())}</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #64748b;">อีเมลนี้ส่งผ่านระบบบริการอีเมลอัตโนมัติของ SmartLeave</p>
+        </div>`,
+        textContent: `ทดสอบการส่งอีเมล SmartLeave สำเร็จ เมื่อ ${formatThaiDateTimeBE(new Date())}`,
+      });
+
+      if (testResult.success) {
+        return jsonResponse({ success: true, message: `ส่งอีเมลทดสอบไปยัง ${email} สำเร็จเรียบร้อย (${testResult.provider})` });
+      }
+      return jsonResponse({ success: false, message: `ส่งอีเมลทดสอบไม่สำเร็จ: ${testResult.error || 'กรุณาตรวจสอบ GOOGLE_SCRIPT_URL หรือ RESEND_API_KEY'}` }, 500);
     }
 
     // -------------------------------------------------------------
@@ -2865,6 +3403,46 @@ export async function onRequest(context) {
         VALUES (?, ?, ?, 'pending', '/approver', 0, 'admin', datetime('now', '+7 hours'))
       `).bind(userId || 1, adminNotifTitle, adminNotifDesc).run().catch(() => { });
 
+      // 4. ส่งอีเมลแจ้งเตือน
+      const baseUrl = new URL(request.url).origin;
+      if (mapped.displayStatus === 'อนุมัติ') {
+        // หากเป็นการสร้างคำขอที่อนุมัติทันที -> แจ้งเตือน User
+        await notifyUserLeaveDecisionEmail({
+          env,
+          reqInfo: {
+            user_id: userId,
+            request_no: reqNo,
+            type_name: typeName,
+            start_date: safeStart,
+            end_date: safeEnd,
+            total_days: safeDays,
+            rejection_reason: '',
+          },
+          displayStatus: 'อนุมัติ',
+          remark: '',
+          baseUrl,
+        }).catch((err) => console.error('[Email User Approved on submit error]:', err?.message));
+      } else {
+        // คำขอลาใหม่ (รอตรวจสอบ) -> แจ้งเตือนไปยัง Admin ตามเงื่อนไข "ของ admin ให้แจ้งแค่มีคำขอเข้า"
+        await notifyAdminNewLeaveRequestEmail({
+          env,
+          reqInfo: {
+            request_no: reqNo,
+            type_name: typeName,
+            start_date: safeStart,
+            end_date: safeEnd,
+            total_days: safeDays,
+            reason: safeReason,
+            substitute_name: body.substitute || null,
+          },
+          requester: {
+            name: requesterName,
+            department: requester?.department_name || body.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น',
+          },
+          baseUrl,
+        }).catch((err) => console.error('[Email Admin New Leave Notify error]:', err?.message));
+      }
+
       return jsonResponse({
         success: true,
         id: createdId,
@@ -3003,7 +3581,9 @@ export async function onRequest(context) {
           env.DB,
           { ...reqInfo, type_name: nextTypeName, start_date: safeStart, end_date: safeEnd },
           mappedStatus.displayStatus,
-          safeNote || ''
+          safeNote || '',
+          env,
+          new URL(request.url).origin
         );
       }
 
@@ -3098,7 +3678,7 @@ export async function onRequest(context) {
       }
 
       // สร้างการแจ้งเตือนใน D1 สำหรับ User เจ้าของคำขอลาคนนั้นๆ โดยเฉพาะ
-      await createLeaveStatusNotification(env.DB, reqInfo, mapped.displayStatus, cleanRemark || '');
+      await createLeaveStatusNotification(env.DB, reqInfo, mapped.displayStatus, cleanRemark || '', env, new URL(request.url).origin);
 
       return jsonResponse({
         success: true,
@@ -3141,7 +3721,7 @@ export async function onRequest(context) {
         await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, Number(reqInfo.total_days || 0));
       }
 
-      await createLeaveStatusNotification(env.DB, reqInfo, 'อนุมัติ', remarkText);
+      await createLeaveStatusNotification(env.DB, reqInfo, 'อนุมัติ', remarkText, env, new URL(request.url).origin);
 
       // ทำเครื่องหมายแจ้งเตือนคำขอนี้ในฝั่ง Admin เป็นอ่านแล้วอัตโนมัติ
       const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
@@ -3192,7 +3772,7 @@ export async function onRequest(context) {
         await adjustUserLeaveQuota(env.DB, reqInfo.user_id, reqInfo.leave_type_id, year, -Number(reqInfo.total_days || 0));
       }
 
-      await createLeaveStatusNotification(env.DB, reqInfo, 'ไม่อนุมัติ', remarkText);
+      await createLeaveStatusNotification(env.DB, reqInfo, 'ไม่อนุมัติ', remarkText, env, new URL(request.url).origin);
 
       // ทำเครื่องหมายแจ้งเตือนคำขอนี้ในฝั่ง Admin เป็นอ่านแล้วอัตโนมัติ
       const reqCode = reqInfo.request_no || `REQ-${reqInfo.request_id}`;
