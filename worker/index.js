@@ -946,7 +946,7 @@ async function autoMigrateDatabase(db) {
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS password_reset_otps (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      otp_id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT NOT NULL,
       otp_code TEXT NOT NULL,
       expires_at TEXT NOT NULL,
@@ -1494,7 +1494,7 @@ export async function onRequest(context) {
       // ตรวจสอบให้แน่ใจว่ามีตาราง password_reset_otps
       await env.DB.prepare(`
         CREATE TABLE IF NOT EXISTS password_reset_otps (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          otp_id INTEGER PRIMARY KEY AUTOINCREMENT,
           email TEXT NOT NULL,
           otp_code TEXT NOT NULL,
           expires_at TEXT NOT NULL,
@@ -1567,13 +1567,14 @@ export async function onRequest(context) {
       }
 
       // ดึงประวัติ OTP ทั้งหมดของอีเมลนี้ (5 รายการล่าสุด) เพื่อตรวจสอบสถานะอย่างละเอียด
+      // ใช้ rowid, * เพื่อรองรับทั้งตารางที่ใช้ otp_id หรือ id
       let otpsForEmail = [];
       try {
         const queryRes = await env.DB.prepare(
-          `SELECT id, email, otp_code, expires_at, is_used, created_at 
+          `SELECT rowid, * 
            FROM password_reset_otps 
            WHERE TRIM(LOWER(email)) = ? 
-           ORDER BY id DESC LIMIT 5`
+           ORDER BY rowid DESC LIMIT 5`
         ).bind(cleanEmail).all();
         otpsForEmail = queryRes?.results || [];
       } catch (err) {
@@ -1614,7 +1615,7 @@ export async function onRequest(context) {
         const otherEmailRow = await env.DB.prepare(
           `SELECT email FROM password_reset_otps 
            WHERE (TRIM(CAST(otp_code AS TEXT)) = ? OR otp_code = ?) 
-           ORDER BY id DESC LIMIT 1`
+           ORDER BY rowid DESC LIMIT 1`
         ).bind(cleanOtp, Number(cleanOtp) || 0).first().catch(() => null);
 
         if (otherEmailRow && otherEmailRow.email && otherEmailRow.email.trim().toLowerCase() !== cleanEmail) {
@@ -1649,10 +1650,11 @@ export async function onRequest(context) {
       }
 
       // รหัสถูกต้อง ครบถ้วน ไม่หมดอายุ และยังไม่ถูกใช้งาน
+      const otpRecordId = matchingOtpRow.rowid ?? matchingOtpRow.otp_id ?? matchingOtpRow.id;
       return jsonResponse({
         success: true,
         message: 'ตรวจสอบรหัส OTP ถูกต้องเรียบร้อย',
-        otpId: matchingOtpRow.id,
+        otpId: otpRecordId,
       });
     }
 
@@ -1678,10 +1680,10 @@ export async function onRequest(context) {
         let otpsForEmail = [];
         try {
           const queryRes = await env.DB.prepare(
-            `SELECT id, email, otp_code, expires_at, is_used 
+            `SELECT rowid, * 
              FROM password_reset_otps 
              WHERE TRIM(LOWER(email)) = ? 
-             ORDER BY id DESC LIMIT 5`
+             ORDER BY rowid DESC LIMIT 5`
           ).bind(cleanEmail).all();
           otpsForEmail = queryRes?.results || [];
         } catch (err) {
@@ -1707,9 +1709,10 @@ export async function onRequest(context) {
           return jsonResponse({ success: false, message: 'รหัส OTP นี้หมดอายุแล้ว (อายุการใช้งาน 5 นาที) กรุณากดขอรหัสใหม่' }, 400);
         }
 
-        // ทำเครื่องหมายว่า OTP ถูกใช้งานแล้ว
-        await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE id = ?')
-          .bind(matchingOtpRow.id).run().catch(() => { });
+        // ทำเครื่องหมายว่า OTP ถูกใช้งานแล้ว (ใช้ rowid เพื่อรองรับทั้ง otp_id และ id)
+        const otpRecordId = matchingOtpRow.rowid ?? matchingOtpRow.otp_id ?? matchingOtpRow.id;
+        await env.DB.prepare('UPDATE password_reset_otps SET is_used = 1 WHERE rowid = ?')
+          .bind(otpRecordId).run().catch(() => { });
       }
 
       let updateResult = null;
