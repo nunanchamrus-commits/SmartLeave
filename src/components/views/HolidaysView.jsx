@@ -1,26 +1,27 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
   Plus,
   Trash2,
   Clock,
-  Search,
   Sparkles,
-  Info,
-  Calendar,
+  Search,
   X,
   AlertCircle,
-  Tag,
   ShieldCheck,
-  CheckCircle2,
   CalendarCheck,
+  Calendar,
+  Grid,
+  List,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
-import { getCalendarHolidays } from '../../data/holidays';
+import { getCalendarHolidays, getHolidaysMap } from '../../data/holidays';
 import DinoMascot from '../DinoMascot';
 
-const THAI_MONTH_NAMES = [
-  '',
+const THAI_MONTHS = [
   'มกราคม',
   'กุมภาพันธ์',
   'มีนาคม',
@@ -35,7 +36,7 @@ const THAI_MONTH_NAMES = [
   'ธันวาคม',
 ];
 
-const THAI_DAY_NAMES = [
+const THAI_DAYS_OF_WEEK = [
   'วันอาทิตย์',
   'วันจันทร์',
   'วันอังคาร',
@@ -45,118 +46,144 @@ const THAI_DAY_NAMES = [
   'วันเสาร์',
 ];
 
+const THAI_DAYS_SHORT = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+
 export default function HolidaysView() {
   const { isAdmin, customHolidays, addCustomHoliday, deleteCustomHoliday } = useLeave();
 
-  // Current real date
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const todayStr = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // Real-time current clock
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  // State
-  const [selectedYear, setSelectedYear] = useState(currentYear); // Gregorian year (e.g. 2026)
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedQuarter, setSelectedQuarter] = useState('all'); // 'all' | 'q1' | 'q2' | 'q3' | 'q4' | 'custom'
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const realToday = currentTime;
+  const realYear = realToday.getFullYear();
+  const realMonth = realToday.getMonth();
+  const realDate = realToday.getDate();
+  const todayStr = `${realYear}-${String(realMonth + 1).padStart(2, '0')}-${String(realDate).padStart(2, '0')}`;
+
+  // Calendar Navigation State
+  // monthOffset from current month (0 = current month)
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [viewMode, setViewMode] = useState('calendar'); // 'calendar' | 'list'
+  const [selectedHolidayDetail, setSelectedHolidayDetail] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Target display month & year based on monthOffset
+  const displayDate = new Date(realYear, realMonth + monthOffset, 1);
+  const displayYear = displayDate.getFullYear();
+  const displayMonth = displayDate.getMonth();
+  const displayYearBE = displayYear + 543;
+
+  // Real-time formatted clock string
+  const todayDescription = `${THAI_DAYS_OF_WEEK[realToday.getDay()]}ที่ ${realDate} ${THAI_MONTHS[realMonth]} ${realYear + 543}`;
+  const formattedTime = currentTime.toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  // Map of all holidays for the display year (Standard + Custom)
+  const holidaysMap = useMemo(() => {
+    return getHolidaysMap(displayYear, customHolidays);
+  }, [displayYear, customHolidays]);
+
+  // List of all holidays for the display year
+  const allYearHolidays = useMemo(() => {
+    return getCalendarHolidays(displayYear, customHolidays);
+  }, [displayYear, customHolidays]);
+
+  // Find next upcoming holiday (nearest to today from current year or next year)
+  const nextUpcoming = useMemo(() => {
+    const combinedUpcoming = [
+      ...getCalendarHolidays(realYear, customHolidays),
+      ...getCalendarHolidays(realYear + 1, customHolidays),
+    ]
+      .filter((h) => h.dateStr >= todayStr)
+      .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+
+    return combinedUpcoming.length > 0 ? combinedUpcoming[0] : null;
+  }, [realYear, customHolidays, todayStr]);
+
+  // Days remaining until next upcoming holiday
+  const daysUntilNext = useMemo(() => {
+    if (!nextUpcoming) return null;
+    const [y, m, d] = nextUpcoming.dateStr.split('-').map(Number);
+    const target = new Date(y, m - 1, d);
+    const diffTime = target.getTime() - realToday.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays : 0;
+  }, [nextUpcoming, realToday]);
+
+  // Holidays in current displayed month
+  const monthHolidays = useMemo(() => {
+    return allYearHolidays.filter((h) => h.month === displayMonth + 1);
+  }, [allYearHolidays, displayMonth]);
+
+  // Calculate days for the calendar grid
+  const firstDayIndex = new Date(displayYear, displayMonth, 1).getDay();
+  const daysInCurrentMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(displayYear, displayMonth, 0).getDate();
+
+  const calendarDays = [];
+
+  // 1. Previous month trailing days
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    calendarDays.push({
+      day: daysInPrevMonth - i,
+      isCurrentMonth: false,
+      isToday: false,
+      holiday: null,
+    });
+  }
+
+  // 2. Current month days
+  for (let d = 1; d <= daysInCurrentMonth; d++) {
+    const isToday =
+      d === realDate &&
+      displayMonth === realMonth &&
+      displayYear === realYear;
+
+    const dayStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dayOfWeek = new Date(displayYear, displayMonth, d).getDay();
+    const holiday = holidaysMap[dayStr] || null;
+
+    calendarDays.push({
+      day: d,
+      dateStr: dayStr,
+      dayOfWeek,
+      isCurrentMonth: true,
+      isToday,
+      holiday,
+    });
+  }
+
+  // 3. Next month leading days (fill up grid to 35 or 42 slots)
+  const targetSlots = calendarDays.length <= 35 ? 35 : 42;
+  const remainingSlots = targetSlots - calendarDays.length;
+  for (let d = 1; d <= remainingSlots; d++) {
+    calendarDays.push({
+      day: d,
+      isCurrentMonth: false,
+      isToday: false,
+      holiday: null,
+    });
+  }
 
   // Form State for Add Holiday
   const [formData, setFormData] = useState({
     name: '',
     date: '',
     description: '',
-    type: 'special', // 'special' | 'substitute' | 'official'
+    type: 'special',
   });
   const [formError, setFormError] = useState('');
 
-  // Fetch all holidays for selectedYear (Standard + Custom)
-  const allYearHolidays = useMemo(() => {
-    return getCalendarHolidays(selectedYear, customHolidays);
-  }, [selectedYear, customHolidays]);
-
-  // Find next upcoming holiday (from today onward)
-  const nextUpcoming = useMemo(() => {
-    // Check current year then next year
-    const combinedUpcoming = [
-      ...getCalendarHolidays(currentYear, customHolidays),
-      ...getCalendarHolidays(currentYear + 1, customHolidays),
-    ]
-      .filter((h) => h.dateStr >= todayStr)
-      .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-
-    return combinedUpcoming.length > 0 ? combinedUpcoming[0] : null;
-  }, [currentYear, customHolidays, todayStr]);
-
-  // Calculate days remaining to next upcoming holiday
-  const daysUntilNext = useMemo(() => {
-    if (!nextUpcoming) return null;
-    const [y, m, d] = nextUpcoming.dateStr.split('-').map(Number);
-    const target = new Date(y, m - 1, d);
-    const diffTime = target.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 ? diffDays : 0;
-  }, [nextUpcoming, now]);
-
-  // Filtered Holidays
-  const filteredHolidays = useMemo(() => {
-    return allYearHolidays.filter((item) => {
-      // 1. Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchName = item.name?.toLowerCase().includes(q);
-        const matchDesc = item.description?.toLowerCase().includes(q);
-        const matchDate = item.fullDate?.toLowerCase().includes(q) || item.dateStr?.includes(q);
-        if (!matchName && !matchDesc && !matchDate) return false;
-      }
-
-      // 2. Quarter Filter
-      if (selectedQuarter === 'custom') {
-        return item.isCustom === true;
-      }
-      if (selectedQuarter === 'q1') {
-        return item.month >= 1 && item.month <= 3;
-      }
-      if (selectedQuarter === 'q2') {
-        return item.month >= 4 && item.month <= 6;
-      }
-      if (selectedQuarter === 'q3') {
-        return item.month >= 7 && item.month <= 9;
-      }
-      if (selectedQuarter === 'q4') {
-        return item.month >= 10 && item.month <= 12;
-      }
-
-      return true;
-    });
-  }, [allYearHolidays, searchQuery, selectedQuarter]);
-
-  // Group holidays by Month
-  const holidaysByMonth = useMemo(() => {
-    const groups = {};
-    filteredHolidays.forEach((h) => {
-      if (!groups[h.month]) groups[h.month] = [];
-      groups[h.month].push(h);
-    });
-    return groups;
-  }, [filteredHolidays]);
-
-  // Helper to get Thai Day name for a dateStr
-  const getDayOfWeekName = (dateStr) => {
-    if (!dateStr) return '';
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    return THAI_DAY_NAMES[dt.getDay()];
-  };
-
-  // Helper to check if long weekend (Friday or Monday)
-  const isLongWeekend = (dateStr) => {
-    if (!dateStr) return false;
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const day = new Date(y, m - 1, d).getDay();
-    return day === 1 || day === 5; // Monday or Friday
-  };
-
-  // Handle Submit Form
   const handleSubmitAdd = (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -173,7 +200,26 @@ export default function HolidaysView() {
       setIsAddModalOpen(false);
       setFormData({ name: '', date: '', description: '', type: 'special' });
       setFormError('');
+
+      // Auto jump calendar to the month of the added holiday
+      const [newY, newM] = formData.date.split('-').map(Number);
+      const targetOffset = (newY - realYear) * 12 + (newM - 1 - realMonth);
+      setMonthOffset(targetOffset);
     }
+  };
+
+  const getDayOfWeekName = (dateStr) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return THAI_DAYS_OF_WEEK[dt.getDay()];
+  };
+
+  const isLongWeekend = (dateStr) => {
+    if (!dateStr) return false;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const day = new Date(y, m - 1, d).getDay();
+    return day === 1 || day === 5; // Monday or Friday
   };
 
   return (
@@ -182,22 +228,60 @@ export default function HolidaysView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-100/70 text-emerald-800 flex items-center justify-center shadow-xs">
-              <CalendarDays className="w-5 h-5 text-emerald-700" />
+            <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center shadow-xs">
+              <CalendarDays className="w-5 h-5 text-purple-700" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-slate-800 font-prompt">
                 ปฏิทินวันหยุดราชการ
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                ตรวจสอบวันหยุดนักขัตฤกษ์ประจำปี วางแผนการลาพักผ่อนล่วงหน้าอย่างมีความสุข
+                ตารางปฏิทินวันหยุดนักขัตฤกษ์และวันหยุดพิเศษ (แสดงไฮไลต์สีม่วงอ่อนทั้งช่องในวันหยุด)
               </p>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons: Add Holiday (Admin only) & Year Select */}
-        <div className="flex items-center space-x-3">
+        {/* Action Controls: Live Clock, Add Holiday (Admin only), View Switch */}
+        <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
+          {/* Live Clock Chip */}
+          <div className="hidden xl:flex items-center space-x-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200/80 shadow-xs text-xs">
+            <Clock className="w-3.5 h-3.5 text-purple-600" />
+            <span className="text-slate-600">{todayDescription}</span>
+            <span className="font-mono font-bold text-purple-700 pl-1 border-l border-slate-200">
+              {formattedTime} น.
+            </span>
+          </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200/80 shadow-xs text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setViewMode('calendar')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === 'calendar'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>ตารางปฏิทิน</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>สรุปทั้งปี</span>
+            </button>
+          </div>
+
+          {/* Add Holiday Button for Admin */}
           {isAdmin && (
             <button
               type="button"
@@ -205,42 +289,24 @@ export default function HolidaysView() {
                 setFormError('');
                 setIsAddModalOpen(true);
               }}
-              className="flex items-center space-x-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer"
+              className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>เพิ่มวันหยุดพิเศษ</span>
             </button>
           )}
-
-          {/* Year Selector Pills */}
-          <div className="flex items-center bg-white p-1 rounded-2xl border border-slate-200/80 shadow-xs">
-            {[currentYear - 1, currentYear, currentYear + 1].map((yr) => (
-              <button
-                key={yr}
-                type="button"
-                onClick={() => setSelectedYear(yr)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                  selectedYear === yr
-                    ? 'bg-[#1E5638] text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                พ.ศ. {yr + 543}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
       {/* Featured Banner: Next Upcoming Holiday Countdown */}
       {nextUpcoming && (
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#184E34] via-[#226343] to-[#164930] text-white p-5 sm:p-7 shadow-md border border-emerald-900/20">
-          <div className="absolute top-0 right-0 -mr-12 -mt-12 w-64 h-64 rounded-full bg-emerald-400/10 blur-3xl pointer-events-none" />
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-5">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#4C1D95] via-[#5B21B6] to-[#6D28D9] text-white p-5 sm:p-6 shadow-md border border-purple-900/20">
+          <div className="absolute top-0 right-0 -mr-12 -mt-12 w-64 h-64 rounded-full bg-purple-400/10 blur-3xl pointer-events-none" />
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-start sm:items-center space-x-4">
               <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 p-2 flex flex-col items-center justify-center flex-shrink-0 backdrop-blur-xs shadow-inner">
-                <span className="text-[11px] font-medium text-emerald-200 uppercase leading-none">
-                  {THAI_MONTH_NAMES[parseInt(nextUpcoming.dateStr.split('-')[1], 10)]?.slice(0, 4)}
+                <span className="text-[11px] font-medium text-purple-200 uppercase leading-none">
+                  {THAI_MONTHS[parseInt(nextUpcoming.dateStr.split('-')[1], 10) - 1]?.slice(0, 4)}
                 </span>
                 <span className="text-2xl font-black text-white leading-none mt-1 font-prompt">
                   {nextUpcoming.dateStr.split('-')[2]}
@@ -250,10 +316,10 @@ export default function HolidaysView() {
                 <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                   <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-400 text-slate-900 shadow-xs">
                     <Sparkles className="w-3 h-3 text-amber-900" />
-                    <span>วันหยุดที่ใกล้ถึงที่สุด</span>
+                    <span>วันหยุดราชการถัดไป</span>
                   </span>
                   {daysUntilNext !== null && (
-                    <span className="text-xs text-emerald-200 font-medium">
+                    <span className="text-xs text-purple-200 font-medium">
                       (อีก {daysUntilNext === 0 ? 'วันนี้แล้ว!' : `${daysUntilNext} วัน`})
                     </span>
                   )}
@@ -263,193 +329,363 @@ export default function HolidaysView() {
                     </span>
                   )}
                 </div>
-                <h3 className="text-xl sm:text-2xl font-extrabold font-prompt text-white">
+                <h3 className="text-lg sm:text-xl font-extrabold font-prompt text-white">
                   {nextUpcoming.name}
                 </h3>
-                <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed max-w-xl">
+                <p className="text-xs text-purple-100/80 leading-relaxed max-w-xl">
                   {getDayOfWeekName(nextUpcoming.dateStr)}ที่ {nextUpcoming.fullDate} — {nextUpcoming.description}
                 </p>
               </div>
             </div>
 
-            <div className="flex-shrink-0 hidden lg:flex items-center pr-4">
-              <DinoMascot pose="holiday" size={110} className="filter drop-shadow-lg" />
+            <div className="flex-shrink-0 hidden lg:flex items-center pr-2">
+              <DinoMascot pose="holiday" size={100} className="filter drop-shadow-lg" />
             </div>
           </div>
         </div>
       )}
 
-      {/* Filter Bar & Search */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Quarter Filter Pills */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none text-xs font-semibold">
-          {[
-            { id: 'all', label: `ทั้งปี (${allYearHolidays.length})` },
-            { id: 'q1', label: 'ไตรมาส 1 (ม.ค. - มี.ค.)' },
-            { id: 'q2', label: 'ไตรมาส 2 (เม.ย. - มิ.ย.)' },
-            { id: 'q3', label: 'ไตรมาส 3 (ก.ค. - ก.ย.)' },
-            { id: 'q4', label: 'ไตรมาส 4 (ต.ค. - ธ.ค.)' },
-            ...(customHolidays && customHolidays.length > 0
-              ? [{ id: 'custom', label: `พิเศษ (${customHolidays.length})` }]
-              : []),
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSelectedQuarter(tab.id)}
-              className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
-                selectedQuarter === tab.id
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      {/* VIEW 1: CALENDAR GRID VIEW (ตารางปฏิทิน และวันไหนที่มีวันหยุด ช่องนั้นเป็นสีม่วงอ่อนทั้งช่อง) */}
+      {viewMode === 'calendar' ? (
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200/80 p-3 sm:p-6 space-y-4">
+          {/* Navigation Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800 font-prompt">
+                {THAI_MONTHS[displayMonth]} {displayYearBE}
+              </h3>
+              {monthHolidays.length > 0 && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                  วันหยุด {monthHolidays.length} วัน
+                </span>
+              )}
+            </div>
 
-        {/* Search Input */}
-        <div className="relative min-w-[220px]">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหาชื่อวันหยุด..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50/50"
-          />
-        </div>
-      </div>
+            {/* Navigation Buttons: Prev / Today / Next */}
+            <div className="flex items-center space-x-1.5 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setMonthOffset((p) => p - 1)}
+                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+                title="เดือนก่อนหน้า"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMonthOffset(0)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors flex items-center space-x-1 cursor-pointer ${
+                  monthOffset === 0
+                    ? 'bg-purple-50 text-purple-800 border-purple-200 shadow-2xs'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                }`}
+                title="กลับมาเดือนปัจจุบัน"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>เดือนนี้</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMonthOffset((p) => p + 1)}
+                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+                title="เดือนถัดไป"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-      {/* Holidays List Grouped by Month */}
-      {filteredHolidays.length === 0 ? (
-        <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-xs flex flex-col items-center justify-center">
-          <DinoMascot pose="error" size={90} className="mb-2" />
-          <h4 className="font-bold text-slate-800 font-prompt text-base">ไม่พบรายการวันหยุดที่ตรงกับเงื่อนไข</h4>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm">
-            ลองปรับเปลี่ยนคำค้นหา หรือเลือกดูวันหยุดในไตรมาสอื่นๆ
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(holidaysByMonth)
-            .sort(([a], [b]) => Number(a) - Number(b))
-            .map(([monthNum, holidays]) => (
-              <div key={monthNum} className="space-y-3">
-                {/* Month Title */}
-                <div className="flex items-center space-x-2 px-1">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <h3 className="font-bold text-slate-800 text-base font-prompt">
-                    {THAI_MONTH_NAMES[Number(monthNum)]} {selectedYear + 543}
-                  </h3>
-                  <span className="text-xs text-slate-400">
-                    ({holidays.length} วัน)
-                  </span>
-                </div>
+          {/* Quick Month Jump Chips */}
+          <div className="flex items-center space-x-1 overflow-x-auto pb-1 scrollbar-none text-[11px] font-medium border-b border-slate-100">
+            {THAI_MONTHS.map((mName, mIdx) => {
+              const isSelected = displayMonth === mIdx;
+              return (
+                <button
+                  key={mIdx}
+                  type="button"
+                  onClick={() => {
+                    const targetOffset = (displayYear - realYear) * 12 + (mIdx - realMonth);
+                    setMonthOffset(targetOffset);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                    isSelected
+                      ? 'bg-purple-700 text-white font-bold shadow-2xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {mName}
+                </button>
+              );
+            })}
+          </div>
 
-                {/* Holiday Cards in this Month */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  {holidays.map((h) => {
-                    const isLong = isLongWeekend(h.dateStr);
-                    const isPast = h.dateStr < todayStr;
-                    const isToday = h.dateStr === todayStr;
-
-                    return (
-                      <div
-                        key={h.id}
-                        className={`relative rounded-2xl p-4 border transition-all flex items-start space-x-3.5 bg-white shadow-2xs hover:shadow-sm ${
-                          isToday
-                            ? 'border-emerald-400 ring-2 ring-emerald-500/20 bg-emerald-50/30'
-                            : isPast
-                            ? 'border-slate-200/60 opacity-80'
-                            : 'border-slate-200/90 hover:border-emerald-300'
-                        }`}
-                      >
-                        {/* Date Box */}
-                        <div
-                          className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 border ${
-                            isToday
-                              ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                              : isPast
-                              ? 'bg-slate-100 text-slate-600 border-slate-200'
-                              : 'bg-emerald-50 text-emerald-900 border-emerald-200/80 shadow-2xs'
-                          }`}
-                        >
-                          <span className="text-[10px] font-semibold leading-none">
-                            {getDayOfWeekName(h.dateStr).replace('วัน', '')}
-                          </span>
-                          <span className="text-xl font-black font-prompt leading-tight mt-0.5">
-                            {h.day}
-                          </span>
-                        </div>
-
-                        {/* Details */}
-                        <div className="flex-1 min-w-0 pr-1">
-                          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1 mb-1">
-                            {h.isCustom ? (
-                              <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
-                                <ShieldCheck className="w-3 h-3 text-purple-600" />
-                                <span>กำหนดโดยหน่วยงาน</span>
-                              </span>
-                            ) : h.name.includes('ชดเชย') ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                                วันหยุดชดเชย
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                วันหยุดราชการ
-                              </span>
-                            )}
-
-                            {isLong && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                                🌴 หยุดยาว
-                              </span>
-                            )}
-
-                            {isToday && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-600 text-white">
-                                วันนี้
-                              </span>
-                            )}
-                          </div>
-
-                          <h4 className="font-bold text-slate-800 text-sm font-prompt leading-snug line-clamp-2">
-                            {h.name}
-                          </h4>
-                          <p className="text-[11.5px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
-                            {h.description || 'วันหยุดราชการประจำปี'}
-                          </p>
-                          <div className="mt-2 text-[10.5px] text-slate-400 font-medium">
-                            {h.fullDate}
-                          </div>
-                        </div>
-
-                        {/* Admin Delete Action for Custom Holidays */}
-                        {isAdmin && h.isCustom && (
-                          <div className="absolute top-3 right-3">
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmId(h.id)}
-                              className="p-1.5 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                              title="ลบวันหยุดพิเศษนี้"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+          {/* Days of Week Header */}
+          <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-500 py-1">
+            {THAI_DAYS_SHORT.map((d, i) => (
+              <div key={i} className={i === 0 || i === 6 ? 'text-red-400 font-bold' : ''}>
+                <span className="sm:hidden">{['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][i]}</span>
+                <span className="hidden sm:inline">{d}</span>
               </div>
             ))}
+          </div>
+
+          {/* CALENDAR GRID (ตาราง 7 คอลัมน์) */}
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+            {calendarDays.map((item, idx) => {
+              const hasHoliday = !!item.holiday;
+              const isToday = item.isToday;
+
+              return (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    if (item.isCurrentMonth && item.holiday) {
+                      setSelectedHolidayDetail(item.holiday);
+                    }
+                  }}
+                  className={`min-h-[82px] sm:min-h-[120px] p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl border transition-all flex flex-col justify-between select-none ${
+                    !item.isCurrentMonth
+                      ? 'bg-slate-50/40 border-slate-100 text-slate-300'
+                      : hasHoliday
+                      ? /* วันไหนที่มีวันหยุด ช่องนั้นเป็นสีม่วงอ่อนทั้งช่อง */
+                        'bg-[#F3E8FF] border-[#D8B4FE] text-purple-950 shadow-xs ring-1 ring-purple-300/70 cursor-pointer hover:bg-[#E9D5FF] hover:border-purple-400 hover:shadow-md'
+                      : item.dayOfWeek === 0 || item.dayOfWeek === 6
+                      ? 'bg-slate-50/60 border-slate-100 text-slate-600 hover:bg-slate-100/60'
+                      : isToday
+                      ? 'bg-white border-emerald-400 ring-2 ring-emerald-500/20 shadow-xs'
+                      : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50/80 hover:border-slate-200'
+                  }`}
+                  title={item.holiday ? `${item.holiday.name} (คลิกดูรายละเอียด)` : undefined}
+                >
+                  {/* Top Row: Date Number & Badges */}
+                  <div className="flex items-center justify-between gap-1">
+                    <span
+                      className={`text-xs sm:text-sm font-bold flex items-center justify-center ${
+                        hasHoliday
+                          ? 'w-6 h-6 rounded-full bg-purple-700 text-white shadow-2xs font-prompt'
+                          : isToday
+                          ? 'w-6 h-6 rounded-full bg-emerald-600 text-white shadow-2xs font-prompt'
+                          : item.isCurrentMonth
+                          ? item.dayOfWeek === 0 || item.dayOfWeek === 6
+                            ? 'text-red-500'
+                            : 'text-slate-700'
+                          : 'text-slate-300'
+                      }`}
+                    >
+                      {item.day}
+                    </span>
+
+                    {/* Badge right */}
+                    <div className="flex items-center space-x-1">
+                      {isToday && !hasHoliday && (
+                        <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-md">
+                          วันนี้
+                        </span>
+                      )}
+                      {hasHoliday && (
+                        <span className="text-[9.5px] font-bold text-purple-800 bg-purple-200/90 px-1.5 py-0.2 rounded-md">
+                          วันหยุด
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Holiday Content Inside Cell (แสดงชื่อวันหยุดชัดเจนในช่องสีม่วงอ่อน) */}
+                  {hasHoliday && (
+                    <div className="mt-1 space-y-1">
+                      <div
+                        className="text-[11px] sm:text-xs font-bold text-purple-950 font-prompt leading-tight line-clamp-2"
+                        title={item.holiday.name}
+                      >
+                        {item.holiday.name}
+                      </div>
+
+                      <div className="flex items-center space-x-1 flex-wrap gap-y-0.5">
+                        {item.holiday.isCustom ? (
+                          <span className="inline-flex items-center text-[9px] font-semibold bg-purple-200 text-purple-900 px-1 rounded">
+                            กำหนดโดยหน่วยงาน
+                          </span>
+                        ) : item.holiday.name.includes('ชดเชย') ? (
+                          <span className="inline-flex items-center text-[9px] font-semibold bg-purple-200 text-purple-900 px-1 rounded">
+                            วันหยุดชดเชย
+                          </span>
+                        ) : null}
+
+                        {isLongWeekend(item.dateStr) && (
+                          <span className="text-[9px] font-semibold text-amber-900 bg-amber-200/80 px-1 rounded">
+                            🌴 หยุดยาว
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bottom spacer for empty cells */}
+                  {!hasHoliday && <div />}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legend Footer */}
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500 flex-wrap gap-2">
+            <div className="flex items-center space-x-4 flex-wrap gap-y-1">
+              <div className="flex items-center space-x-1.5">
+                <span className="w-3.5 h-3.5 rounded-md bg-[#F3E8FF] border border-[#D8B4FE] ring-1 ring-purple-300" />
+                <span className="font-semibold text-purple-900">วันหยุดราชการ / วันหยุดพิเศษ (สีม่วงอ่อนทั้งช่อง)</span>
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <span className="w-3.5 h-3.5 rounded-md bg-white border border-emerald-400 ring-1 ring-emerald-500/30" />
+                <span>วันที่ปัจจุบัน (วันนี้)</span>
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <span className="w-3.5 h-3.5 rounded-md bg-slate-50 border border-slate-200" />
+                <span>วันปฏิบัติหน้าที่ตามปกติ</span>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-slate-400">
+              * คลิกที่ช่องวันหยุดเพื่อดูรายละเอียดหรือจัดการวันหยุดพิเศษ
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* VIEW 2: FULL ANNUAL LIST VIEW */
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200/80 p-4 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <h3 className="text-xl font-bold text-slate-800 font-prompt">
+              รายการวันหยุดทั้งหมด ประจำปี พ.ศ. {displayYearBE} ({allYearHolidays.length} วัน)
+            </h3>
+            <div className="relative min-w-[220px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ค้นหาชื่อวันหยุด..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-slate-50/50"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allYearHolidays
+              .filter((h) => !searchQuery.trim() || h.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((h) => {
+                const isPast = h.dateStr < todayStr;
+                return (
+                  <div
+                    key={h.id}
+                    onClick={() => setSelectedHolidayDetail(h)}
+                    className={`p-3.5 rounded-2xl border transition-all flex items-start space-x-3 cursor-pointer ${
+                      h.dateStr === todayStr
+                        ? 'bg-purple-100/90 border-purple-400 ring-2 ring-purple-400/30'
+                        : isPast
+                        ? 'bg-slate-50 border-slate-200/70 opacity-70'
+                        : 'bg-purple-50/50 border-purple-200/80 hover:bg-purple-100/60'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-purple-700 text-white flex flex-col items-center justify-center flex-shrink-0 font-prompt shadow-xs">
+                      <span className="text-[10px] font-semibold leading-none">{THAI_MONTHS[h.month - 1]?.slice(0, 3)}</span>
+                      <span className="text-lg font-black leading-tight mt-0.5">{h.day}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-slate-800 text-xs sm:text-sm font-prompt truncate">{h.name}</h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{h.description || 'วันหยุดราชการ'}</p>
+                      <div className="text-[10px] text-purple-700 font-semibold mt-1">{h.fullDate}</div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Holiday Detail Modal (คลิกดูรายละเอียดของวันหยุด) */}
+      {selectedHolidayDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="px-6 py-4 bg-gradient-to-r from-purple-800 to-indigo-800 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <CalendarCheck className="w-5 h-5 text-purple-300" />
+                <h3 className="font-bold text-base font-prompt">รายละเอียดวันหยุดราชการ</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedHolidayDetail(null)}
+                className="p-1 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-4 rounded-2xl bg-[#F3E8FF] border border-[#D8B4FE] space-y-2 text-purple-950">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-700 text-white">
+                    {selectedHolidayDetail.isCustom ? 'กำหนดโดยหน่วยงาน' : selectedHolidayDetail.badge}
+                  </span>
+                  <span className="text-xs font-semibold text-purple-800">
+                    {getDayOfWeekName(selectedHolidayDetail.dateStr)}
+                  </span>
+                </div>
+                <h4 className="text-lg font-extrabold font-prompt text-purple-950">
+                  {selectedHolidayDetail.name}
+                </h4>
+                <p className="text-xs text-purple-800 leading-relaxed">
+                  {selectedHolidayDetail.fullDate}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">คำอธิบาย / วัตถุประสงค์</label>
+                <p className="text-xs sm:text-sm text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200/80 leading-relaxed">
+                  {selectedHolidayDetail.description || 'วันหยุดราชการและวันหยุดนักขัตฤกษ์ประจำปีตามประกาศสำนักนายกรัฐมนตรี'}
+                </p>
+              </div>
+
+              {selectedHolidayDetail.isCustom && (
+                <div className="text-[11px] text-slate-400 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  เพิ่มโดย: {selectedHolidayDetail.createdBy || 'ผู้ดูแลระบบ'}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2">
+                {isAdmin && selectedHolidayDetail.isCustom ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteConfirmId(selectedHolidayDetail.id);
+                      setSelectedHolidayDetail(null);
+                    }}
+                    className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>ลบวันหยุดนี้</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedHolidayDetail(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                >
+                  ปิด
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
               <AlertCircle className="w-6 h-6" />
@@ -487,12 +723,11 @@ export default function HolidaysView() {
 
       {/* Add Custom Holiday Modal (Admin Only) */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-[#1E5638] text-white flex items-center justify-between">
+            <div className="px-6 py-4 bg-gradient-to-r from-purple-800 to-indigo-800 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <CalendarPlusIcon className="w-5 h-5 text-emerald-300" />
+                <CalendarPlusIcon className="w-5 h-5 text-purple-300" />
                 <h3 className="font-bold text-base font-prompt">เพิ่มวันหยุดพิเศษประจำหน่วยงาน</h3>
               </div>
               <button
@@ -504,7 +739,6 @@ export default function HolidaysView() {
               </button>
             </div>
 
-            {/* Modal Form */}
             <form onSubmit={handleSubmitAdd} className="p-6 space-y-4">
               {formError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center space-x-2">
@@ -513,7 +747,6 @@ export default function HolidaysView() {
                 </div>
               )}
 
-              {/* Holiday Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   ชื่อวันหยุด <span className="text-rose-500">*</span>
@@ -524,11 +757,10 @@ export default function HolidaysView() {
                   placeholder="เช่น วันหยุดพิเศษประจำจังหวัด / วันหยุดกรณีพิเศษ"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                 />
               </div>
 
-              {/* Date */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   วันที่หยุด <span className="text-rose-500">*</span>
@@ -538,11 +770,10 @@ export default function HolidaysView() {
                   required
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                 />
               </div>
 
-              {/* Type */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   ประเภทวันหยุด
@@ -550,7 +781,7 @@ export default function HolidaysView() {
                 <select
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white"
                 >
                   <option value="special">วันหยุดพิเศษประจำหน่วยงาน</option>
                   <option value="official">วันหยุดราชการกรณีพิเศษ (มติ ครม.)</option>
@@ -558,7 +789,6 @@ export default function HolidaysView() {
                 </select>
               </div>
 
-              {/* Description */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   รายละเอียด / หมายเหตุ (ถ้ามี)
@@ -568,11 +798,10 @@ export default function HolidaysView() {
                   placeholder="ระบุวัตถุประสงค์ หรือประกาศหน่วยงานที่เกี่ยวข้อง..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                 />
               </div>
 
-              {/* Buttons */}
               <div className="flex items-center justify-end space-x-2 pt-2">
                 <button
                   type="button"
@@ -583,7 +812,7 @@ export default function HolidaysView() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#1E5638] hover:bg-[#16442B] text-white font-semibold text-xs sm:text-sm shadow-md transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-semibold text-xs sm:text-sm shadow-md transition-all cursor-pointer"
                 >
                   + บันทึกวันหยุด
                 </button>

@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, RotateCcw } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
-import { getHolidaysMap } from '../data/holidays';
 
 export default function CalendarWidget() {
-  const { setSelectedLeaveDetail, leaveRequests, currentUser, isAdmin, doesLeaveBelongToUser, customHolidays } = useLeave();
+  const { setSelectedLeaveDetail, leaveRequests, currentUser, isAdmin, doesLeaveBelongToUser } = useLeave();
   const [selectedDayEvent, setSelectedDayEvent] = useState(null);
 
   // Real-time current clock
@@ -46,9 +45,6 @@ export default function CalendarWidget() {
     minute: '2-digit',
     second: '2-digit',
   });
-
-  // Map วันหยุดนักขัตฤกษ์ประจำปีที่กำลังแสดง
-  const holidaysMap = useMemo(() => getHolidaysMap(displayYear, customHolidays), [displayYear, customHolidays]);
 
   // Dynamically find events for any day in the displayed month & year
   const getEventForDay = (day) => {
@@ -110,16 +106,13 @@ export default function CalendarWidget() {
       displayMonth === realMonth &&
       displayYear === realYear;
 
-    const dayStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const event = getEventForDay(d);
-    const holiday = holidaysMap[dayStr] || null;
 
     calendarCells.push({
       day: d,
       isCurrentMonth: true,
       isToday,
       event,
-      holiday,
     });
   }
 
@@ -136,19 +129,7 @@ export default function CalendarWidget() {
 
   const handleCellClick = (cell) => {
     if (!cell.isCurrentMonth) return;
-    if (cell.holiday) {
-      setSelectedDayEvent({
-        day: cell.day,
-        month: monthsThai[displayMonth],
-        year: displayYearBE,
-        label: cell.holiday.name,
-        badge: 'วันหยุดนักขัตฤกษ์',
-        isHoliday: true,
-      });
-      if (cell.event?.request) {
-        setSelectedLeaveDetail(cell.event.request);
-      }
-    } else if (cell.event) {
+    if (cell.event) {
       setSelectedDayEvent({
         day: cell.day,
         month: monthsThai[displayMonth],
@@ -250,16 +231,9 @@ export default function CalendarWidget() {
                   : 'text-slate-700 font-medium hover:bg-slate-50'
               } ${isSelected ? 'ring-2 ring-emerald-500' : ''}`}
             >
-              {/* Today / Holiday / Event Badge Highlight */}
+              {/* Today / Event Badge Highlight */}
               {cell.isToday ? (
                 <div className="w-7 h-7 rounded-full bg-[#2F855A] text-white flex items-center justify-center font-bold text-xs shadow-sm ring-2 ring-emerald-400">
-                  {cell.day}
-                </div>
-              ) : cell.holiday ? (
-                <div
-                  className="w-7 h-7 rounded-full bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-xs border border-purple-200"
-                  title={cell.holiday.name}
-                >
                   {cell.day}
                 </div>
               ) : cell.event?.type === 'sick' && cell.isCurrentMonth ? (
@@ -277,9 +251,6 @@ export default function CalendarWidget() {
               {/* Status Indicator Dots */}
               {cell.isCurrentMonth && !cell.isToday && (
                 <div className="absolute bottom-0.5 flex space-x-0.5">
-                  {cell.holiday && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-600 ring-1 ring-white" />
-                  )}
                   {cell.event && (
                     <>
                       {cell.event.dot === 'orange' && (
@@ -288,7 +259,7 @@ export default function CalendarWidget() {
                       {cell.event.dot === 'blue' && (
                         <span className="w-1.5 h-1.5 rounded-full bg-sky-500 ring-1 ring-white" />
                       )}
-                      {cell.event.dot === 'green' && !cell.holiday && (
+                      {cell.event.dot === 'green' && (
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 ring-1 ring-white" />
                       )}
                       {cell.event.dot === 'red' && (
@@ -305,18 +276,14 @@ export default function CalendarWidget() {
 
       {/* Interactive Day Details Popover / Banner if clicked */}
       {selectedDayEvent && (
-        <div className={`mt-2 p-2.5 rounded-xl border flex items-center justify-between text-xs animate-in fade-in ${
-          selectedDayEvent.isHoliday ? 'bg-purple-50/80 border-purple-200' : 'bg-emerald-50 border-emerald-100'
-        }`}>
+        <div className="mt-2 p-2.5 rounded-xl border flex items-center justify-between text-xs animate-in fade-in bg-emerald-50 border-emerald-100">
           <div className="truncate mr-2">
-            <span className={`font-bold ${selectedDayEvent.isHoliday ? 'text-purple-950' : 'text-emerald-900'}`}>
+            <span className="font-bold text-emerald-900">
               วันที่ {selectedDayEvent.day} {selectedDayEvent.month}:
             </span>{' '}
             <span className="text-slate-700">{selectedDayEvent.label}</span>
           </div>
-          <span className={`flex-shrink-0 px-2 py-0.5 rounded-full font-medium text-[10px] shadow-xs ${
-            selectedDayEvent.isHoliday ? 'bg-purple-100 text-purple-800' : 'bg-white text-emerald-800'
-          }`}>
+          <span className="flex-shrink-0 px-2 py-0.5 rounded-full font-medium text-[10px] shadow-xs bg-white text-emerald-800">
             {selectedDayEvent.badge}
           </span>
         </div>

@@ -11,7 +11,6 @@ import {
   FileText,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
-import { getHolidaysMap } from '../../data/holidays';
 import EmptyState from '../EmptyState';
 
 export default function CalendarView() {
@@ -22,7 +21,6 @@ export default function CalendarView() {
     setIsRequestModalOpen,
     currentUser,
     isAdmin,
-    customHolidays,
   } = useLeave();
 
   // ปฏิทินของ User แสดงเฉพาะของตัวเองเท่านั้น ส่วน Admin แสดงของทุกคนเป็นค่าเริ่มต้น
@@ -64,8 +62,6 @@ export default function CalendarView() {
   const displayYear = displayDate.getFullYear();
   const displayMonth = displayDate.getMonth();
   const displayYearBE = displayYear + 543;
-
-  const holidaysMap = useMemo(() => getHolidaysMap(displayYear, customHolidays), [displayYear, customHolidays]);
 
   const todayDescription = `${thaiDayNames[realToday.getDay()]}ที่ ${realDate} ${monthsThai[realMonth]} ${realYear + 543}`;
   const formattedTime = currentTime.toLocaleTimeString('th-TH', {
@@ -131,7 +127,6 @@ export default function CalendarView() {
       displayYear === realYear;
 
     const dayStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const dayHoliday = holidaysMap[dayStr] || null;
     const dayEvents = getEventsForDay(d);
     days.push({
       day: d,
@@ -140,7 +135,6 @@ export default function CalendarView() {
       isCurrent: true,
       isToday,
       events: dayEvents,
-      holiday: dayHoliday,
     });
   }
 
@@ -293,8 +287,7 @@ export default function CalendarView() {
         {/* Grid Days (คลิกที่แต่ละวันเพื่อเปิดดูรายการลาในวันนั้นได้ทันที ไม่ต้องเลื่อนดูในช่องเล็ก) */}
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {days.map((item, idx) => {
-            const maxPreview = item.holiday ? 1 : 2;
-            const visibleEvents = (item.events || []).slice(0, maxPreview);
+            const visibleEvents = (item.events || []).slice(0, 2);
             const hiddenCount = Math.max(0, (item.events?.length || 0) - visibleEvents.length);
 
             return (
@@ -337,23 +330,11 @@ export default function CalendarView() {
                         {item.events.length}
                       </span>
                     )}
-                    {!item.isToday && item.holiday && (
-                      <span className="w-2 h-2 rounded-full bg-purple-500" title={item.holiday.name} />
-                    )}
                   </div>
                 </div>
 
-                {/* Event & Holiday Chips (แสดงตัวอย่างแบบไม่เลื่อน คลิกที่วันเพื่อเปิดดูทั้งหมด) */}
+                {/* Event Chips */}
                 <div className="space-y-1 mt-1.5 overflow-hidden">
-                  {item.holiday && (
-                    <div
-                      className="w-full text-left px-1.5 py-0.5 rounded-lg text-[10px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/90 truncate flex items-center space-x-1"
-                      title={item.holiday.name}
-                    >
-                      <span className="text-[10px]">🏛️</span>
-                      <span className="truncate">{item.holiday.name}</span>
-                    </div>
-                  )}
                   {visibleEvents.map((ev, i) => (
                     <div
                       key={ev.id || i}
@@ -415,16 +396,6 @@ export default function CalendarView() {
 
             {/* Modal Content */}
             <div className="p-5 overflow-y-auto space-y-3">
-              {selectedDayItem.holiday && (
-                <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 flex items-center space-x-2.5 text-purple-900 text-xs sm:text-sm">
-                  <span className="text-lg">🏛️</span>
-                  <div>
-                    <p className="font-bold">วันหยุดราชการประจำปี</p>
-                    <p className="text-xs text-purple-700">{selectedDayItem.holiday.name}</p>
-                  </div>
-                </div>
-              )}
-
               {selectedDayItem.events.length === 0 ? (
                 <EmptyState
                   compact
