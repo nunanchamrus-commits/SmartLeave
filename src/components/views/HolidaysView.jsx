@@ -608,7 +608,7 @@ export default function HolidaysView() {
       {selectedHolidayDetail && (
         <div
           onClick={() => setSelectedHolidayDetail(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-slate-900/10 animate-fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -693,7 +693,7 @@ export default function HolidaysView() {
       {deleteConfirmId && (
         <div
           onClick={() => setDeleteConfirmId(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-slate-900/10 animate-fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -737,7 +737,7 @@ export default function HolidaysView() {
       {isAddModalOpen && (
         <div
           onClick={() => setIsAddModalOpen(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-slate-900/10 animate-fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
