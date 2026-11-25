@@ -103,12 +103,13 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
               </p>
             </div>
 
-            {/* Mascot: Digital Dino Officer greeting (Dino-mascot1) */}
-            <div className="mt-6 flex flex-col items-center justify-center p-3 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs shadow-inner">
+            {/* Mascot: Digital Dino Officer greeting (Dino-mascot1) without frame */}
+            <div className="mt-4 flex flex-col items-center justify-center">
               <DinoMascot
                 pose="login"
                 src="/Dino-mascot1.png"
-                size={140}
+                size={210}
+                className="filter drop-shadow-xl"
                 bubbleText="ยินดีต้อนรับครับ! เข้าสู่ระบบเพื่อจัดการวันลาได้เลย"
               />
             </div>
