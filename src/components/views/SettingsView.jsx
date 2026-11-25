@@ -127,7 +127,7 @@ export default function SettingsView() {
     englishName: initialEn.englishName,
     gender: normalizeGender(currentUser),
     employmentType: currentUser?.employmentType || 'ข้าราชการ',
-    title: currentUser?.title || '',
+    title: currentUser?.title || currentUser?.position || '',
     department: currentUser?.department || '',
     email: currentUser?.email || '',
     phone: currentUser?.phone || '',
@@ -136,8 +136,16 @@ export default function SettingsView() {
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const fileInputRef = useRef(null);
+  const isFormDirtyRef = useRef(false);
+  const lastUserKeyRef = useRef(currentUser?.id || currentUser?.raw_id || currentUser?.email || '');
+
+  const updateFormField = (updater) => {
+    isFormDirtyRef.current = true;
+    setFormData(updater);
+  };
 
   const handleAvatarFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -181,7 +189,7 @@ export default function SettingsView() {
         ctx.drawImage(img, 0, 0, width, height);
 
         const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-        setFormData((prev) => ({ ...prev, avatar: dataUrl }));
+        updateFormField((prev) => ({ ...prev, avatar: dataUrl }));
         setShowAvatarPicker(false);
         if (showToast) showToast('นำเข้ารูปภาพจากเครื่องสำเร็จแล้ว กรุณากดปุ่ม "บันทึกข้อมูล" ด้านล่าง', 'success');
       };
@@ -209,34 +217,39 @@ export default function SettingsView() {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  // ซิงก์ข้อมูลในฟอร์มเมื่อ currentUser ในระบบเปลี่ยนแปลง
+  // ซิงก์ข้อมูลในฟอร์มเมื่อ currentUser ในระบบเปลี่ยนแปลง (เฉพาะเมื่อเปลี่ยนบัญชีหรือยังไม่ได้แก้ไขค้างอยู่)
   useEffect(() => {
-    if (currentUser) {
-      const th = extractThaiNameFields(currentUser);
-      const en = extractEnglishNameFields(currentUser);
-      setFormData({
-        name: th.name,
-        prefix: th.prefix,
-        firstName: th.firstName,
-        lastName: th.lastName,
-        prefixEn: en.prefixEn,
-        firstNameEn: en.firstNameEn,
-        lastNameEn: en.lastNameEn,
-        englishName: en.englishName,
-        gender: normalizeGender(currentUser),
-        employmentType: currentUser.employmentType || 'ข้าราชการ',
-        title: currentUser.title || '',
-        department: currentUser.department || '',
-        email: currentUser.email || '',
-        phone: currentUser.phone || '',
-        employeeId: currentUser.employeeId || '',
-        avatar: currentUser.avatar || '',
-      });
-    }
+    if (!currentUser) return;
+    const nextUserKey = currentUser.id || currentUser.raw_id || currentUser.email || '';
+    const isSameUser = nextUserKey === lastUserKeyRef.current;
+    if (isSameUser && isFormDirtyRef.current) return;
+    lastUserKeyRef.current = nextUserKey;
+
+    const th = extractThaiNameFields(currentUser);
+    const en = extractEnglishNameFields(currentUser);
+    setFormData({
+      name: th.name,
+      prefix: th.prefix,
+      firstName: th.firstName,
+      lastName: th.lastName,
+      prefixEn: en.prefixEn,
+      firstNameEn: en.firstNameEn,
+      lastNameEn: en.lastNameEn,
+      englishName: en.englishName,
+      gender: normalizeGender(currentUser),
+      employmentType: currentUser.employmentType || 'ข้าราชการ',
+      title: currentUser.title || currentUser.position || '',
+      department: currentUser.department || '',
+      email: currentUser.email || '',
+      phone: currentUser.phone || '',
+      employeeId: currentUser.employeeId || '',
+      avatar: currentUser.avatar || '',
+    });
   }, [currentUser]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSavingProfile) return;
 
     const fullThaiName = `${formData.prefix || ''}${formData.firstName} ${formData.lastName || ''}`.trim();
     if (!formData.firstName?.trim() && !formData.name?.trim()) {
@@ -257,6 +270,8 @@ export default function SettingsView() {
 
     const payload = {
       ...formData,
+      title: formData.title,
+      position: formData.title,
       id: currentUser?.id,
       raw_id: currentUser?.raw_id,
       userId: currentUser?.raw_id || currentUser?.userId,
@@ -267,17 +282,28 @@ export default function SettingsView() {
     };
 
     if (updateUserProfile) {
-      const res = await updateUserProfile(payload);
-      if (res) {
-        setFormData((prev) => ({ ...prev, email: cleanEmail }));
-        setSavedSuccess(true);
-        setTimeout(() => setSavedSuccess(false), 3000);
+      setIsSavingProfile(true);
+      try {
+        const res = await updateUserProfile(payload);
+        if (res) {
+          isFormDirtyRef.current = false;
+          setFormData((prev) => ({
+            ...prev,
+            email: res.email || cleanEmail,
+            title: res.title || res.position || prev.title,
+            department: res.department || prev.department,
+          }));
+          setSavedSuccess(true);
+          setTimeout(() => setSavedSuccess(false), 3000);
+        }
+      } finally {
+        setIsSavingProfile(false);
       }
     }
   };
 
   const handleSelectAvatar = (url, gender) => {
-    setFormData((prev) => ({
+    updateFormField((prev) => ({
       ...prev,
       avatar: url,
       gender: gender || prev.gender,
@@ -489,6 +515,7 @@ export default function SettingsView() {
                     val = 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
                   }
                   setFormData({ ...formData, avatar: val });
+                  isFormDirtyRef.current = true;
                 }}
                 className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500"
               />
@@ -497,7 +524,7 @@ export default function SettingsView() {
         )}
 
         {/* Input Fields Form */}
-        <form onSubmit={handleSubmit} className="space-y-5 text-xs sm:text-sm">
+        <form onChange={() => { isFormDirtyRef.current = true; }} onSubmit={handleSubmit} className="space-y-5 text-xs sm:text-sm">
           {/* Row 1: ชื่อ - นามสกุล (ภาษาไทย) (แยก คำนำหน้า, ชื่อ, นามสกุล) */}
           <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-2">
             <div className="flex items-center space-x-2 text-slate-700 font-semibold mb-1">
@@ -594,7 +621,7 @@ export default function SettingsView() {
                 <button
                   key={g.value}
                   type="button"
-                  onClick={() => setFormData({ ...formData, gender: g.value })}
+                  onClick={() => updateFormField({ ...formData, gender: g.value })}
                   className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${formData.gender === g.value
                     ? 'bg-[#2F855A] text-white border-[#2F855A] shadow-xs'
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -705,19 +732,26 @@ export default function SettingsView() {
                   <option value="" className="text-slate-400">
                     -- เลือกตำแหน่งงาน --
                   </option>
-                  {formData.title && !JOB_TITLE_OPTIONS.includes(formData.title) && (
-                    <option value={formData.title} className="text-slate-800">
-                      {formData.title}
-                    </option>
-                  )}
-                  {(formData.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
-                    ? POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
-                    : JOB_TITLE_OPTIONS
-                  ).map((jobTitle) => (
-                    <option key={jobTitle} value={jobTitle} className="text-slate-800">
-                      {jobTitle}
-                    </option>
-                  ))}
+                  {(() => {
+                    const list =
+                      formData.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
+                        ? POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
+                        : JOB_TITLE_OPTIONS;
+                    return (
+                      <>
+                        {formData.title && !list.includes(formData.title) && (
+                          <option value={formData.title} className="text-slate-800">
+                            {formData.title}
+                          </option>
+                        )}
+                        {list.map((jobTitle) => (
+                          <option key={jobTitle} value={jobTitle} className="text-slate-800">
+                            {jobTitle}
+                          </option>
+                        ))}
+                      </>
+                    );
+                  })()}
                 </select>
                 <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
               </div>
@@ -789,6 +823,7 @@ export default function SettingsView() {
             <button
               type="button"
               onClick={() => {
+                isFormDirtyRef.current = false;
                 resetToDefault();
               }}
               className="flex items-center justify-center space-x-2 text-xs text-slate-500 hover:text-slate-800 py-2 transition-colors"
@@ -799,7 +834,8 @@ export default function SettingsView() {
 
             <button
               type="submit"
-              className={`flex items-center justify-center space-x-2 px-7 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] ${savedSuccess
+              disabled={isSavingProfile}
+              className={`flex items-center justify-center space-x-2 px-7 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-60 ${savedSuccess
                 ? 'bg-emerald-600 ring-2 ring-emerald-400'
                 : 'bg-[#2F855A] hover:bg-[#256F4A]'
                 }`}
@@ -808,6 +844,11 @@ export default function SettingsView() {
                 <>
                   <CheckCircle2 className="w-4 h-4 animate-bounce" />
                   <span>บันทึกสำเร็จเรียบร้อย!</span>
+                </>
+              ) : isSavingProfile ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>กำลังบันทึก...</span>
                 </>
               ) : (
                 <>

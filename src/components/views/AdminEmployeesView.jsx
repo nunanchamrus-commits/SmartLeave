@@ -414,6 +414,8 @@ export default function AdminEmployeesView() {
     const payload = {
       ...editingEmp,
       ...editForm,
+      title: editForm.title,
+      position: editForm.title,
       email: editForm.email ? editForm.email.trim().toLowerCase() : '',
       oldEmail: editingEmp.email,
       gender: isMale ? 'ชาย' : editForm.gender,
@@ -1202,17 +1204,24 @@ export default function AdminEmployeesView() {
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
                       >
                         <option value="" disabled>-- เลือกตำแหน่งงาน --</option>
-                        {editForm.title && !JOB_TITLE_OPTIONS.includes(editForm.title) && (
-                          <option value={editForm.title}>{editForm.title}</option>
-                        )}
-                        {(editForm.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[editForm.employmentType]
-                          ? POSITIONS_BY_EMPLOYMENT_TYPE[editForm.employmentType]
-                          : JOB_TITLE_OPTIONS
-                        ).map((job) => (
-                          <option key={job} value={job}>
-                            {job}
-                          </option>
-                        ))}
+                        {(() => {
+                          const list =
+                            editForm.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[editForm.employmentType]
+                              ? POSITIONS_BY_EMPLOYMENT_TYPE[editForm.employmentType]
+                              : JOB_TITLE_OPTIONS;
+                          return (
+                            <>
+                              {editForm.title && !list.includes(editForm.title) && (
+                                <option value={editForm.title}>{editForm.title}</option>
+                              )}
+                              {list.map((job) => (
+                                <option key={job} value={job}>
+                                  {job}
+                                </option>
+                              ))}
+                            </>
+                          );
+                        })()}
                       </select>
                     </div>
                     <div>

@@ -126,6 +126,7 @@ const SCHEMA_COLUMNS = {
     gender: "TEXT DEFAULT 'หญิง'",
     employment_type: "TEXT DEFAULT 'ข้าราชการ'",
     phone: "TEXT DEFAULT '081-234-5678'",
+    department_id: 'INTEGER',
     position: 'TEXT',
     avatar_url: 'TEXT',
   },
@@ -218,6 +219,74 @@ function mapDbRowToDisplayStatus(dbStatus, reviewStage) {
     return 'อยู่ระหว่างตรวจสอบ';
   }
   return 'ยังไม่ยื่นเอกสาร';
+}
+
+const COOPERATIVE_DEPARTMENTS = [
+  { id: 1, code: 'DEP-ADMIN', nameTh: 'ฝ่ายบริหารทั่วไป', nameEn: 'General Administration Division' },
+  { id: 2, code: 'DEP-ESTAB', nameTh: 'กลุ่มจัดตั้งและส่งเสริมสหกรณ์', nameEn: 'Cooperative Establishment and Promotion Group' },
+  { id: 3, code: 'DEP-MGT', nameTh: 'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์', nameEn: 'Cooperative Management and Administration Development Group' },
+  { id: 4, code: 'DEP-BIZ', nameTh: 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', nameEn: 'Cooperative Business Development Group' },
+  { id: 5, code: 'DEP-AUD', nameTh: 'กลุ่มตรวจการสหกรณ์', nameEn: 'Cooperative Auditing and Inspection Group' },
+  { id: 6, code: 'DEP-CP1', nameTh: 'กลุ่มส่งเสริมสหกรณ์ 1', nameEn: 'Cooperative Promotion Group 1' },
+  { id: 7, code: 'DEP-CP2', nameTh: 'กลุ่มส่งเสริมสหกรณ์ 2', nameEn: 'Cooperative Promotion Group 2' },
+  { id: 8, code: 'DEP-CP3', nameTh: 'กลุ่มส่งเสริมสหกรณ์ 3', nameEn: 'Cooperative Promotion Group 3' },
+  { id: 9, code: 'DEP-CP4', nameTh: 'กลุ่มส่งเสริมสหกรณ์ 4', nameEn: 'Cooperative Promotion Group 4' },
+  { id: 10, code: 'DEP-CP5', nameTh: 'กลุ่มส่งเสริมสหกรณ์ 5', nameEn: 'Cooperative Promotion Group 5' },
+  { id: 11, code: 'DEP-CP6', nameTh: 'กลุ่มส่งเสริมสหกรณ์ 6', nameEn: 'Cooperative Promotion Group 6' },
+  { id: 12, code: 'DEP-CP7', nameTh: 'กลุ่มส่งเสริมสหกรณ์ 7', nameEn: 'Cooperative Promotion Group 7' },
+  { id: 13, code: 'DEP-CP8', nameTh: 'กลุ่มส่งเสริมสหกรณ์ 8', nameEn: 'Cooperative Promotion Group 8' },
+  { id: 14, code: 'DEP-DONGMUN', nameTh: 'นิคมสหกรณ์ดงมูล', nameEn: 'Dong Mun Cooperative Settlement' },
+];
+
+/**
+ * ค้นหา department_id จากชื่อฝ่าย/กลุ่มงาน หรือสร้างใหม่อัตโนมัติใน D1 หากยังไม่มีในตาราง departments
+ */
+async function resolveOrCreateDepartmentId(db, departmentName, fallbackId = null) {
+  const cleanDept = typeof departmentName === 'string' ? departmentName.trim().replace(/\s+/g, ' ') : '';
+  if (!cleanDept) return fallbackId;
+
+  const exactMatch = await db.prepare(
+    'SELECT department_id FROM departments WHERE TRIM(name_th) = ? LIMIT 1'
+  ).bind(cleanDept).first().catch(() => null);
+  if (exactMatch && exactMatch.department_id) return exactMatch.department_id;
+
+  const likeMatch = await db.prepare(
+    'SELECT department_id FROM departments WHERE name_th LIKE ? ORDER BY LENGTH(name_th) ASC LIMIT 1'
+  ).bind(`%${cleanDept}%`).first().catch(() => null);
+  if (likeMatch && likeMatch.department_id) return likeMatch.department_id;
+
+  const canonical = COOPERATIVE_DEPARTMENTS.find((d) => d.nameTh === cleanDept);
+  const baseCode = canonical ? canonical.code : `DEP-${Date.now().toString().slice(-6)}`;
+  const nameEn = canonical ? canonical.nameEn : cleanDept;
+
+  try {
+    const ins = await db.prepare(
+      'INSERT INTO departments (code, name_th, name_en) VALUES (?, ?, ?)'
+    ).bind(baseCode, cleanDept, nameEn).run();
+    if (ins?.meta?.last_row_id) return ins.meta.last_row_id;
+  } catch (e) {
+    try {
+      const retryCode = `${baseCode}-${Date.now().toString().slice(-4)}`;
+      const ins2 = await db.prepare(
+        'INSERT INTO departments (code, name_th, name_en) VALUES (?, ?, ?)'
+      ).bind(retryCode, cleanDept, nameEn).run();
+      if (ins2?.meta?.last_row_id) return ins2.meta.last_row_id;
+    } catch (e2) { }
+  }
+
+  const created = await db.prepare(
+    'SELECT department_id FROM departments WHERE TRIM(name_th) = ? LIMIT 1'
+  ).bind(cleanDept).first().catch(() => null);
+  return created?.department_id || fallbackId;
+}
+
+/**
+ * เลือกค่าตำแหน่งงาน โดยให้ความสำคัญกับ title (ฟิลด์หลักที่หน้าแก้ไขใช้งาน) ก่อน position เพื่อไม่ให้ค่าเก่าทับค่าใหม่
+ */
+function resolvePositionValue(title, position, fallback = null) {
+  if (typeof title === 'string' && title.trim()) return title.trim();
+  if (typeof position === 'string' && position.trim()) return position.trim();
+  return fallback;
 }
 
 async function findLeaveRequest(db, rawLeaveId) {
@@ -1549,20 +1618,10 @@ async function autoMigrateDatabase(db) {
 async function seedMasterData(db) {
   // นำเข้า 14 แผนกสหกรณ์, สิทธิ์ และประเภทวันลาแบบ Idempotent 100%
   await db.batch([
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (1, 'DEP-ADMIN', 'ฝ่ายบริหารทั่วไป', 'General Administration Division')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (2, 'DEP-ESTAB', 'กลุ่มจัดตั้งและส่งเสริมสหกรณ์', 'Cooperative Establishment and Promotion Group')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (3, 'DEP-MGT', 'กลุ่มส่งเสริมและพัฒนาการบริหารการจัดการสหกรณ์', 'Cooperative Management and Administration Development Group')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (4, 'DEP-BIZ', 'กลุ่มส่งเสริมและพัฒนาธุรกิจสหกรณ์', 'Cooperative Business Development Group')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (5, 'DEP-AUD', 'กลุ่มตรวจการสหกรณ์', 'Cooperative Auditing and Inspection Group')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (6, 'DEP-CP1', 'กลุ่มส่งเสริมสหกรณ์ 1', 'Cooperative Promotion Group 1')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (7, 'DEP-CP2', 'กลุ่มส่งเสริมสหกรณ์ 2', 'Cooperative Promotion Group 2')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (8, 'DEP-CP3', 'กลุ่มส่งเสริมสหกรณ์ 3', 'Cooperative Promotion Group 3')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (9, 'DEP-CP4', 'กลุ่มส่งเสริมสหกรณ์ 4', 'Cooperative Promotion Group 4')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (10, 'DEP-CP5', 'กลุ่มส่งเสริมสหกรณ์ 5', 'Cooperative Promotion Group 5')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (11, 'DEP-CP6', 'กลุ่มส่งเสริมสหกรณ์ 6', 'Cooperative Promotion Group 6')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (12, 'DEP-CP7', 'กลุ่มส่งเสริมสหกรณ์ 7', 'Cooperative Promotion Group 7')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (13, 'DEP-CP8', 'กลุ่มส่งเสริมสหกรณ์ 8', 'Cooperative Promotion Group 8')"),
-    db.prepare("INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (14, 'DEP-DONGMUN', 'นิคมสหกรณ์ดงมูล', 'Dong Mun Cooperative Settlement')"),
+    ...COOPERATIVE_DEPARTMENTS.map((d) =>
+      db.prepare('INSERT OR IGNORE INTO departments (department_id, code, name_th, name_en) VALUES (?, ?, ?, ?)')
+        .bind(d.id, d.code, d.nameTh, d.nameEn)
+    ),
     db.prepare("INSERT OR IGNORE INTO roles (role_id, code, name_th, description) VALUES (1, 'SYSTEM_ADMIN', 'ผู้ดูแลระบบสูงสุด', 'จัดการโครงสร้างระบบ การตั้งค่า และผู้ใช้งานทั้งหมด')"),
     db.prepare("INSERT OR IGNORE INTO roles (role_id, code, name_th, description) VALUES (2, 'HR_ADMIN', 'ฝ่ายทรัพยากรบุคคล (HR)', 'บริหารจัดการสถิติวันลา ตรวจสอบความยินยอม PDPA และรายงาน')"),
     db.prepare("INSERT OR IGNORE INTO roles (role_id, code, name_th, description) VALUES (3, 'APPROVER', 'ผู้อำนวยการ / หัวหน้ากลุ่มงาน (ผู้อนุมัติ)', 'พิจารณาอนุมัติหรือปฏิเสธคำขอลางานของเจ้าหน้าที่ในสังกัด')"),
@@ -1574,6 +1633,11 @@ async function seedMasterData(db) {
     db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (5, 'ordination', 'ลาอุปสมบท / ประกอบพิธีทางศาสนา', 'Religious / Ordination Leave', 15.00, 1, 1, 30, '#8b5cf6')"),
     db.prepare("INSERT OR IGNORE INTO leave_types (leave_type_id, code, name_th, name_en, default_days_per_year, is_paid, requires_attachment, min_days_notice, color_hex) VALUES (6, 'military', 'ลารับราชการทหาร', 'Military Service Leave', 60.00, 1, 1, 15, '#64748b')"),
   ]).catch(() => { });
+
+  // ป้องกันกรณี department_id 1..5 ถูกข้อมูลตัวอย่างเดิมจองไว้ ให้เพิ่มแผนกสหกรณ์ที่ยังไม่มีครบทั้ง 14 แผนก
+  for (const d of COOPERATIVE_DEPARTMENTS) {
+    await resolveOrCreateDepartmentId(db, d.nameTh, d.id).catch(() => { });
+  }
 
   // 2. นำเข้าบัญชีผู้ดูแลระบบตั้งต้น (เฉพาะกรณีที่ในระบบยังไม่มี Admin ใดๆ เลยเท่านั้น)
   // หากมีบัญชี Admin อื่นสมัครเข้ามาแล้ว บัญชีแอดมินตั้งต้นนี้จะสามารถถูกลบออกได้และไม่ถูกสร้างซ้ำ
@@ -2401,7 +2465,7 @@ export async function onRequest(context) {
 
       const userGender = gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย');
       const empType = employmentType || 'ข้าราชการ';
-      const jobPosition = position || title || 'เจ้าหน้าที่สหกรณ์';
+      const jobPosition = resolvePositionValue(title, position, 'เจ้าหน้าที่สหกรณ์');
       const avatarUrl = 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
 
       // กำหนดรหัสพนักงานและตรวจสอบความซ้ำซ้อน
@@ -2425,23 +2489,7 @@ export async function onRequest(context) {
       }
 
       // ค้นหา department_id หรือเพิ่มแผนกใหม่หากยังไม่มี
-      let deptId = 1;
-      if (department) {
-        const dept = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
-          .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
-        if (dept && dept.department_id) {
-          deptId = dept.department_id;
-        } else {
-          try {
-            const deptCode = `DEP-${Date.now().toString().slice(-4)}`;
-            const newDept = await env.DB.prepare('INSERT INTO departments (code, name_th, name_en) VALUES (?, ?, ?)')
-              .bind(deptCode, department.trim(), department.trim()).run();
-            deptId = newDept.meta?.last_row_id || 1;
-          } catch (e) {
-            deptId = 1;
-          }
-        }
-      }
+      const deptId = await resolveOrCreateDepartmentId(env.DB, department, 1);
 
       // ตรวจสอบและเพิ่มคอลัมน์ใหม่ใน users อัตโนมัติ (Dynamic Migration)
       await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
@@ -2737,7 +2785,7 @@ export async function onRequest(context) {
       const fullEnglishName = englishName || `${prefixEn ? prefixEn + ' ' : ''}${firstNameEn || ''} ${lastNameEn || ''}`.trim();
 
       const empCode = employeeCode || `EMP-${Date.now().toString().slice(-4)}`;
-      const jobPosition = position || title || 'เจ้าหน้าที่สหกรณ์';
+      const jobPosition = resolvePositionValue(title, position, 'เจ้าหน้าที่สหกรณ์');
       const userGender = gender || (prefix?.includes('นาง') ? 'หญิง' : 'ชาย');
       const empType = employmentType || 'ข้าราชการ';
       const roleId = (role === 'admin' || role === 'SYSTEM_ADMIN') ? 1 : ((role === 'approver' || role === 'APPROVER') ? 3 : 4);
@@ -2745,12 +2793,7 @@ export async function onRequest(context) {
       const userPhone = phone || '081-234-5678';
       const avatarUrl = 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
 
-      let deptId = 6;
-      if (department) {
-        const dept = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
-          .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
-        if (dept) deptId = dept.department_id;
-      }
+      const deptId = await resolveOrCreateDepartmentId(env.DB, department, 6);
 
       await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
@@ -2908,12 +2951,8 @@ export async function onRequest(context) {
         roleId = (role === 'admin' || role === 'SYSTEM_ADMIN') ? 1 : ((role === 'approver' || role === 'APPROVER') ? 3 : 4);
       }
 
-      let deptId = null;
-      if (department) {
-        const d = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
-          .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
-        if (d) deptId = d.department_id;
-      }
+      const deptId = await resolveOrCreateDepartmentId(env.DB, department, null);
+      const nextPosition = resolvePositionValue(title, position, null);
 
       await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
@@ -2948,7 +2987,7 @@ export async function onRequest(context) {
         employmentType ?? null,
         updateEmail ?? null,
         phone ?? null,
-        (position || title) ?? null,
+        nextPosition,
         deptId ?? null,
         roleId ?? null,
         avatar ?? null,
@@ -4267,14 +4306,10 @@ export async function onRequest(context) {
       try {
         await ensureTableColumns(env.DB, 'users', SCHEMA_COLUMNS.users);
 
-        let deptId = user.department_id || null;
-        if (department && typeof department === 'string' && department.trim()) {
-          const d = await env.DB.prepare('SELECT department_id FROM departments WHERE name_th = ? OR name_th LIKE ? LIMIT 1')
-            .bind(department.trim(), `%${department.trim()}%`).first().catch(() => null);
-          if (d && d.department_id) deptId = d.department_id;
-        }
+        const deptId = await resolveOrCreateDepartmentId(env.DB, department, user.department_id || null);
+        const nextPosition = resolvePositionValue(title, position, null);
 
-        // บันทึกและแทนที่อีเมลลงในตาราง users ในฐานข้อมูล D1
+        // บันทึกและแทนที่ข้อมูลส่วนตัวลงในตาราง users ในฐานข้อมูล D1
         await env.DB.prepare(`
           UPDATE users 
           SET prefix = COALESCE(?, prefix),
@@ -4305,7 +4340,7 @@ export async function onRequest(context) {
           employmentType || null,
           updateEmail || null,
           phone || null,
-          (position || title) || null,
+          nextPosition,
           deptId,
           avatar || null,
           targetUserId

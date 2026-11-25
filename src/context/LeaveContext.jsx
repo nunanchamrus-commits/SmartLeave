@@ -730,9 +730,12 @@ export function LeaveProvider({ children }) {
           );
           if (freshUser) {
             const actualRole = freshUser.role || (freshUser.employeeId === 'ADM-001' ? 'admin' : (freshUser.employeeId === 'MGR-002' ? 'approver' : 'employee'));
+            const syncedTitle = freshUser.title || freshUser.position || activeUser.title || '';
             matchedActiveUser = {
               ...activeUser,
               ...freshUser,
+              title: syncedTitle,
+              position: syncedTitle,
               role: actualRole,
               gender: freshUser.gender || activeUser.gender,
             };
@@ -741,6 +744,7 @@ export function LeaveProvider({ children }) {
               activeUser.email !== matchedActiveUser.email ||
               activeUser.name !== matchedActiveUser.name ||
               activeUser.title !== matchedActiveUser.title ||
+              activeUser.position !== matchedActiveUser.position ||
               activeUser.department !== matchedActiveUser.department ||
               activeUser.phone !== matchedActiveUser.phone ||
               activeUser.role !== matchedActiveUser.role ||
@@ -752,6 +756,8 @@ export function LeaveProvider({ children }) {
               setCurrentUser((prev) => ({
                 ...prev,
                 ...freshUser,
+                title: syncedTitle,
+                position: syncedTitle,
                 role: actualRole,
                 gender: freshUser.gender || prev?.gender,
               }));
@@ -1914,18 +1920,28 @@ export function LeaveProvider({ children }) {
     );
 
     const oldEmail = targetBase?.email || updatedData?.oldEmail;
+    const nextTitle =
+      updatedData?.title !== undefined
+        ? updatedData.title
+        : updatedData?.position !== undefined
+          ? updatedData.position
+          : targetBase?.title;
+    const normalizedUpdates = {
+      ...updatedData,
+      ...(nextTitle !== undefined ? { title: nextTitle, position: nextTitle } : {}),
+    };
 
     const updated = employeesRef.current.map((emp) => {
       if (
         emp.id === empId ||
         emp.employeeId === empId ||
-        (emp.raw_id && updatedData?.raw_id && Number(emp.raw_id) === Number(updatedData.raw_id)) ||
-        (emp.id && updatedData?.id && cleanNumericUserId(emp.id) === cleanNumericUserId(updatedData.id)) ||
+        (emp.raw_id && normalizedUpdates?.raw_id && Number(emp.raw_id) === Number(normalizedUpdates.raw_id)) ||
+        (emp.id && normalizedUpdates?.id && cleanNumericUserId(emp.id) === cleanNumericUserId(normalizedUpdates.id)) ||
         (oldEmail && emp.email?.toLowerCase() === oldEmail.toLowerCase())
       ) {
         return normalizeEmployeeQuotas({
           ...emp,
-          ...updatedData,
+          ...normalizedUpdates,
         });
       }
       return emp;
@@ -1938,10 +1954,11 @@ export function LeaveProvider({ children }) {
       currentUser?.employeeId === empId ||
       (currentUser?.raw_id && targetBase?.raw_id && Number(currentUser.raw_id) === Number(targetBase.raw_id)) ||
       (oldEmail && currentUser?.email?.toLowerCase() === oldEmail.toLowerCase()) ||
-      (updatedData?.email && currentUser?.email?.toLowerCase() === updatedData.email.toLowerCase())
+      (normalizedUpdates?.email && currentUser?.email?.toLowerCase() === normalizedUpdates.email.toLowerCase())
     ) {
-      const mergedUser = normalizeEmployeeQuotas({ ...currentUser, ...updatedData });
+      const mergedUser = normalizeEmployeeQuotas({ ...currentUser, ...normalizedUpdates });
       setCurrentUser(mergedUser);
+      currentUserRef.current = mergedUser;
       recalculateQuotas(leaveRequestsRef.current, updated, true, mergedUser);
       sessionStorage.setItem('smartleave_user', JSON.stringify(mergedUser));
       localStorage.setItem('smartleave_user', JSON.stringify(mergedUser));
@@ -1953,9 +1970,9 @@ export function LeaveProvider({ children }) {
     try {
       if (api && api.updateEmployee) {
         responseData = await api.updateEmployee(empId, {
-          ...updatedData,
-          oldEmail: oldEmail || updatedData?.email,
-          raw_id: targetBase?.raw_id || updatedData?.raw_id,
+          ...normalizedUpdates,
+          oldEmail: oldEmail || normalizedUpdates?.email,
+          raw_id: targetBase?.raw_id || normalizedUpdates?.raw_id,
         });
         if (responseData && responseData.success === false) {
           throw new Error(responseData.message || 'ไม่สามารถบันทึกข้อมูลพนักงานได้');
@@ -2068,7 +2085,9 @@ export function LeaveProvider({ children }) {
 
   // Update User Profile (Settings) - บันทึกลง Cloudflare D1 100%
   const updateUserProfile = async (updatedData) => {
-    // 1. รวมข้อมูลที่แก้ไข พร้อมคำนวณชื่อเต็มไทย-อังกฤษให้สอดคล้องกันเสมอ
+    mutationEpochRef.current += 1;
+
+    // 1. รวมข้อมูลที่แก้ไข พร้อมคำนวณชื่อเต็มไทย-อังกฤษ และตำแหน่งงานให้สอดคล้องกันเสมอ
     const prefix = updatedData.prefix !== undefined ? updatedData.prefix : currentUser?.prefix;
     const firstName = updatedData.firstName !== undefined ? updatedData.firstName : currentUser?.firstName;
     const lastName = updatedData.lastName !== undefined ? updatedData.lastName : currentUser?.lastName;
@@ -2079,8 +2098,16 @@ export function LeaveProvider({ children }) {
     const lastNameEn = updatedData.lastNameEn !== undefined ? updatedData.lastNameEn : currentUser?.lastNameEn;
     const computedEnName = [prefixEn, firstNameEn, lastNameEn].filter(Boolean).join(' ').trim();
 
+    const nextTitle =
+      updatedData.title !== undefined
+        ? updatedData.title
+        : updatedData.position !== undefined
+          ? updatedData.position
+          : (currentUser?.title || currentUser?.position || '');
+
     const cleanNewEmail = (updatedData.email || currentUser?.email || '').trim().toLowerCase();
     const oldEmail = (currentUser?.email || '').trim().toLowerCase();
+    const prevUserSnapshot = currentUser;
 
     const updatedUser = {
       ...currentUser,
@@ -2095,15 +2122,18 @@ export function LeaveProvider({ children }) {
       lastNameEn: lastNameEn || null,
       englishName: computedEnName || updatedData.englishName || currentUser?.englishName,
       gender: updatedData.gender || currentUser?.gender || inferUserGender(updatedData),
+      title: nextTitle,
+      position: nextTitle,
     };
 
     // 2. อัปเดต currentUser ใน State และ Session
     setCurrentUser(updatedUser);
+    currentUserRef.current = updatedUser;
     sessionStorage.setItem('smartleave_user', JSON.stringify(updatedUser));
     localStorage.setItem('smartleave_user', JSON.stringify(updatedUser));
 
     // 3. อัปเดตพนักงานที่ตรงกันใน employees list
-    const updatedEmployees = employees.map((emp) => {
+    const updatedEmployees = employeesRef.current.map((emp) => {
       if (
         emp.id === updatedUser.id ||
         (emp.raw_id && updatedUser.raw_id && Number(emp.raw_id) === Number(updatedUser.raw_id)) ||
@@ -2123,6 +2153,7 @@ export function LeaveProvider({ children }) {
           englishName: updatedUser.englishName ?? emp.englishName,
           gender: updatedUser.gender || emp.gender,
           title: updatedUser.title || emp.title,
+          position: updatedUser.title || emp.position || emp.title,
           department: updatedUser.department || emp.department,
           employmentType: updatedUser.employmentType || emp.employmentType,
           email: cleanNewEmail,
@@ -2133,6 +2164,7 @@ export function LeaveProvider({ children }) {
       return emp;
     });
     setEmployees(updatedEmployees);
+    employeesRef.current = updatedEmployees;
 
     // 4. อัปเดตรายชื่อใน DEFAULT_STAFF เพื่อให้ Fallback จำอีเมลใหม่ได้ทันที
     const matchedStaff = DEFAULT_STAFF.find(
@@ -2159,12 +2191,12 @@ export function LeaveProvider({ children }) {
     }
 
     // 5. อัปเดตคำขอลาเดิมให้แสดงชื่อ, ฝ่าย และอีเมลใหม่
-    const updatedRequests = leaveRequests.map((r) => {
+    const updatedRequests = leaveRequestsRef.current.map((r) => {
       if (
         r.employeeId === updatedUser.id ||
         r.employeeId === updatedUser.employeeId ||
         (oldEmail && r.employeeEmail?.toLowerCase() === oldEmail) ||
-        (currentUser?.name && r.employeeName === currentUser?.name)
+        (prevUserSnapshot?.name && r.employeeName === prevUserSnapshot?.name)
       ) {
         return {
           ...r,
@@ -2177,11 +2209,15 @@ export function LeaveProvider({ children }) {
     });
     setLeaveRequests(updatedRequests);
 
-    // 6. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1)
+    // 6. ส่งบันทึกไปยัง Backend API (Cloudflare Worker / D1) โดยป้องกัน Polling มาทับระหว่างรอผล
+    let savedUser = updatedUser;
+    pendingMutationRef.current += 1;
     try {
       if (api && api.updateProfile) {
         const updateRes = await api.updateProfile({
           ...updatedUser,
+          title: nextTitle,
+          position: nextTitle,
           oldEmail: oldEmail,
           email: cleanNewEmail,
           newEmail: cleanNewEmail,
@@ -2190,42 +2226,53 @@ export function LeaveProvider({ children }) {
         });
         if (updateRes && updateRes.success === false) {
           showToast(updateRes.message || 'ไม่สามารถแก้ไขข้อมูลส่วนตัวได้', 'error');
-          // Revert currentUser if failed
-          setCurrentUser(currentUser);
-          sessionStorage.setItem('smartleave_user', JSON.stringify(currentUser));
-          localStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+          setCurrentUser(prevUserSnapshot);
+          currentUserRef.current = prevUserSnapshot;
+          sessionStorage.setItem('smartleave_user', JSON.stringify(prevUserSnapshot));
+          localStorage.setItem('smartleave_user', JSON.stringify(prevUserSnapshot));
           return null;
         }
 
         // นำข้อมูลผู้ใช้สดจากผลลัพธ์ของฐานข้อมูล D1 มาผสานลงใน currentUser
         if (updateRes && updateRes.user) {
+          const resolvedTitle = updateRes.user.title || updateRes.user.position || nextTitle;
           const finalUser = {
             ...updatedUser,
             ...updateRes.user,
-            role: currentUser?.role || updateRes.user.role || 'employee',
+            title: resolvedTitle,
+            position: resolvedTitle,
+            department: updateRes.user.department || updatedUser.department,
+            role: prevUserSnapshot?.role || updateRes.user.role || 'employee',
             email: updateRes.user.email || cleanNewEmail,
           };
+          savedUser = finalUser;
           setCurrentUser(finalUser);
+          currentUserRef.current = finalUser;
           sessionStorage.setItem('smartleave_user', JSON.stringify(finalUser));
           localStorage.setItem('smartleave_user', JSON.stringify(finalUser));
         }
 
         const fresh = await api.getEmployees();
         if (Array.isArray(fresh) && fresh.length > 0) {
-          setEmployees(fresh.map(normalizeEmployeeQuotas));
+          const normalizedFresh = fresh.map(normalizeEmployeeQuotas);
+          setEmployees(normalizedFresh);
+          employeesRef.current = normalizedFresh;
         }
       }
     } catch (e) {
       console.log('[LeaveContext Profile Sync Note]:', e.message);
       showToast(e.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลส่วนตัว', 'error');
-      setCurrentUser(currentUser);
-      sessionStorage.setItem('smartleave_user', JSON.stringify(currentUser));
-      localStorage.setItem('smartleave_user', JSON.stringify(currentUser));
+      setCurrentUser(prevUserSnapshot);
+      currentUserRef.current = prevUserSnapshot;
+      sessionStorage.setItem('smartleave_user', JSON.stringify(prevUserSnapshot));
+      localStorage.setItem('smartleave_user', JSON.stringify(prevUserSnapshot));
       return null;
+    } finally {
+      pendingMutationRef.current = Math.max(0, pendingMutationRef.current - 1);
     }
 
     showToast('บันทึกข้อมูลส่วนบุคคลลง Cloudflare D1 เรียบร้อยแล้ว', 'success');
-    return updatedUser;
+    return savedUser;
   };
 
   // Login action (Strict Database Authentication + Local Fallback for offline resilience)
