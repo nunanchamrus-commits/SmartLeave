@@ -606,8 +606,14 @@ export default function HolidaysView() {
 
       {/* Holiday Detail Modal (คลิกดูรายละเอียดของวันหยุด) */}
       {selectedHolidayDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+        <div
+          onClick={() => setSelectedHolidayDetail(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200/90 ring-1 ring-slate-900/10 overflow-hidden animate-fade-in-up"
+          >
             <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
                 <CalendarCheck className="w-5 h-5 text-emerald-300" />
@@ -685,8 +691,14 @@ export default function HolidaysView() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4">
+        <div
+          onClick={() => setDeleteConfirmId(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200/90 ring-1 ring-slate-900/10 text-center space-y-4"
+          >
             <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
               <AlertCircle className="w-6 h-6" />
             </div>
@@ -723,8 +735,14 @@ export default function HolidaysView() {
 
       {/* Add Custom Holiday Modal (Admin Only) */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+        <div
+          onClick={() => setIsAddModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200/90 ring-1 ring-slate-900/10 overflow-hidden animate-fade-in-up"
+          >
             <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
                 <CalendarPlusIcon className="w-5 h-5 text-emerald-300" />
