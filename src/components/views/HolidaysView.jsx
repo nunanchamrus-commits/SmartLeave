@@ -228,15 +228,15 @@ export default function HolidaysView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center shadow-xs">
-              <CalendarDays className="w-5 h-5 text-purple-700" />
+            <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-xs">
+              <CalendarDays className="w-5 h-5 text-emerald-700" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-slate-800 font-prompt">
                 ปฏิทินวันหยุดราชการ
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                ตารางปฏิทินวันหยุดนักขัตฤกษ์และวันหยุดพิเศษ (แสดงไฮไลต์สีม่วงอ่อนทั้งช่องในวันหยุด)
+                ตารางปฏิทินวันหยุดนักขัตฤกษ์และวันหยุดพิเศษประจำปี
               </p>
             </div>
           </div>
@@ -246,9 +246,9 @@ export default function HolidaysView() {
         <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
           {/* Live Clock Chip */}
           <div className="hidden xl:flex items-center space-x-2 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200/80 shadow-xs text-xs">
-            <Clock className="w-3.5 h-3.5 text-purple-600" />
+            <Clock className="w-3.5 h-3.5 text-emerald-600" />
             <span className="text-slate-600">{todayDescription}</span>
-            <span className="font-mono font-bold text-purple-700 pl-1 border-l border-slate-200">
+            <span className="font-mono font-bold text-emerald-700 pl-1 border-l border-slate-200">
               {formattedTime} น.
             </span>
           </div>
@@ -260,7 +260,7 @@ export default function HolidaysView() {
               onClick={() => setViewMode('calendar')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 viewMode === 'calendar'
-                  ? 'bg-purple-700 text-white shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
@@ -272,7 +272,7 @@ export default function HolidaysView() {
               onClick={() => setViewMode('list')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 viewMode === 'list'
-                  ? 'bg-purple-700 text-white shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
@@ -289,7 +289,7 @@ export default function HolidaysView() {
                 setFormError('');
                 setIsAddModalOpen(true);
               }}
-              className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer"
+              className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>เพิ่มวันหยุดพิเศษ</span>
@@ -300,12 +300,12 @@ export default function HolidaysView() {
 
       {/* Featured Banner: Next Upcoming Holiday Countdown */}
       {nextUpcoming && (
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#4C1D95] via-[#5B21B6] to-[#6D28D9] text-white p-5 sm:p-6 shadow-md border border-purple-900/20">
-          <div className="absolute top-0 right-0 -mr-12 -mt-12 w-64 h-64 rounded-full bg-purple-400/10 blur-3xl pointer-events-none" />
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800 text-white p-5 sm:p-6 shadow-md border border-emerald-900/20">
+          <div className="absolute top-0 right-0 -mr-12 -mt-12 w-64 h-64 rounded-full bg-emerald-400/15 blur-3xl pointer-events-none" />
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-start sm:items-center space-x-4">
               <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 p-2 flex flex-col items-center justify-center flex-shrink-0 backdrop-blur-xs shadow-inner">
-                <span className="text-[11px] font-medium text-purple-200 uppercase leading-none">
+                <span className="text-[11px] font-medium text-emerald-200 uppercase leading-none">
                   {THAI_MONTHS[parseInt(nextUpcoming.dateStr.split('-')[1], 10) - 1]?.slice(0, 4)}
                 </span>
                 <span className="text-2xl font-black text-white leading-none mt-1 font-prompt">
@@ -319,7 +319,7 @@ export default function HolidaysView() {
                     <span>วันหยุดราชการถัดไป</span>
                   </span>
                   {daysUntilNext !== null && (
-                    <span className="text-xs text-purple-200 font-medium">
+                    <span className="text-xs text-emerald-200 font-medium">
                       (อีก {daysUntilNext === 0 ? 'วันนี้แล้ว!' : `${daysUntilNext} วัน`})
                     </span>
                   )}
@@ -332,7 +332,7 @@ export default function HolidaysView() {
                 <h3 className="text-lg sm:text-xl font-extrabold font-prompt text-white">
                   {nextUpcoming.name}
                 </h3>
-                <p className="text-xs text-purple-100/80 leading-relaxed max-w-xl">
+                <p className="text-xs text-emerald-100/90 leading-relaxed max-w-xl">
                   {getDayOfWeekName(nextUpcoming.dateStr)}ที่ {nextUpcoming.fullDate} — {nextUpcoming.description}
                 </p>
               </div>
@@ -345,20 +345,20 @@ export default function HolidaysView() {
         </div>
       )}
 
-      {/* VIEW 1: CALENDAR GRID VIEW (ตารางปฏิทิน และวันไหนที่มีวันหยุด ช่องนั้นเป็นสีม่วงอ่อนทั้งช่อง) */}
+      {/* VIEW 1: CALENDAR GRID VIEW */}
       {viewMode === 'calendar' ? (
         <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200/80 p-3 sm:p-6 space-y-4">
           {/* Navigation Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
                 <Calendar className="w-4 h-4" />
               </div>
               <h3 className="text-xl font-bold text-slate-800 font-prompt">
                 {THAI_MONTHS[displayMonth]} {displayYearBE}
               </h3>
               {monthHolidays.length > 0 && (
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
                   วันหยุด {monthHolidays.length} วัน
                 </span>
               )}
@@ -379,7 +379,7 @@ export default function HolidaysView() {
                 onClick={() => setMonthOffset(0)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors flex items-center space-x-1 cursor-pointer ${
                   monthOffset === 0
-                    ? 'bg-purple-50 text-purple-800 border-purple-200 shadow-2xs'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs'
                     : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                 }`}
                 title="กลับมาเดือนปัจจุบัน"
@@ -412,7 +412,7 @@ export default function HolidaysView() {
                   }}
                   className={`px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                     isSelected
-                      ? 'bg-purple-700 text-white font-bold shadow-2xs'
+                      ? 'bg-emerald-600 text-white font-bold shadow-2xs'
                       : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -535,7 +535,7 @@ export default function HolidaysView() {
             <div className="flex items-center space-x-4 flex-wrap gap-y-1">
               <div className="flex items-center space-x-1.5">
                 <span className="w-3.5 h-3.5 rounded-md bg-[#F3E8FF] border border-[#D8B4FE] ring-1 ring-purple-300" />
-                <span className="font-semibold text-purple-900">วันหยุดราชการ / วันหยุดพิเศษ (สีม่วงอ่อนทั้งช่อง)</span>
+                <span className="font-semibold text-slate-700">วันหยุดราชการ / วันหยุดพิเศษ</span>
               </div>
               <div className="flex items-center space-x-1.5">
                 <span className="w-3.5 h-3.5 rounded-md bg-white border border-emerald-400 ring-1 ring-emerald-500/30" />
@@ -566,7 +566,7 @@ export default function HolidaysView() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ค้นหาชื่อวันหยุด..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-slate-50/50"
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50/50"
               />
             </div>
           </div>
@@ -582,20 +582,20 @@ export default function HolidaysView() {
                     onClick={() => setSelectedHolidayDetail(h)}
                     className={`p-3.5 rounded-2xl border transition-all flex items-start space-x-3 cursor-pointer ${
                       h.dateStr === todayStr
-                        ? 'bg-purple-100/90 border-purple-400 ring-2 ring-purple-400/30'
+                        ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/30'
                         : isPast
                         ? 'bg-slate-50 border-slate-200/70 opacity-70'
-                        : 'bg-purple-50/50 border-purple-200/80 hover:bg-purple-100/60'
+                        : 'bg-white border-slate-200/80 hover:bg-emerald-50/40 hover:border-emerald-300'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-xl bg-purple-700 text-white flex flex-col items-center justify-center flex-shrink-0 font-prompt shadow-xs">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-700 text-white flex flex-col items-center justify-center flex-shrink-0 font-prompt shadow-xs">
                       <span className="text-[10px] font-semibold leading-none">{THAI_MONTHS[h.month - 1]?.slice(0, 3)}</span>
                       <span className="text-lg font-black leading-tight mt-0.5">{h.day}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-slate-800 text-xs sm:text-sm font-prompt truncate">{h.name}</h4>
                       <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{h.description || 'วันหยุดราชการ'}</p>
-                      <div className="text-[10px] text-purple-700 font-semibold mt-1">{h.fullDate}</div>
+                      <div className="text-[10px] text-emerald-700 font-semibold mt-1">{h.fullDate}</div>
                     </div>
                   </div>
                 );
@@ -608,9 +608,9 @@ export default function HolidaysView() {
       {selectedHolidayDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-purple-800 to-indigo-800 text-white flex items-center justify-between">
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <CalendarCheck className="w-5 h-5 text-purple-300" />
+                <CalendarCheck className="w-5 h-5 text-emerald-300" />
                 <h3 className="font-bold text-base font-prompt">รายละเอียดวันหยุดราชการ</h3>
               </div>
               <button
@@ -725,9 +725,9 @@ export default function HolidaysView() {
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-purple-800 to-indigo-800 text-white flex items-center justify-between">
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <CalendarPlusIcon className="w-5 h-5 text-purple-300" />
+                <CalendarPlusIcon className="w-5 h-5 text-emerald-300" />
                 <h3 className="font-bold text-base font-prompt">เพิ่มวันหยุดพิเศษประจำหน่วยงาน</h3>
               </div>
               <button
@@ -757,7 +757,7 @@ export default function HolidaysView() {
                   placeholder="เช่น วันหยุดพิเศษประจำจังหวัด / วันหยุดกรณีพิเศษ"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
               </div>
 
@@ -770,7 +770,7 @@ export default function HolidaysView() {
                   required
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
               </div>
 
@@ -781,7 +781,7 @@ export default function HolidaysView() {
                 <select
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
                 >
                   <option value="special">วันหยุดพิเศษประจำหน่วยงาน</option>
                   <option value="official">วันหยุดราชการกรณีพิเศษ (มติ ครม.)</option>
@@ -798,7 +798,7 @@ export default function HolidaysView() {
                   placeholder="ระบุวัตถุประสงค์ หรือประกาศหน่วยงานที่เกี่ยวข้อง..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
               </div>
 
@@ -812,7 +812,7 @@ export default function HolidaysView() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-semibold text-xs sm:text-sm shadow-md transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-md transition-all cursor-pointer"
                 >
                   + บันทึกวันหยุด
                 </button>
