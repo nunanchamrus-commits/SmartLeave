@@ -107,8 +107,8 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
             <div className="mt-6 flex flex-col items-center justify-center p-3 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs shadow-inner">
               <DinoMascot
                 pose="login"
-                src="/mascot/dino-mascot1.png"
-                size={135}
+                src="/Dino-mascot1.png"
+                size={140}
                 bubbleText="ยินดีต้อนรับครับ! เข้าสู่ระบบเพื่อจัดการวันลาได้เลย"
               />
             </div>

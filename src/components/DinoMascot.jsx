@@ -29,7 +29,7 @@ export default function DinoMascot({
     switch (pose) {
       case 'login':
       case 'mascot1':
-        return '/mascot/dino-mascot1.png';
+        return '/Dino-mascot1.png';
 
       case 'mascot2':
         return '/mascot/dino-mascot2.png';
