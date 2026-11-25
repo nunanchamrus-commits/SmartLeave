@@ -863,9 +863,6 @@ export default function LeaveRequestModal() {
                       <p className="font-semibold text-slate-600 text-xs sm:text-sm">
                         ยังไม่มีรายการลาที่สามารถขอยกเลิกได้ในขณะนี้
                       </p>
-                      <p className="text-[11px] text-slate-400">
-                        สามารถยื่นขอยกเลิกได้ถึงวันที่ลาวันสุดท้ายของคำขอนั้นๆ (เช่น ลาวันที่ 25-28 ยกเลิกได้ถึงวันที่ 28 รายการที่พ้นกำหนดไปแล้วจะไม่แสดงในรายการนี้)
-                      </p>
                     </div>
                   ) : selectedLeave && !isSelectingCancelItem ? (
                     /* แสดงเฉพาะรายการที่เลือก ซ่อนรายการอื่นไว้ทั้งหมด */
