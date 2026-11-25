@@ -16,6 +16,7 @@ import { downloadCancelLeaveSlipPdf } from '../utils/exportPdf';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
 import ThaiDatePicker from './ThaiDatePicker';
+import DinoMascot from './DinoMascot';
 import {
   enumerateIsoDates,
   formatThaiDateBE,
@@ -539,13 +540,17 @@ export default function LeaveRequestModal() {
         {modalTab === 'leave' && (
           <>
             {isSuccess ? (
-              <div className="p-10 text-center flex flex-col items-center justify-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center animate-bounce">
-                  <CheckCircle2 className="w-10 h-10" />
-                </div>
-                <h4 className="text-xl font-bold text-slate-800">ยื่นคำขอลาเรียบร้อยแล้ว!</h4>
-                <p className="text-sm text-slate-500">
-                  คำขอของคุณถูกบันทึกเรียบร้อยแล้ว (สถานะ: ยังไม่ยื่นเอกสาร)
+              <div className="p-8 sm:p-10 text-center flex flex-col items-center justify-center space-y-3 animate-fade-in-up">
+                <DinoMascot
+                  pose="success"
+                  size={140}
+                  bubbleText="เย้! ส่งคำขอลาสำเร็จแล้วนะ รอหัวหน้าพิจารณาครับ ✨"
+                />
+                <h4 className="text-xl font-extrabold text-slate-800 font-prompt mt-1">
+                  ยื่นคำขอลาเรียบร้อยแล้ว!
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-sm">
+                  คำขอของคุณถูกบันทึกเข้าระบบเรียบร้อยแล้ว อยู่ระหว่างส่งต่อให้ผู้อนุมัติตามขั้นตอน
                 </p>
               </div>
             ) : (
@@ -788,12 +793,16 @@ export default function LeaveRequestModal() {
         {modalTab === 'cancel' && (
           <>
             {isCancelSuccess ? (
-              <div className="p-8 text-center flex flex-col items-center justify-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center animate-bounce">
-                  <CheckCircle2 className="w-10 h-10" />
-                </div>
-                <h4 className="text-xl font-bold text-slate-800">ส่งคำขอยกเลิกวันลาเรียบร้อยแล้ว!</h4>
-                <p className="text-sm text-slate-500 max-w-sm">
+              <div className="p-8 text-center flex flex-col items-center justify-center space-y-3 animate-fade-in-up">
+                <DinoMascot
+                  pose="success"
+                  size={135}
+                  bubbleText="ยื่นขอยกเลิกวันลาเรียบร้อยแล้วครับ!"
+                />
+                <h4 className="text-xl font-extrabold text-slate-800 font-prompt mt-1">
+                  ส่งคำขอยกเลิกวันลาเรียบร้อยแล้ว!
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-sm">
                   คำขอยกเลิกวันลาของคุณถูกส่งไปยังผู้ดูแลระบบเพื่อพิจารณาอนุญาตแล้ว
                 </p>
                 {lastCancelledReq && (

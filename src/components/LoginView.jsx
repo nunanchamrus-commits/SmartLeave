@@ -13,6 +13,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
+import DinoMascot from './DinoMascot';
 
 export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword }) {
   const { login } = useLeave();
@@ -101,6 +102,15 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
                 ยกระดับการทำงานด้วยระบบขอลาออนไลน์ สะดวก รวดเร็ว อนุมัติไว ตรวจสอบได้ทุกที่ ทุกเวลา
               </p>
             </div>
+
+            {/* Mascot: Digital Dino Officer greeting */}
+            <div className="mt-6 flex flex-col items-center justify-center p-3 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs shadow-inner">
+              <DinoMascot
+                pose="wave"
+                size={120}
+                bubbleText="ยินดีต้อนรับครับ! เข้าสู่ระบบเพื่อจัดการวันลาได้เลย"
+              />
+            </div>
           </div>
 
           {/* Bottom Copyright */}
@@ -141,11 +151,14 @@ export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword
               </p>
             </div>
 
-            {/* Error Message */}
+            {/* Error Message with Dino Mascot */}
             {error && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 flex items-center space-x-2 text-xs">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{error}</span>
+              <div className="mt-4 p-3.5 bg-red-50 border border-red-200 rounded-2xl text-red-700 flex items-center space-x-3 text-xs animate-fade-in">
+                <DinoMascot pose="error" size={54} className="flex-shrink-0" />
+                <div className="flex-1">
+                  <span className="font-bold block text-red-800 text-[13px]">เข้าสู่ระบบไม่สำเร็จ</span>
+                  <span className="mt-0.5 block leading-relaxed">{error}</span>
+                </div>
               </div>
             )}
 

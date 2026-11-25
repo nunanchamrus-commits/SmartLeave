@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Megaphone, Volume2, Calendar, Pin } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
+import DinoMascot from './DinoMascot';
 
 export default function AnnouncementsModal() {
   const { announcements, isAnnouncementModalOpen, setIsAnnouncementModalOpen } = useLeave();
@@ -26,8 +27,21 @@ export default function AnnouncementsModal() {
           </button>
         </div>
 
+        {/* Festive Mascot Banner */}
+        <div className="mx-4 sm:mx-6 mt-4 p-3.5 rounded-2xl bg-gradient-to-r from-amber-50/80 via-emerald-50/60 to-teal-50/70 border border-amber-200/80 flex items-center space-x-3.5 shadow-2xs">
+          <DinoMascot pose="holiday" size={68} className="flex-shrink-0" />
+          <div className="min-w-0">
+            <h4 className="font-bold text-slate-800 text-xs sm:text-sm font-prompt">
+              ปฏิทินวันหยุดราชการและประกาศเทศกาล
+            </h4>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+              ติดตามวันหยุดนักขัตฤกษ์ประจำปีงบประมาณ วางแผนการลาพักผ่อนล่วงหน้าอย่างมีความสุขครับ 🌸
+            </p>
+          </div>
+        </div>
+
         {/* List of Announcements */}
-        <div className="p-6 overflow-y-auto space-y-4">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-3.5">
           {(announcements || []).map((ann) => (
             <div
               key={ann.id}

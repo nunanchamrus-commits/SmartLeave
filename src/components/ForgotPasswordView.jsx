@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
+import DinoMascot from './DinoMascot';
 
 export default function ForgotPasswordView({ onSwitchToLogin }) {
   const { resetPassword, sendPasswordResetOtp, verifyPasswordResetOtp } = useLeave();
@@ -330,10 +331,10 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
               </span>
             </div>
 
-            {/* Error Message Alert */}
+            {/* Error Message Alert with Dino Mascot */}
             {error && (
-              <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-2xl text-red-600 flex items-start space-x-2.5 text-xs animate-in fade-in duration-200">
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-2xl text-red-600 flex items-center space-x-3 text-xs animate-in fade-in duration-200">
+                <DinoMascot pose="error" size={48} className="flex-shrink-0" />
                 <div className="flex-1">
                   <span className="font-medium">{error}</span>
                   {(error.includes('GOOGLE_SCRIPT_URL') || error.includes('RESEND_API_KEY')) && (
@@ -589,10 +590,12 @@ export default function ForgotPasswordView({ onSwitchToLogin }) {
 
             {/* STEP 3: Done Screen */}
             {step === 'done' && (
-              <div className="py-8 text-center space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-md border-2 border-emerald-200 animate-bounce">
-                  <CheckCircle2 className="w-10 h-10" />
-                </div>
+              <div className="py-6 text-center space-y-4 animate-in fade-in zoom-in-95 duration-300 flex flex-col items-center">
+                <DinoMascot
+                  pose="success"
+                  size={140}
+                  bubbleText="ยินดีด้วยครับ! รีเซ็ตรหัสผ่านใหม่สำเร็จแล้ว"
+                />
                 <div>
                   <h3 className="text-2xl font-bold text-slate-800 font-prompt">
                     รีเซ็ตรหัสผ่านสำเร็จเรียบร้อย!
