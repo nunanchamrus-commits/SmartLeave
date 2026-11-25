@@ -6,8 +6,9 @@ import React from 'react';
  * สไตล์ 3D Kawaii น่ารัก เป็นมิตร อบอุ่น พร้อมเงาและแสงตกกระทบสมจริง
  *
  * รองรับหลายอิริยาบถ (pose):
- * - 'wave' / 'main': ท่าหลัก โบกมือ/ชูนิ้วโป้ง ยิ้มขยิบตาพร้อมต้นกล้า (ใช้ใน Login / ทักทาย)
- * - 'assistant' / 'tablet': ยิ้มแฉ่ง ถือแท็บเล็ตดิจิทัลแสดงหัวใจ (ใช้ใน HeroBanner แนะนำการใช้งาน)
+ * - 'login' / 'mascot1': ท่าต้อนรับหน้าเข้าสู่ระบบ (ใช้ไฟล์ Dino-mascot1)
+ * - 'wave' / 'main': ท่าหลัก โบกมือ/ชูนิ้วโป้ง ยิ้มขยิบตาพร้อมต้นกล้า
+ * - 'assistant' / 'tablet': ยิ้มแฉ่ง ถือแท็บเล็ตดิจิทัลแสดงหัวใจ
  * - 'success' / 'cheer': ดีใจ ชูสองมือพร้อมประกายดาวรอยยิ้มสดใส (ใช้เมื่อส่งคำขอสำเร็จ)
  * - 'coffee' / 'sleep' / 'empty': หลับฝันดี ขดตัวนอนสบายใจพร้อม z z z (ใช้ใน Empty State / พักผ่อน)
  * - 'holiday' / 'farmer': ตั้งใจทำงาน สวมงอบชาวนา ปลูกต้นกล้าในดิน (ใช้ในหน้าต่างวันหยุด / ทำงาน)
@@ -15,6 +16,7 @@ import React from 'react';
  */
 export default function DinoMascot({
   pose = 'wave',
+  src = null,
   size = 120,
   className = '',
   bubbleText = '',
@@ -22,7 +24,22 @@ export default function DinoMascot({
 }) {
   // Mapping pose to 3D DinoLeaf assets
   const getMascotSrc = () => {
+    if (src) return src;
+
     switch (pose) {
+      case 'login':
+      case 'mascot1':
+        return '/mascot/dino-mascot1.png';
+
+      case 'mascot2':
+        return '/mascot/dino-mascot2.png';
+
+      case 'mascot3':
+        return '/mascot/dino-mascot3.png';
+
+      case 'mascot4':
+        return '/mascot/dino-mascot4.png';
+
       case 'assistant':
       case 'tablet':
         return '/mascot/dinoleaf_tablet.png';
@@ -50,7 +67,7 @@ export default function DinoMascot({
       case 'wave':
       case 'main':
       default:
-        return '/mascot/dinoleaf_main.png';
+        return '/mascot/dino-mascot1.png';
     }
   };
 
