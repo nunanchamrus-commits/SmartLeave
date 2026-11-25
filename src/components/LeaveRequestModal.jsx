@@ -20,6 +20,9 @@ import {
   enumerateIsoDates,
   formatThaiDateBE,
   formatCancelDatesBE,
+  getTodayThaiISO,
+  getLastLeaveDateISO,
+  isLeaveCancellable,
 } from '../utils/thaiDate';
 
 export default function LeaveRequestModal() {
@@ -31,6 +34,8 @@ export default function LeaveRequestModal() {
     myLeaveRequests,
     quotas,
     currentUser,
+    preselectedCancelId,
+    setPreselectedCancelId,
   } = useLeave();
 
   const isMale =
@@ -95,14 +100,10 @@ export default function LeaveRequestModal() {
   const [isDownloadingCancelPdf, setIsDownloadingCancelPdf] = useState(false);
   const [lastCancelledReq, setLastCancelledReq] = useState(null);
 
-  // รายการลาของฉันที่สามารถยื่นขอยกเลิกได้ (รองรับรายการที่เคยยกเลิกบางส่วนแล้วยังเหลือวันลาอยู่)
-  const cancellableLeaves = (myLeaveRequests || []).filter(
-    (r) =>
-      r.status !== 'ไม่อนุมัติ' &&
-      r.status !== 'ยกเลิกการลา' &&
-      r.status !== 'ยกเลิกวันลา' &&
-      r.cancelStatus !== 'pending' &&
-      Number(r.days || 0) > 0
+  // รายการลาของฉันที่สามารถยื่นขอยกเลิกได้ (ขอยกเลิกได้ถึงวันที่ลาวันสุดท้าย เช่น ลา 25-28 ยกเลิกได้ถึงวันที่ 28)
+  const todayIso = getTodayThaiISO();
+  const cancellableLeaves = (myLeaveRequests || []).filter((r) =>
+    isLeaveCancellable(r, todayIso)
   );
 
   const selectedLeave = cancellableLeaves.find((r) => String(r.id) === String(selectedCancelId)) || null;
@@ -123,15 +124,25 @@ export default function LeaveRequestModal() {
       setCancelErrorMsg('');
       setIsSuccess(false);
       setIsCancelSuccess(false);
-      if (cancellableLeaves.length === 1) {
-        setSelectedCancelId(String(cancellableLeaves[0].id));
+
+      if (preselectedCancelId) {
+        setModalTab('cancel');
+        setSelectedCancelId(String(preselectedCancelId));
         setIsSelectingCancelItem(false);
+        if (typeof setPreselectedCancelId === 'function') {
+          setPreselectedCancelId(null);
+        }
       } else {
-        setSelectedCancelId('');
-        setIsSelectingCancelItem(true);
+        if (cancellableLeaves.length === 1) {
+          setSelectedCancelId(String(cancellableLeaves[0].id));
+          setIsSelectingCancelItem(false);
+        } else {
+          setSelectedCancelId('');
+          setIsSelectingCancelItem(true);
+        }
       }
     }
-  }, [isRequestModalOpen]);
+  }, [isRequestModalOpen, preselectedCancelId]);
 
   // Auto-select if only 1 cancellable leave exists when switching to cancel tab
   useEffect(() => {
@@ -389,6 +400,16 @@ export default function LeaveRequestModal() {
       setCancelErrorMsg('กรุณาเลือกรายการลาที่ต้องการขอยกเลิก');
       return;
     }
+
+    const lastDate = getLastLeaveDateISO(selectedLeave);
+    const today = getTodayThaiISO();
+    if (lastDate && today > lastDate) {
+      setCancelErrorMsg(
+        `ไม่สามารถยกเลิกคำขอนี้ได้ เนื่องจากพ้นกำหนดวันลาวันสุดท้าย (${formatThaiDateBE(lastDate)}) แล้ว ระบบอนุญาตให้ยกเลิกได้ถึงวันที่ลาวันสุดท้ายเท่านั้น`
+      );
+      return;
+    }
+
     if (activeCancelDates.length === 0 || computedCancelDays <= 0) {
       setCancelErrorMsg('กรุณาเลือกอย่างน้อย 1 วันที่ต้องการยกเลิกวันลา');
       return;
@@ -843,7 +864,7 @@ export default function LeaveRequestModal() {
                         ยังไม่มีรายการลาที่สามารถขอยกเลิกได้ในขณะนี้
                       </p>
                       <p className="text-[11px] text-slate-400">
-                        รายการที่ยกเลิกแล้ว ไม่อนุมัติ หรือกำลังรอพิจารณายกเลิกจะไม่แสดงในรายการนี้
+                        สามารถยื่นขอยกเลิกได้ถึงวันที่ลาวันสุดท้ายของคำขอนั้นๆ (เช่น ลาวันที่ 25-28 ยกเลิกได้ถึงวันที่ 28 รายการที่พ้นกำหนดไปแล้วจะไม่แสดงในรายการนี้)
                       </p>
                     </div>
                   ) : selectedLeave && !isSelectingCancelItem ? (
@@ -865,9 +886,15 @@ export default function LeaveRequestModal() {
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] text-slate-600 mt-0.5 truncate">
-                          {selectedLeave.dateRange} ({selectedLeave.days} วัน)
-                        </p>
+                        <div className="flex items-center flex-wrap gap-2 mt-1">
+                          <span className="text-[11px] text-slate-600 truncate">
+                            {selectedLeave.dateRange} ({selectedLeave.days} วัน)
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex-shrink-0">
+                            <Clock className="w-2.5 h-2.5" />
+                            ยกเลิกได้ถึง {formatThaiDateBE(getLastLeaveDateISO(selectedLeave))}
+                          </span>
+                        </div>
                       </div>
                       <div className="w-5 h-5 rounded-full border-2 border-rose-600 bg-rose-600 flex items-center justify-center flex-shrink-0">
                         <Check className="w-3 h-3 text-white stroke-[3]" />
@@ -909,9 +936,15 @@ export default function LeaveRequestModal() {
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-                                {req.dateRange} ({req.days} วัน)
-                              </p>
+                              <div className="flex items-center flex-wrap gap-2 mt-1">
+                                <span className="text-[11px] text-slate-500 truncate">
+                                  {req.dateRange} ({req.days} วัน)
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex-shrink-0">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  ยกเลิกได้ถึง {formatThaiDateBE(getLastLeaveDateISO(req))}
+                                </span>
+                              </div>
                             </div>
                             <div
                               className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${

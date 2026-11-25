@@ -3802,6 +3802,15 @@ export async function onRequest(context) {
         return jsonResponse({ error: 'ไม่พบคำขอลางานที่ระบุ' }, 404);
       }
 
+      // ตรวจสอบวันลาวันสุดท้าย: ยกเลิกได้ถึงวันที่ลาวันสุดท้าย (เช่น ลา 25-28 ยกเลิกได้ถึงวันที่ 28)
+      const lastLeaveDate = reqInfo.end_date || reqInfo.start_date;
+      const todayThai = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
+      if (lastLeaveDate && todayThai > lastLeaveDate) {
+        return jsonResponse({
+          error: `ไม่สามารถยกเลิกคำขอนี้ได้ เนื่องจากพ้นกำหนดวันลาวันสุดท้าย (${lastLeaveDate}) แล้ว ระบบอนุญาตให้ยกเลิกได้ถึงวันที่ลาวันสุดท้ายเท่านั้น`
+        }, 400);
+      }
+
       const prevDisplayStatus = mapDbRowToDisplayStatus(reqInfo.status, reqInfo.review_stage);
       const wasApproved = prevDisplayStatus === 'อนุมัติ';
 
@@ -3838,6 +3847,15 @@ export async function onRequest(context) {
       const reqInfo = await findLeaveRequest(env.DB, leaveId);
       if (!reqInfo) {
         return jsonResponse({ error: 'ไม่พบคำขอลางานที่ต้องการยกเลิก' }, 404);
+      }
+
+      // ตรวจสอบวันลาวันสุดท้าย: ขอยกเลิกได้ถึงวันที่ลาวันสุดท้าย (เช่น ลา 25-28 ยกเลิกได้ถึงวันที่ 28)
+      const lastLeaveDate = reqInfo.end_date || reqInfo.start_date;
+      const todayThai = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
+      if (lastLeaveDate && todayThai > lastLeaveDate) {
+        return jsonResponse({
+          error: `ไม่สามารถยื่นขอยกเลิกคำขอนี้ได้ เนื่องจากพ้นกำหนดวันลาวันสุดท้าย (${lastLeaveDate}) แล้ว ระบบอนุญาตให้ยกเลิกได้ถึงวันที่ลาวันสุดท้ายเท่านั้น`
+        }, 400);
       }
 
       const origDays = Number(reqInfo.total_days || 1);

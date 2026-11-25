@@ -397,3 +397,51 @@ export function computeRemainingDatesAfterCancel(startIso, endIso, cancelDates, 
     nextEndDate: remainingDates.length > 0 ? remainingDates[remainingDates.length - 1] : endIso,
   };
 }
+
+/**
+ * ดึงวันที่ปัจจุบันตามเวลาประเทศไทย (Asia/Bangkok, UTC+7) ในรูปแบบ YYYY-MM-DD
+ */
+export function getTodayThaiISO() {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
+  } catch (e) {
+    const d = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * ดึงวันลาวันสุดท้ายของคำขอ (endDate หรือ startDate) ในรูปแบบ ISO YYYY-MM-DD
+ */
+export function getLastLeaveDateISO(req) {
+  if (!req) return '';
+  return req.endDate || req.startDate || '';
+}
+
+/**
+ * ตรวจสอบว่าคำขอลานี้สามารถขอยกเลิกได้หรือไม่
+ * ตามระเบียบ: ขอยกเลิกได้ถึงวันที่ลาวันสุดท้าย (เช่น ลา 25-28 ยกเลิกได้ถึงวันที่ 28)
+ * หากพ้นวันลาวันสุดท้ายไปแล้ว (เช่น วันที่ 29) จะไม่อนุญาตให้ยกเลิก
+ */
+export function isLeaveCancellable(req, todayIso = getTodayThaiISO()) {
+  if (!req) return false;
+  // คำขอที่ไม่อนุมัติ หรือถูกยกเลิกไปแล้ว ไม่สามารถยกเลิกซ้ำได้
+  if (req.status === 'ไม่อนุมัติ' || req.status === 'ยกเลิกการลา' || req.status === 'ยกเลิกวันลา') {
+    return false;
+  }
+  // หากมีคำขอยกเลิกที่อยู่ระหว่างรอพิจารณา
+  if (req.cancelStatus === 'pending') {
+    return false;
+  }
+  // หากไม่มีจำนวนวันลาเหลืออยู่
+  if (Number(req.days || 0) <= 0) {
+    return false;
+  }
+  // ตรวจสอบวันลาวันสุดท้าย: ขอยกเลิกได้ถึงวันสุดท้ายของการลา
+  const lastDate = getLastLeaveDateISO(req);
+  if (lastDate && todayIso > lastDate) {
+    return false; // พ้นกำหนดวันลาวันสุดท้ายแล้ว
+  }
+  return true;
+}
+

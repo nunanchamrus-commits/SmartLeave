@@ -14,16 +14,24 @@ import {
   User,
   Download,
   Eye,
+  CalendarX2,
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../utils/exportPdf';
-import { formatThaiDateRangeBE } from '../utils/thaiDate';
+import {
+  formatThaiDateRangeBE,
+  formatThaiDateBE,
+  getLastLeaveDateISO,
+  isLeaveCancellable,
+  getTodayThaiISO,
+} from '../utils/thaiDate';
 import ThaiDatePicker from './ThaiDatePicker';
 
 export default function LeaveDetailModal() {
   const {
     selectedLeaveDetail,
     setSelectedLeaveDetail,
+    openCancelLeaveModal,
     currentUser,
     employees,
     updateLeaveStatus,
@@ -748,6 +756,34 @@ export default function LeaveDetailModal() {
                 )}
                 <span>{isExportingCancelPdf ? 'กำลังประมวลผล...' : 'ใบยกเลิก (PDF)'}</span>
               </button>
+            )}
+
+            {!isEditing && isOwner && isLeaveCancellable(req, getTodayThaiISO()) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setSelectedLeaveDetail(null);
+                  if (openCancelLeaveModal) {
+                    openCancelLeaveModal(req.id);
+                  }
+                }}
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs transition-colors shadow-xs"
+                title={`ยื่นขอยกเลิกวันลานี้ (ขอยกเลิกได้ถึง ${formatThaiDateBE(getLastLeaveDateISO(req))})`}
+              >
+                <CalendarX2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>ขอยกเลิกวันลานี้</span>
+              </button>
+            )}
+
+            {!isEditing && isOwner && getLastLeaveDateISO(req) && getTodayThaiISO() > getLastLeaveDateISO(req) && req.status !== 'ไม่อนุมัติ' && req.status !== 'ยกเลิกการลา' && req.status !== 'ยกเลิกวันลา' && !req.cancelStatus && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-500 text-[11px] font-medium border border-slate-200"
+                title="ระบบอนุญาตให้ขอยกเลิกได้ถึงวันที่ลาวันสุดท้ายเท่านั้น"
+              >
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <span>พ้นกำหนดวันลาวันสุดท้ายแล้ว ({formatThaiDateBE(getLastLeaveDateISO(req))})</span>
+              </span>
             )}
           </div>
 

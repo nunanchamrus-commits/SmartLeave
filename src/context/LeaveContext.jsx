@@ -6,12 +6,16 @@ import {
   formatThaiDateRangeBE,
   replaceIsoDatesWithThaiBE,
   formatCancelDatesBE,
+  formatThaiDateBE,
   computeRemainingDatesAfterCancel,
   getFiscalYearInfo,
   getCurrentFiscalYearBE,
   getFiscalYearDetails,
   isDateInFiscalYear,
   isDateInFiscalRound,
+  getTodayThaiISO,
+  getLastLeaveDateISO,
+  isLeaveCancellable,
 } from '../utils/thaiDate';
 
 const LeaveContext = createContext();
@@ -603,9 +607,17 @@ export function LeaveProvider({ children }) {
   };
 
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [preselectedCancelId, setPreselectedCancelId] = useState(null);
   const [selectedLeaveDetail, setSelectedLeaveDetail] = useState(null);
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  const openCancelLeaveModal = (leaveId) => {
+    if (leaveId) {
+      setPreselectedCancelId(String(leaveId));
+    }
+    setIsRequestModalOpen(true);
+  };
 
   // บันทึกเฉพาะ Session ของผู้ใช้ปัจจุบันเท่านั้น (ไม่เซฟตารางฐานข้อมูลลง Browser)
   useEffect(() => {
@@ -1331,6 +1343,15 @@ export function LeaveProvider({ children }) {
     if (!target) {
       showToast('ไม่พบรายการลาที่ต้องการขอยกเลิก', 'error');
       return { success: false };
+    }
+
+    // ตรวจสอบวันลาวันสุดท้าย: ขอยกเลิกได้ถึงวันที่ลาวันสุดท้าย (เช่น ลา 25-28 ยกเลิกได้ถึงวันที่ 28)
+    const lastLeaveDate = getLastLeaveDateISO(target);
+    const todayIso = getTodayThaiISO();
+    if (lastLeaveDate && todayIso > lastLeaveDate) {
+      const lastDateBe = formatThaiDateBE(lastLeaveDate);
+      showToast(`ไม่สามารถยกเลิกคำขอลานี้ได้ เนื่องจากพ้นกำหนดวันลาวันสุดท้าย (${lastDateBe}) แล้ว ระบบอนุญาตให้ยกเลิกได้ถึงวันที่ลาวันสุดท้ายเท่านั้น`, 'error');
+      return { success: false, error: 'พ้นกำหนดวันลาวันสุดท้ายแล้ว' };
     }
 
     const sortedDates = Array.isArray(cancelDates) ? [...new Set(cancelDates)].sort() : [];
@@ -2778,6 +2799,9 @@ export function LeaveProvider({ children }) {
         announcements,
         isRequestModalOpen,
         setIsRequestModalOpen,
+        preselectedCancelId,
+        setPreselectedCancelId,
+        openCancelLeaveModal,
         selectedLeaveDetail,
         setSelectedLeaveDetail,
         isAnnouncementModalOpen,
