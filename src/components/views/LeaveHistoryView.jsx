@@ -16,6 +16,7 @@ import {
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../../utils/exportPdf';
 import { getFiscalYearInfo, isDateInFiscalYear, isDateInFiscalRound } from '../../utils/thaiDate';
+import EmptyState from '../EmptyState';
 
 export default function LeaveHistoryView() {
   const {
@@ -333,8 +334,27 @@ export default function LeaveHistoryView() {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400 text-xs">
-                    ไม่พบรายการการลาที่ตรงกับเงื่อนไขการค้นหา
+                  <td colSpan={7} className="py-6">
+                    <EmptyState
+                      variant={search || statusFilter !== 'all' || typeFilter !== 'all' || fiscalFilter !== 'all' ? 'search' : 'default'}
+                      title={search || statusFilter !== 'all' || typeFilter !== 'all' ? 'ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา' : 'ยังไม่มีประวัติการลาในระบบ'}
+                      description={
+                        search || statusFilter !== 'all' || typeFilter !== 'all'
+                          ? 'ลองปรับเปลี่ยนคำค้นหา หรือรีเซ็ตตัวกรองเพื่อดูรายการทั้งหมด'
+                          : 'เมื่อมีการส่งคำขอลา ประวัติและการอนุมัติจะปรากฏในตารางนี้'
+                      }
+                      actionText={!search && statusFilter === 'all' && typeFilter === 'all' ? 'ยื่นคำขอลาใหม่' : 'ล้างตัวกรอง'}
+                      onAction={() => {
+                        if (!search && statusFilter === 'all' && typeFilter === 'all') {
+                          setIsRequestModalOpen(true);
+                        } else {
+                          setSearch('');
+                          setStatusFilter('all');
+                          setTypeFilter('all');
+                          setFiscalFilter('all');
+                        }
+                      }}
+                    />
                   </td>
                 </tr>
               ) : (
@@ -433,9 +453,27 @@ export default function LeaveHistoryView() {
         {/* Mobile Card View (md:hidden) */}
         <div className="md:hidden divide-y divide-slate-100">
           {filteredRequests.length === 0 ? (
-            <div className="py-10 px-4 text-center text-slate-400 text-xs">
-              ไม่พบรายการการลาที่ตรงกับเงื่อนไขการค้นหา
-            </div>
+            <EmptyState
+              compact
+              variant={search || statusFilter !== 'all' || typeFilter !== 'all' || fiscalFilter !== 'all' ? 'search' : 'default'}
+              title={search || statusFilter !== 'all' || typeFilter !== 'all' ? 'ไม่พบรายการที่ตรงกับเงื่อนไข' : 'ยังไม่มีประวัติการลา'}
+              description={
+                search || statusFilter !== 'all' || typeFilter !== 'all'
+                  ? 'ลองเปลี่ยนคำค้นหาหรือรีเซ็ตตัวกรอง'
+                  : 'เมื่อมีการส่งคำขอลา ประวัติจะปรากฏที่นี่'
+              }
+              actionText={!search && statusFilter === 'all' && typeFilter === 'all' ? 'ยื่นคำขอลาใหม่' : 'ล้างตัวกรอง'}
+              onAction={() => {
+                if (!search && statusFilter === 'all' && typeFilter === 'all') {
+                  setIsRequestModalOpen(true);
+                } else {
+                  setSearch('');
+                  setStatusFilter('all');
+                  setTypeFilter('all');
+                  setFiscalFilter('all');
+                }
+              }}
+            />
           ) : (
             filteredRequests.map((req) => (
               <div

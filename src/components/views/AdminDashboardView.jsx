@@ -18,6 +18,7 @@ import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../../utils/exportPdf';
 import { getFiscalYearInfo } from '../../utils/thaiDate';
 import StatusConfirmModal from '../StatusConfirmModal';
+import EmptyState from '../EmptyState';
 
 const THAI_MONTHS_SHORT = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -214,40 +215,40 @@ export default function AdminDashboardView() {
         {/* Card 1: Pending Approvals */}
         <div
           onClick={() => setActiveTab('approver')}
-          className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 hover:shadow-md hover:border-amber-200 transition-all cursor-pointer group flex flex-col justify-between"
+          className="bento-card-interactive bg-gradient-to-br from-white via-amber-50/25 to-orange-50/30 rounded-3xl p-4 sm:p-5 shadow-xs border border-amber-100/90 hover:shadow-md hover:border-amber-300 cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-100/80 text-amber-700 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
               <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200/80 animate-pulse">
               ต้องดำเนินการ
             </span>
           </div>
           <div className="mt-3 sm:mt-4">
-            <p className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">คำขอที่รอตรวจสอบ/อนุมัติ</p>
-            <h3 className="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 truncate">คำขอที่รอตรวจสอบ/อนุมัติ</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight font-prompt mt-1">
               {pendingRequests.length} รายการ
             </h3>
-            <p className="text-[10px] sm:text-[11px] text-amber-600 font-medium mt-1 truncate">
+            <p className="text-[10px] sm:text-[11px] text-amber-700 font-semibold mt-1 truncate">
               เปิดดูคิวรอพิจารณา ➔
             </p>
           </div>
         </div>
 
         {/* Card 2: On leave today (จากฐานข้อมูลจริง) */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 flex flex-col justify-between">
+        <div className="bento-card-interactive bg-gradient-to-br from-white via-teal-50/25 to-emerald-50/30 rounded-3xl p-4 sm:p-5 shadow-xs border border-teal-100/90 hover:shadow-md hover:border-teal-300 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-teal-100/80 text-teal-700 flex items-center justify-center shadow-2xs">
               <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-teal-100 text-teal-800">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-teal-100 text-teal-800 border border-teal-200/80">
               วันนี้
             </span>
           </div>
           <div className="mt-3 sm:mt-4">
-            <p className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">พนักงานที่ลาวันนี้</p>
-            <h3 className="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 truncate">พนักงานที่ลาวันนี้</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight font-prompt mt-1">
               {leavesToday.length} คน
             </h3>
             <p
@@ -264,19 +265,19 @@ export default function AdminDashboardView() {
         {/* Card 3: Total Headcount */}
         <div
           onClick={() => setActiveTab('employees')}
-          className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group flex flex-col justify-between"
+          className="bento-card-interactive bg-gradient-to-br from-white via-emerald-50/25 to-teal-50/30 rounded-3xl p-4 sm:p-5 shadow-xs border border-emerald-100/90 hover:shadow-md hover:border-emerald-300 cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
               <Users className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200/80">
               กำลังพล
             </span>
           </div>
           <div className="mt-3 sm:mt-4">
-            <p className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">พนักงานทั้งหมด</p>
-            <h3 className="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 truncate">พนักงานทั้งหมด</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight font-prompt mt-1">
               {employees.length} คน
             </h3>
             <p className="text-[10px] sm:text-[11px] text-emerald-700 font-medium mt-1 truncate">
@@ -288,19 +289,19 @@ export default function AdminDashboardView() {
         {/* Card 4: Org Utilization (คำนวณจากฐานข้อมูลจริง) */}
         <div
           onClick={() => setActiveTab('reports')}
-          className="bg-white rounded-2xl p-3.5 sm:p-5 shadow-xs border border-slate-100 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group flex flex-col justify-between"
+          className="bento-card-interactive bg-gradient-to-br from-white via-blue-50/25 to-indigo-50/30 rounded-3xl p-4 sm:p-5 shadow-xs border border-blue-100/90 hover:shadow-md hover:border-blue-300 cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-blue-100/80 text-blue-700 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
               <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-blue-100 text-blue-800">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200/80">
               ปี {currentYearBE}
             </span>
           </div>
           <div className="mt-3 sm:mt-4">
-            <p className="text-[11px] sm:text-xs font-medium text-slate-500 truncate">อัตราการใช้วันลา</p>
-            <h3 className="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight font-prompt mt-0.5">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 truncate">อัตราการใช้วันลา</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight font-prompt mt-1">
               {orgUtilizationRate}%
             </h3>
             <p className="text-[10px] sm:text-[11px] text-slate-400 mt-1 truncate">
@@ -331,11 +332,12 @@ export default function AdminDashboardView() {
           </div>
 
           {pendingRequests.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 space-y-2">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">ไม่มีคำขอที่รอพิจารณา</p>
-              <p className="text-xs">ทุกคำขอในระบบได้รับการพิจารณาเรียบร้อยแล้ว</p>
-            </div>
+            <EmptyState
+              compact
+              variant="check"
+              title="ไม่มีคำขอที่รอพิจารณาด่วน"
+              description="ทุกคำขอในระบบได้รับการตรวจสอบและพิจารณาครบถ้วนแล้ว"
+            />
           ) : (
             <>
               <div className="space-y-3">
@@ -494,13 +496,12 @@ export default function AdminDashboardView() {
 
             <div className="mt-3 space-y-3">
               {leavesToday.length === 0 ? (
-                <div className="py-8 text-center flex flex-col items-center justify-center space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <p className="text-xs font-bold text-slate-700">ไม่มีพนักงานลางานในวันนี้</p>
-                  <p className="text-[11px] text-slate-400">บุคลากรทุกคนปฏิบัติหน้าที่ตามปกติ (เข้างานครบ 100%)</p>
-                </div>
+                <EmptyState
+                  compact
+                  variant="check"
+                  title="ไม่มีพนักงานลางานในวันนี้"
+                  description="บุคลากรทุกคนปฏิบัติหน้าที่ตามปกติ (เข้างานครบ 100%)"
+                />
               ) : (
                 <>
                   <div className="space-y-3">

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { downloadCancelLeaveSlipPdf } from '../../utils/exportPdf';
 import { useLeave } from '../../context/LeaveContext';
+import EmptyState from '../EmptyState';
 
 export default function AdminCancelApprovalsView() {
   const {
@@ -174,15 +175,11 @@ export default function AdminCancelApprovalsView() {
           {activeTab === 'pending' && (
             <>
               {pendingCancellations.length === 0 ? (
-                <div className="py-14 text-center text-slate-400 space-y-2">
-                  <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
-                  <p className="text-sm font-semibold text-slate-600">
-                    ไม่มีคำยกเลิกวันลาที่รอการพิจารณาในขณะนี้
-                  </p>
-                  <p className="text-xs">
-                    เมื่อเจ้าหน้าที่ยื่นคำยกเลิกวันลา รายการและเอกสารแนบจะแสดงที่นี่
-                  </p>
-                </div>
+                <EmptyState
+                  variant="check"
+                  title="ไม่มีคำขอยกเลิกวันลาที่รอการพิจารณาในขณะนี้"
+                  description="เมื่อมีเจ้าหน้าที่ยื่นคำขอยกเลิกวันลา รายการและเอกสารแนบจะแสดงขึ้นที่นี่เพื่อให้ตรวจสอบ"
+                />
               ) : (
                 <div className="space-y-4">
                   {pendingCancellations.map((req) => (
@@ -357,9 +354,11 @@ export default function AdminCancelApprovalsView() {
           {activeTab === 'history' && (
             <>
               {processedCancellations.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">
-                  <p className="text-sm">ยังไม่มีประวัติการพิจารณาคำยกเลิกวันลา</p>
-                </div>
+                <EmptyState
+                  variant="default"
+                  title="ยังไม่มีประวัติการพิจารณาคำยกเลิกวันลา"
+                  description="เมื่อผู้ดูแลระบบทำการอนุญาตหรือไม่อนุญาตคำขอยกเลิกวันลา ประวัติจะถูกจัดเก็บไว้ที่นี่"
+                />
               ) : (
                 <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
                   {processedCancellations.map((req) => {

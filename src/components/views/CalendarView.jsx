@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { getHolidaysMap } from '../../data/holidays';
+import EmptyState from '../EmptyState';
 
 export default function CalendarView() {
   const {
@@ -424,17 +425,16 @@ export default function CalendarView() {
               )}
 
               {selectedDayItem.events.length === 0 ? (
-                <div className="py-10 text-center space-y-2.5">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm font-semibold text-slate-600">ไม่มีรายการลาในวันนี้</p>
-                  <p className="text-xs text-slate-400">
-                    {isAdmin && filterMode === 'all'
+                <EmptyState
+                  compact
+                  variant="calendar"
+                  title="ไม่มีรายการลาในวันนี้"
+                  description={
+                    isAdmin && filterMode === 'all'
                       ? 'เจ้าหน้าที่ทุกคนปฏิบัติงานตามปกติในวันนี้'
-                      : 'คุณไม่มีรายการลาในวันนี้'}
-                  </p>
-                </div>
+                      : 'ท่านไม่มีรายการลาในวันนี้'
+                  }
+                />
               ) : (
                 <div className="space-y-2.5">
                   {selectedDayItem.events.map((ev, i) => (

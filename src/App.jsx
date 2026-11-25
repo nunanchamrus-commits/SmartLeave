@@ -64,7 +64,9 @@ function MainLayout() {
         {/* Content Body */}
         <main className="flex-1 px-3 sm:px-6 lg:px-8 pb-24 lg:pb-10">
           <div className="max-w-7xl mx-auto">
-            {renderActiveView()}
+            <div key={activeTab} className="animate-fade-in-up">
+              {renderActiveView()}
+            </div>
           </div>
         </main>
       </div>

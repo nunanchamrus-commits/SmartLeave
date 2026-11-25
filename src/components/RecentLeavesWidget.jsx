@@ -8,6 +8,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
+import EmptyState from './EmptyState';
 
 export default function RecentLeavesWidget() {
   const { leaveRequests, setSelectedLeaveDetail, setActiveTab, searchQuery, currentUser } = useLeave();
@@ -134,9 +135,16 @@ export default function RecentLeavesWidget() {
       {/* Table Rows */}
       <div className="divide-y divide-slate-100 flex-1">
         {displayRequests.length === 0 ? (
-          <div className="py-8 text-center text-xs text-slate-400">
-            ไม่พบรายการการลา
-          </div>
+          <EmptyState
+            compact
+            variant={searchQuery ? 'search' : 'default'}
+            title={searchQuery ? 'ไม่พบรายการที่ตรงกับการค้นหา' : 'ยังไม่มีรายการลางานล่าสุด'}
+            description={
+              searchQuery
+                ? `ไม่พบข้อมูลที่ตรงกับ "${searchQuery}"`
+                : 'เมื่อท่านยื่นคำขอลาพักผ่อน ลากิจ หรือลาป่วย ประวัติจะแสดงขึ้นที่นี่'
+            }
+          />
         ) : (
           displayRequests.map((req) => (
             <div

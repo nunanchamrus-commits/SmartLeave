@@ -18,6 +18,7 @@ import {
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadLeaveSummaryPdf } from '../../utils/exportPdf';
 import StatusConfirmModal from '../StatusConfirmModal';
+import EmptyState from '../EmptyState';
 
 export default function ApproverView() {
   const {
@@ -203,11 +204,11 @@ export default function ApproverView() {
           {activeTab === 'pending' && (
             <>
               {pendingRequests.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 space-y-2">
-                  <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
-                  <p className="text-sm font-medium text-slate-600">ไม่มีคำขอที่รอการพิจารณาในขณะนี้</p>
-                  <p className="text-xs">ทุกคำขอได้รับการตรวจสอบเรียบร้อยแล้ว</p>
-                </div>
+                <EmptyState
+                  variant="check"
+                  title="ไม่มีคำขอที่รอการพิจารณาในขณะนี้"
+                  description="คำขอลาทั้งหมดได้รับการตรวจสอบและพิจารณาเรียบร้อยแล้ว ทุกอย่างเป็นไปตามระเบียบราชการ"
+                />
               ) : (
                 <div className="space-y-4">
                   {pendingRequests.map((req) => (
@@ -335,9 +336,11 @@ export default function ApproverView() {
           {activeTab === 'history' && (
             <div className="space-y-3">
               {historyRequests.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">
-                  <p className="text-sm">ยังไม่มีรายการที่ได้รับการพิจารณา</p>
-                </div>
+                <EmptyState
+                  variant="default"
+                  title="ยังไม่มีประวัติการพิจารณาคำขอลา"
+                  description="เมื่อท่านทำการอนุมัติหรือไม่อนุมัติคำขอ รายการประวัติและการลงนามจะถูกจัดเก็บไว้ที่นี่"
+                />
               ) : (
                 <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
                   {historyRequests.map((req) => (
