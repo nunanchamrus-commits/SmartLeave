@@ -260,12 +260,12 @@ export default function StatCards() {
 
                 {/* Middle Info: Title & Big Highlight Value */}
                 <div className="mt-3.5 relative z-10">
-                  <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5">
                     <span className="text-xs font-semibold text-slate-500">
                       {card.title}
                     </span>
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${theme.badgeBg}`}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${theme.badgeBg}`}
                     >
                       คงเหลือ
                     </span>
