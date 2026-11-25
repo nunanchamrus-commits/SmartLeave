@@ -1,18 +1,12 @@
 import React from 'react';
 import { useLeave } from '../context/LeaveContext';
-import DinoMascot from './DinoMascot';
 
 export default function HeroBanner() {
-  const { currentUser, quotas } = useLeave();
+  const { currentUser } = useLeave();
   const rawName = (currentUser?.name || `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`).trim();
   const cleanFullName = rawName
     .replace(/^((นาย|นางสาว|นาง|น\.ส\.|ดร\.|ศ\.|รศ\.|ผศ\.|Mr\.|Mrs\.|Ms\.|Miss)\s*)+/gi, '')
     .trim() || 'ผู้ใช้งาน';
-
-  const vacRemaining = Number(quotas.vacation?.remaining) ?? 10;
-  const currentHour = new Date().getHours();
-  const timeGreeting = currentHour < 12 ? 'สวัสดีตอนเช้าครับ' : (currentHour < 17 ? 'สวัสดีตอนบ่ายครับ' : 'สวัสดีช่วงเย็นครับ');
-  const dinoTip = `${timeGreeting} มีวันหยุดพักผ่อนเหลืออีก ${vacRemaining} วันนะ ✨`;
 
   return (
     <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-[#D5EFE0] via-[#E3F4EA] to-[#DCF2E5] p-4 sm:p-7 shadow-sm border border-emerald-100/60">
@@ -36,13 +30,14 @@ export default function HeroBanner() {
           </p>
         </div>
 
-        {/* Right Mascot: Dino Digital Assistant with Interactive Speech Bubble */}
-        <div className="relative flex-shrink-0 flex items-center justify-center pt-2 sm:pt-0">
-          <DinoMascot
-            pose="assistant"
-            size={135}
-            bubbleText={dinoTip}
-            className="hover:scale-105 transition-transform"
+        {/* Right Illustration: 3D Vacation & Leave Scene (Transparent Background) */}
+        <div className="relative flex-shrink-0 w-36 sm:w-52 md:w-60 lg:w-64 flex items-center justify-center">
+          <img
+            src="/hero-vacation-transparent.png"
+            alt="ภาพประกอบการลาและท่องเที่ยว SmartLeave"
+            className="w-full h-auto max-h-28 sm:max-h-36 md:max-h-40 lg:max-h-44 object-contain select-none filter drop-shadow-[0_8px_18px_rgba(30,86,56,0.16)] transition-all duration-300 hover:scale-105 hover:-translate-y-1"
+            loading="eager"
+            draggable="false"
           />
         </div>
       </div>
