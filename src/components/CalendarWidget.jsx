@@ -4,7 +4,7 @@ import { useLeave } from '../context/LeaveContext';
 import { getHolidaysMap } from '../data/holidays';
 
 export default function CalendarWidget() {
-  const { setSelectedLeaveDetail, leaveRequests, currentUser, isAdmin, doesLeaveBelongToUser } = useLeave();
+  const { setSelectedLeaveDetail, leaveRequests, currentUser, isAdmin, doesLeaveBelongToUser, customHolidays } = useLeave();
   const [selectedDayEvent, setSelectedDayEvent] = useState(null);
 
   // Real-time current clock
@@ -48,7 +48,7 @@ export default function CalendarWidget() {
   });
 
   // Map วันหยุดนักขัตฤกษ์ประจำปีที่กำลังแสดง
-  const holidaysMap = useMemo(() => getHolidaysMap(displayYear), [displayYear]);
+  const holidaysMap = useMemo(() => getHolidaysMap(displayYear, customHolidays), [displayYear, customHolidays]);
 
   // Dynamically find events for any day in the displayed month & year
   const getEventForDay = (day) => {

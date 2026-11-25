@@ -12,6 +12,7 @@ import AdminDashboardView from './components/views/AdminDashboardView';
 import AdminEmployeesView from './components/views/AdminEmployeesView';
 import LeaveHistoryView from './components/views/LeaveHistoryView';
 import CalendarView from './components/views/CalendarView';
+import HolidaysView from './components/views/HolidaysView';
 import ApproverView from './components/views/ApproverView';
 import AdminCancelApprovalsView from './components/views/AdminCancelApprovalsView';
 import ReportsView from './components/views/ReportsView';
@@ -35,6 +36,8 @@ function MainLayout() {
         return <LeaveHistoryView />;
       case 'calendar':
         return <CalendarView />;
+      case 'holidays':
+        return <HolidaysView />;
       case 'approver':
         return <ApproverView />;
       case 'cancel-approvals':

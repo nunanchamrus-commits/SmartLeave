@@ -22,6 +22,7 @@ export default function CalendarView() {
     setIsRequestModalOpen,
     currentUser,
     isAdmin,
+    customHolidays,
   } = useLeave();
 
   // ปฏิทินของ User แสดงเฉพาะของตัวเองเท่านั้น ส่วน Admin แสดงของทุกคนเป็นค่าเริ่มต้น
@@ -64,7 +65,7 @@ export default function CalendarView() {
   const displayMonth = displayDate.getMonth();
   const displayYearBE = displayYear + 543;
 
-  const holidaysMap = useMemo(() => getHolidaysMap(displayYear), [displayYear]);
+  const holidaysMap = useMemo(() => getHolidaysMap(displayYear, customHolidays), [displayYear, customHolidays]);
 
   const todayDescription = `${thaiDayNames[realToday.getDay()]}ที่ ${realDate} ${monthsThai[realMonth]} ${realYear + 543}`;
   const formattedTime = currentTime.toLocaleTimeString('th-TH', {

@@ -85,9 +85,9 @@ const FIXED_ANNUAL_HOLIDAYS = [
 ];
 
 /**
- * ดึงรายการวันหยุดนักขัตฤกษ์สำหรับปี ค.ศ. ที่ระบุ
+ * ดึงรายการวันหยุดนักขัตฤกษ์สำหรับปี ค.ศ. ที่ระบุ (รวมวันหยุดพิเศษที่แอดมินเพิ่ม)
  */
-export function getCalendarHolidays(year) {
+export function getCalendarHolidays(year, customHolidays = []) {
   const baseYear = Number(year) || new Date().getFullYear();
   const yearBE = baseYear + 543;
 
@@ -123,20 +123,48 @@ export function getCalendarHolidays(year) {
       fullDate,
       shortDate,
       badge: 'วันหยุดนักขัตฤกษ์',
+      isCustom: false,
     };
   });
 
-  // เรียงลำดับวันที่จากน้อยไปมาก และตัดตัวซ้ำ
-  const seen = new Set();
-  const uniqueList = [];
-  list.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-
-  for (const item of list) {
-    if (!seen.has(item.dateStr)) {
-      seen.add(item.dateStr);
-      uniqueList.push(item);
-    }
+  // ผสาน customHolidays ที่ตรงกับ baseYear
+  if (Array.isArray(customHolidays)) {
+    customHolidays.forEach((ch) => {
+      if (!ch || !ch.dateStr) return;
+      const chYear = parseInt(ch.dateStr.split('-')[0], 10);
+      if (chYear === baseYear) {
+        const parts = ch.dateStr.split('-');
+        const m = parseInt(parts[1], 10);
+        const d = parseInt(parts[2], 10);
+        list.push({
+          id: ch.id || `custom-hol-${ch.dateStr}`,
+          dateStr: ch.dateStr,
+          year: baseYear,
+          yearBE,
+          month: m,
+          day: d,
+          name: ch.name,
+          description: ch.description || 'วันหยุดพิเศษกำหนดโดยหน่วยงาน',
+          fullDate: `${d} ${THAI_MONTHS_FULL[m]} ${yearBE}`,
+          shortDate: `${d} ${THAI_MONTHS_SHORT[m]} ${yearBE}`,
+          badge: ch.type === 'substitute' ? 'วันหยุดชดเชย' : (ch.type === 'official' ? 'วันหยุดราชการ' : 'วันหยุดพิเศษ'),
+          isCustom: true,
+          type: ch.type || 'special',
+          createdBy: ch.createdBy || 'แอดมิน',
+          createdAt: ch.createdAt,
+        });
+      }
+    });
   }
+
+  // แปลงเป็น Map ตาม dateStr (หากมี custom ซ้ำวัน ให้ใช้ custom ล่าสุด)
+  const mapByDate = {};
+  for (const item of list) {
+    mapByDate[item.dateStr] = item;
+  }
+
+  const uniqueList = Object.values(mapByDate);
+  uniqueList.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
   return uniqueList;
 }
@@ -144,8 +172,8 @@ export function getCalendarHolidays(year) {
 /**
  * ดึงวันหยุดในรูปแบบ Map { 'YYYY-MM-DD': holidayObj } เพื่อใช้งานในปฏิทิน
  */
-export function getHolidaysMap(year) {
-  const list = getCalendarHolidays(year);
+export function getHolidaysMap(year, customHolidays = []) {
+  const list = getCalendarHolidays(year, customHolidays);
   const map = {};
   list.forEach((h) => {
     map[h.dateStr] = h;

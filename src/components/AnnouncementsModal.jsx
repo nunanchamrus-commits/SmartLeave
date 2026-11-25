@@ -1,10 +1,10 @@
 import React from 'react';
-import { X, Megaphone, Volume2, Calendar, Pin } from 'lucide-react';
+import { X, Megaphone, Volume2, Calendar, Pin, CalendarDays } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 import DinoMascot from './DinoMascot';
 
 export default function AnnouncementsModal() {
-  const { announcements, isAnnouncementModalOpen, setIsAnnouncementModalOpen } = useLeave();
+  const { announcements, isAnnouncementModalOpen, setIsAnnouncementModalOpen, setActiveTab } = useLeave();
 
   if (!isAnnouncementModalOpen) return null;
 
@@ -82,10 +82,21 @@ export default function AnnouncementsModal() {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end px-6 py-3 bg-slate-50 border-t border-slate-100">
+        <div className="flex items-center justify-between px-6 py-3 bg-slate-50 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => {
+              setIsAnnouncementModalOpen(false);
+              if (setActiveTab) setActiveTab('holidays');
+            }}
+            className="flex items-center space-x-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition-colors cursor-pointer"
+          >
+            <CalendarDays className="w-4 h-4 text-emerald-600" />
+            <span>ดูปฏิทินวันหยุดทั้งหมด</span>
+          </button>
           <button
             onClick={() => setIsAnnouncementModalOpen(false)}
-            className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs transition-colors"
+            className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
           >
             ปิด
           </button>

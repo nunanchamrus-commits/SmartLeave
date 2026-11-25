@@ -506,6 +506,50 @@ export function LeaveProvider({ children }) {
 
   const [announcements, setAnnouncements] = useState(() => generateHolidayAnnouncements());
 
+  // ข้อมูลวันหยุดพิเศษที่ผู้ดูแลระบบ (Admin) เพิ่มเอง
+  const [customHolidays, setCustomHolidays] = useState(() => {
+    try {
+      const saved = localStorage.getItem('smartleave_custom_holidays');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('smartleave_custom_holidays', JSON.stringify(customHolidays));
+    } catch (e) {}
+  }, [customHolidays]);
+
+  const addCustomHoliday = ({ name, date, description, type }) => {
+    if (!name || !date) {
+      showToast('กรุณาระบุชื่อวันหยุดและวันที่', 'error');
+      return false;
+    }
+    const newHoliday = {
+      id: `custom-hol-${date}-${Date.now()}`,
+      dateStr: date,
+      name: name.trim(),
+      description: description?.trim() || 'วันหยุดพิเศษกำหนดโดยหน่วยงาน',
+      type: type || 'special', // 'special' | 'substitute' | 'official'
+      isCustom: true,
+      createdBy: currentUser?.name || 'ผู้ดูแลระบบ',
+      createdAt: new Date().toISOString(),
+    };
+    setCustomHolidays((prev) => {
+      const filtered = prev.filter((h) => h.dateStr !== date);
+      return [...filtered, newHoliday];
+    });
+    showToast(`เพิ่มวันหยุด "${name}" เรียบร้อยแล้ว`, 'success');
+    return true;
+  };
+
+  const deleteCustomHoliday = (holidayId) => {
+    setCustomHolidays((prev) => prev.filter((h) => h.id !== holidayId));
+    showToast('ลบวันหยุดพิเศษเรียบร้อยแล้ว', 'info');
+  };
+
   // ล้างแคชตารางเดิมใน LocalStorage เพื่อให้ดึงข้อมูลจาก Cloudflare D1 100%
   useEffect(() => {
     try {
@@ -2873,6 +2917,9 @@ export function LeaveProvider({ children }) {
         updateEmployee,
         deleteEmployee,
         updateEmployeeQuota,
+        customHolidays,
+        addCustomHoliday,
+        deleteCustomHoliday,
         isDbConnected,
         fetchLiveDatabaseData,
         toast,
