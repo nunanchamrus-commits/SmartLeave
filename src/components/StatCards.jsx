@@ -431,7 +431,7 @@ export default function StatCards() {
   const currentRoundTitle = fiscalYearInfo?.roundTitle || 'รอบที่ 1 (1 ต.ค. 2568 - 31 มี.ค. 2569)';
 
   return (
-    <div className="space-y-3 mt-6">
+    <div className="space-y-4">
       {/* Header Info & Category Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
         <div className="flex flex-wrap items-center gap-2">
