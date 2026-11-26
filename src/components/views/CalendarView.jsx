@@ -90,6 +90,49 @@ export default function CalendarView() {
     }
   };
 
+  // Helper: ตรวจสอบว่าคำขอถูกไม่อนุมัติ หรือถูกยกเลิก (หรือยกเลิกเฉพาะวันที่) หรือไม่
+  const isLeaveInactiveOnDate = (req, dayStr) => {
+    const status = req.status;
+
+    // 1. ไม่อนุมัติ
+    if (status === 'ไม่อนุมัติ' || status === 'rejected') {
+      return true;
+    }
+
+    // 2. ยกเลิกลา / ยกเลิกวันลา
+    if (
+      status === 'ยกเลิกวันลา' ||
+      status === 'ยกเลิกการลา' ||
+      status === 'ยกเลิก' ||
+      status === 'cancelled'
+    ) {
+      return true;
+    }
+
+    // 3. คำขอยกเลิกที่ได้รับการอนุมัติแล้ว (approved cancellation)
+    if (req.cancelStatus === 'approved') {
+      if (req.cancelDays && req.daysCount && Number(req.cancelDays) >= Number(req.daysCount)) {
+        return true;
+      }
+      if (dayStr) {
+        if (Array.isArray(req.cancelDates) && req.cancelDates.includes(dayStr)) {
+          return true;
+        }
+        if (typeof req.cancelDates === 'string') {
+          try {
+            const parsed = JSON.parse(req.cancelDates);
+            if (Array.isArray(parsed) && parsed.includes(dayStr)) return true;
+          } catch (e) {}
+        }
+        if (req.cancelStartDate && dayStr >= req.cancelStartDate && (!req.cancelEndDate || dayStr <= req.cancelEndDate)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
   // Find all requests matching a specific day
   const getEventsForDay = (day) => {
     const dayStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -98,7 +141,10 @@ export default function CalendarView() {
       const inRange = dayStr >= req.startDate && dayStr <= req.endDate;
       if (!inRange) return false;
 
+      // ในส่วนของ user (หรือเมื่อเลือกเฉพาะของฉัน): ถ้าไม่อนุมัติกับยกเลิกลา ไม่ต้องขึ้นโชว์ในปฏิทิน
       if (!isAdmin || filterMode === 'my') {
+        if (isLeaveInactiveOnDate(req, dayStr)) return false;
+
         return doesLeaveBelongToUser
           ? doesLeaveBelongToUser(req, currentUser)
           : (

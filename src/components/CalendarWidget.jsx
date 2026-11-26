@@ -46,6 +46,49 @@ export default function CalendarWidget() {
     second: '2-digit',
   });
 
+  // Helper: ตรวจสอบว่าคำขอถูกไม่อนุมัติ หรือถูกยกเลิก (หรือยกเลิกเฉพาะวันที่) หรือไม่
+  const isLeaveInactiveOnDate = (req, dayStr) => {
+    const status = req.status;
+
+    // 1. ไม่อนุมัติ
+    if (status === 'ไม่อนุมัติ' || status === 'rejected') {
+      return true;
+    }
+
+    // 2. ยกเลิกลา / ยกเลิกวันลา
+    if (
+      status === 'ยกเลิกวันลา' ||
+      status === 'ยกเลิกการลา' ||
+      status === 'ยกเลิก' ||
+      status === 'cancelled'
+    ) {
+      return true;
+    }
+
+    // 3. คำขอยกเลิกที่ได้รับการอนุมัติแล้ว (approved cancellation)
+    if (req.cancelStatus === 'approved') {
+      if (req.cancelDays && req.daysCount && Number(req.cancelDays) >= Number(req.daysCount)) {
+        return true;
+      }
+      if (dayStr) {
+        if (Array.isArray(req.cancelDates) && req.cancelDates.includes(dayStr)) {
+          return true;
+        }
+        if (typeof req.cancelDates === 'string') {
+          try {
+            const parsed = JSON.parse(req.cancelDates);
+            if (Array.isArray(parsed) && parsed.includes(dayStr)) return true;
+          } catch (e) {}
+        }
+        if (req.cancelStartDate && dayStr >= req.cancelStartDate && (!req.cancelEndDate || dayStr <= req.cancelEndDate)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
   // Dynamically find events for any day in the displayed month & year
   const getEventForDay = (day) => {
     const dayStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -53,8 +96,11 @@ export default function CalendarWidget() {
       if (!req.startDate || !req.endDate) return false;
       const inRange = dayStr >= req.startDate && dayStr <= req.endDate;
       if (!inRange) return false;
-      // User ทั่วไปแสดงเฉพาะวันลาของตนเองเท่านั้น ส่วน Admin แสดงของทุกคน
+
+      // User ทั่วไป: ถ้าไม่อนุมัติกับยกเลิกลา ไม่ต้องขึ้นโชว์ในปฏิทิน
       if (!isAdmin) {
+        if (isLeaveInactiveOnDate(req, dayStr)) return false;
+
         return doesLeaveBelongToUser
           ? doesLeaveBelongToUser(req, currentUser)
           : (req.employeeId === currentUser?.id || req.employeeName === currentUser?.name);
@@ -294,10 +340,6 @@ export default function CalendarWidget() {
         <div className="flex items-center space-x-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-[#2F855A] ring-1 ring-emerald-400" />
           <span className="font-semibold text-slate-700">วันนี้</span>
-        </div>
-        <div className="flex items-center space-x-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-purple-600" />
-          <span>วันหยุด</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
