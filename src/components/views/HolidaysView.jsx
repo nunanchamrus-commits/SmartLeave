@@ -357,8 +357,12 @@ export default function HolidaysView() {
               </div>
             </div>
 
-            <div className="flex-shrink-0 hidden lg:flex items-center pr-2">
-              <DinoMascot pose="holiday" size={100} className="filter drop-shadow-lg" />
+            <div className="flex-shrink-0 hidden md:flex items-center pr-2">
+              <DinoMascot
+                src="/dino-mascot4.png"
+                size={115}
+                className="filter drop-shadow-xl"
+              />
             </div>
           </div>
         </div>

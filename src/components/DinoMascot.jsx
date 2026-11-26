@@ -38,7 +38,8 @@ export default function DinoMascot({
         return '/mascot/dino-mascot3.png';
 
       case 'mascot4':
-        return '/mascot/dino-mascot4.png';
+      case 'holiday':
+        return '/dino-mascot4.png';
 
       case 'assistant':
       case 'tablet':
@@ -54,7 +55,6 @@ export default function DinoMascot({
       case 'relax':
         return '/mascot/dinoleaf_sleep.png';
 
-      case 'holiday':
       case 'farmer':
       case 'work':
         return '/mascot/dinoleaf_farmer.png';
