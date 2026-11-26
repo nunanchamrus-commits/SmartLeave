@@ -52,6 +52,17 @@ export default function LeaveRequestModal() {
     { id: 'personal', label: 'ลากิจ' },
     { id: 'sick', label: 'ลาป่วย' },
     ...(!isMale ? [{ id: 'maternity', label: 'ลาคลอดบุตร' }] : []),
+    ...(isMale
+      ? [
+          { id: 'paternity', label: 'ลาไปช่วยเหลือภริยาที่คลอดบุตร' },
+          { id: 'ordination', label: 'ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์' },
+          { id: 'military', label: 'ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล' },
+        ]
+      : []),
+    { id: 'study', label: 'ลาไปศึกษา ฝึกอบรม หรือดูงาน' },
+    { id: 'international', label: 'ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ' },
+    { id: 'spouse', label: 'ลาติดตามคู่สมรส' },
+    { id: 'rehab', label: 'ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ' },
   ];
 
   const getTodayISO = () => {
@@ -272,8 +283,11 @@ export default function LeaveRequestModal() {
     setCancelFileData('');
   };
 
-  // If user is male and leaveType was set to maternity, auto-reset to vacation
+  // If user gender doesn't match selected leaveType, auto-reset to vacation
   if (isMale && leaveType === 'maternity') {
+    setLeaveType('vacation');
+  }
+  if (!isMale && (leaveType === 'paternity' || leaveType === 'ordination' || leaveType === 'military')) {
     setLeaveType('vacation');
   }
 
@@ -310,6 +324,20 @@ export default function LeaveRequestModal() {
         };
       case 'maternity':
         return { name: 'ลาคลอดบุตร', remaining: Number(quotas.maternity ? quotas.maternity.remaining : 90), isActual: false };
+      case 'paternity':
+        return { name: 'ลาไปช่วยเหลือภริยาที่คลอดบุตร', remaining: Number(quotas.paternity?.remaining ?? 15), isActual: false };
+      case 'ordination':
+        return { name: 'ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์', remaining: Number(quotas.ordination?.remaining ?? 120), isActual: false };
+      case 'military':
+        return { name: 'ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล', remaining: Number(quotas.military?.remaining ?? 7), isActual: false };
+      case 'study':
+        return { name: 'ลาไปศึกษา ฝึกอบรม หรือดูงาน', remaining: Number(quotas.study?.remaining ?? 1460), isActual: false };
+      case 'international':
+        return { name: 'ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ', remaining: Number(quotas.international?.remaining ?? 1460), isActual: false };
+      case 'spouse':
+        return { name: 'ลาติดตามคู่สมรส', remaining: Number(quotas.spouse?.remaining ?? 730), isActual: false };
+      case 'rehab':
+        return { name: 'ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ', remaining: Number(quotas.rehab?.remaining ?? 365), isActual: false };
       default:
         return { name: 'อื่นๆ', remaining: 10, isActual: false };
     }
@@ -357,6 +385,13 @@ export default function LeaveRequestModal() {
       personal: 'ลากิจ',
       sick: 'ลาป่วย',
       maternity: 'ลาคลอดบุตร',
+      paternity: 'ลาไปช่วยเหลือภริยาที่คลอดบุตร',
+      ordination: 'ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์',
+      military: 'ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล',
+      study: 'ลาไปศึกษา ฝึกอบรม หรือดูงาน',
+      international: 'ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ',
+      spouse: 'ลาติดตามคู่สมรส',
+      rehab: 'ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ',
     };
 
     const dateRangeStr =
@@ -567,7 +602,7 @@ export default function LeaveRequestModal() {
                   <label className="block font-semibold text-slate-700 mb-2">
                     ประเภทการลา <span className="text-red-500">*</span>
                   </label>
-                  <div className={`grid grid-cols-2 ${isMale ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-2`}>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                     {availableLeaveTypes.map((t) => {
                       let remBadge = '';
                       if (t.id === 'vacation') remBadge = `${quotas.vacation?.remaining ?? 10} วัน`;
@@ -576,6 +611,22 @@ export default function LeaveRequestModal() {
                         const isSickActual = currentUser?.employmentType === 'พนักงานราชการ' || quotas.sick?.isSickAsActual;
                         remBadge = isSickActual ? 'เท่าที่ป่วยจริง' : `${quotas.sick?.remaining ?? 60} วัน`;
                       } else if (t.id === 'maternity') remBadge = `${quotas.maternity?.remaining ?? 90} วัน`;
+                      else if (t.id === 'paternity') remBadge = `${quotas.paternity?.remaining ?? 15} วัน`;
+                      else if (t.id === 'ordination') remBadge = `${quotas.ordination?.remaining ?? 120} วัน`;
+                      else if (t.id === 'military') remBadge = `${quotas.military?.remaining ?? 7} วัน`;
+                      else if (t.id === 'study') {
+                        const rem = quotas.study?.remaining ?? 1460;
+                        remBadge = rem === 1460 ? '4 ปี' : `${rem} วัน`;
+                      } else if (t.id === 'international') {
+                        const rem = quotas.international?.remaining ?? 1460;
+                        remBadge = rem === 1460 ? '4 ปี' : `${rem} วัน`;
+                      } else if (t.id === 'spouse') {
+                        const rem = quotas.spouse?.remaining ?? 730;
+                        remBadge = rem === 730 ? '2 ปี' : `${rem} วัน`;
+                      } else if (t.id === 'rehab') {
+                        const rem = quotas.rehab?.remaining ?? 365;
+                        remBadge = rem === 365 ? '12 เดือน' : `${rem} วัน`;
+                      }
 
                       return (
                         <button

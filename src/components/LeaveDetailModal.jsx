@@ -128,6 +128,13 @@ export default function LeaveDetailModal() {
       personal: 'ลากิจส่วนตัว',
       sick: 'ลาป่วย',
       maternity: 'ลาคลอดบุตร',
+      paternity: 'ลาไปช่วยเหลือภริยาที่คลอดบุตร',
+      ordination: 'ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์',
+      military: 'ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล',
+      study: 'ลาไปศึกษา ฝึกอบรม หรือดูงาน',
+      international: 'ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ',
+      spouse: 'ลาติดตามคู่สมรส',
+      rehab: 'ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ',
     };
     const finalType = typeNames[editForm.typeKey] || editForm.type;
     const dateRange =
@@ -232,6 +239,19 @@ export default function LeaveDetailModal() {
                   {(!isReqMale || editForm.typeKey === 'maternity') && (
                     <option value="maternity">ลาคลอดบุตร</option>
                   )}
+                  {(isReqMale || editForm.typeKey === 'paternity') && (
+                    <option value="paternity">ลาไปช่วยเหลือภริยาที่คลอดบุตร</option>
+                  )}
+                  {(isReqMale || editForm.typeKey === 'ordination') && (
+                    <option value="ordination">ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์</option>
+                  )}
+                  {(isReqMale || editForm.typeKey === 'military') && (
+                    <option value="military">ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล</option>
+                  )}
+                  <option value="study">ลาไปศึกษา ฝึกอบรม หรือดูงาน</option>
+                  <option value="international">ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ</option>
+                  <option value="spouse">ลาติดตามคู่สมรส</option>
+                  <option value="rehab">ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ</option>
                 </select>
               </div>
 

@@ -328,12 +328,22 @@ function normalizeLeaveStatus(status) {
 export function getQuotaDefaultsForType(employmentType, gender) {
   const isMale = gender === 'ชาย' || gender === 'male';
   const type = (employmentType || '').trim();
+  const baseNewQuotas = {
+    paternity: isMale ? 15 : 0,
+    ordination: isMale ? 120 : 0,
+    military: isMale ? 7 : 0,
+    study: 1460,
+    international: 1460,
+    spouse: 730,
+    rehab: 365,
+  };
   if (type === 'พนักงานราชการ') {
     return {
       vacation: 10,
       personal: 10,
       sick: 999, // เท่าที่ป่วยจริง
       maternity: isMale ? 0 : 90,
+      ...baseNewQuotas,
       isSickAsActual: true,
       sickLabel: 'เท่าที่ป่วยจริง',
     };
@@ -344,6 +354,7 @@ export function getQuotaDefaultsForType(employmentType, gender) {
     personal: 45,
     sick: 60,
     maternity: isMale ? 0 : 90,
+    ...baseNewQuotas,
     isSickAsActual: false,
     sickLabel: '60 วัน',
   };
@@ -404,6 +415,16 @@ function normalizeEmployeeQuotas(emp) {
     next.maternityLimit = 0;
     next.maternityUsed = 0;
     next.maternityRem = 0;
+  } else {
+    next.paternityLimit = 0;
+    next.paternityUsed = 0;
+    next.paternityRem = 0;
+    next.ordinationLimit = 0;
+    next.ordinationUsed = 0;
+    next.ordinationRem = 0;
+    next.militaryLimit = 0;
+    next.militaryUsed = 0;
+    next.militaryRem = 0;
   }
 
   // ทำความสะอาดชื่อและป้องกันคำนำหน้าซ้ำซ้อน เช่น 'นายนายสมชาย'
@@ -601,12 +622,27 @@ export function LeaveProvider({ children }) {
       const isMale = isMaleEmployee(nextEmp) || nextEmp.gender === 'ชาย' || nextEmp.gender === 'male';
       const matRem = isMale ? 0 : (Number(nextEmp.maternityRem) || 0);
       const matLim = isMale ? 0 : (Number(nextEmp.maternityLimit) || 0);
+      const patRem = !isMale ? 0 : (Number(nextEmp.paternityRem) || 0);
+      const patLim = !isMale ? 0 : (Number(nextEmp.paternityLimit) || 0);
+      const ordRem = !isMale ? 0 : (Number(nextEmp.ordinationRem) || 0);
+      const ordLim = !isMale ? 0 : (Number(nextEmp.ordinationLimit) || 0);
+      const milRem = !isMale ? 0 : (Number(nextEmp.militaryRem) || 0);
+      const milLim = !isMale ? 0 : (Number(nextEmp.militaryLimit) || 0);
+      const stuRem = Number(nextEmp.studyRem ?? 1460);
+      const stuLim = Number(nextEmp.studyLimit ?? 1460);
+      const intRem = Number(nextEmp.internationalRem ?? 1460);
+      const intLim = Number(nextEmp.internationalLimit ?? 1460);
+      const spoRem = Number(nextEmp.spouseRem ?? 730);
+      const spoLim = Number(nextEmp.spouseLimit ?? 730);
+      const rehRem = Number(nextEmp.rehabRem ?? 365);
+      const rehLim = Number(nextEmp.rehabLimit ?? 365);
+
       const totalRem = isSickActual
-        ? (nextEmp.vacationRem + nextEmp.personalRem + matRem)
-        : (nextEmp.vacationRem + nextEmp.personalRem + nextEmp.sickRem + matRem);
+        ? (nextEmp.vacationRem + nextEmp.personalRem + matRem + patRem + ordRem + milRem + stuRem + intRem + spoRem + rehRem)
+        : (nextEmp.vacationRem + nextEmp.personalRem + nextEmp.sickRem + matRem + patRem + ordRem + milRem + stuRem + intRem + spoRem + rehRem);
       const totalLim = isSickActual
-        ? (nextEmp.vacationLimit + nextEmp.personalLimit + matLim)
-        : (nextEmp.vacationLimit + nextEmp.personalLimit + nextEmp.sickLimit + matLim);
+        ? (nextEmp.vacationLimit + nextEmp.personalLimit + matLim + patLim + ordLim + milLim + stuLim + intLim + spoLim + rehLim)
+        : (nextEmp.vacationLimit + nextEmp.personalLimit + nextEmp.sickLimit + matLim + patLim + ordLim + milLim + stuLim + intLim + spoLim + rehLim);
       setQuotas((prev) => ({
         ...prev,
         totalRemaining: totalRem,
@@ -621,6 +657,13 @@ export function LeaveProvider({ children }) {
           isSickAsActual: isSickActual,
         },
         maternity: { ...prev.maternity, remaining: nextEmp.maternityRem, used: nextEmp.maternityUsed, limit: nextEmp.maternityLimit },
+        paternity: { ...(prev.paternity || initialQuotas.paternity), remaining: patRem, used: nextEmp.paternityUsed ?? 0, limit: patLim },
+        ordination: { ...(prev.ordination || initialQuotas.ordination), remaining: ordRem, used: nextEmp.ordinationUsed ?? 0, limit: ordLim },
+        military: { ...(prev.military || initialQuotas.military), remaining: milRem, used: nextEmp.militaryUsed ?? 0, limit: milLim },
+        study: { ...(prev.study || initialQuotas.study), remaining: stuRem, used: nextEmp.studyUsed ?? 0, limit: stuLim },
+        international: { ...(prev.international || initialQuotas.international), remaining: intRem, used: nextEmp.internationalUsed ?? 0, limit: intLim },
+        spouse: { ...(prev.spouse || initialQuotas.spouse), remaining: spoRem, used: nextEmp.spouseUsed ?? 0, limit: spoLim },
+        rehab: { ...(prev.rehab || initialQuotas.rehab), remaining: rehRem, used: nextEmp.rehabUsed ?? 0, limit: rehLim },
       }));
     }
 
@@ -707,7 +750,7 @@ export function LeaveProvider({ children }) {
   const applyEmployeeQuotaDelta = (employeeList, targetReq, typeKeyOverride, daysDelta) => {
     if (!targetReq || !daysDelta) return employeeList;
     const typeKey = typeKeyOverride || targetReq.typeKey;
-    if (!['vacation', 'personal', 'sick', 'maternity'].includes(typeKey)) return employeeList;
+    if (!['vacation', 'personal', 'sick', 'maternity', 'paternity', 'ordination', 'military', 'study', 'international', 'spouse', 'rehab'].includes(typeKey)) return employeeList;
 
     return (employeeList || []).map((emp) => {
       const isMatch =
@@ -991,6 +1034,13 @@ export function LeaveProvider({ children }) {
     if (sicLimit === 30) sicLimit = typeDefaults.sick;
 
     const matLimit = isMale ? 0 : (matchedEmp?.maternityLimit !== undefined && matchedEmp?.maternityLimit !== null ? Number(matchedEmp.maternityLimit) : typeDefaults.maternity);
+    const patLimit = !isMale ? 0 : (matchedEmp?.paternityLimit !== undefined && matchedEmp?.paternityLimit !== null ? Number(matchedEmp.paternityLimit) : typeDefaults.paternity);
+    const ordLimit = !isMale ? 0 : (matchedEmp?.ordinationLimit !== undefined && matchedEmp?.ordinationLimit !== null ? Number(matchedEmp.ordinationLimit) : typeDefaults.ordination);
+    const milLimit = !isMale ? 0 : (matchedEmp?.militaryLimit !== undefined && matchedEmp?.militaryLimit !== null ? Number(matchedEmp.militaryLimit) : typeDefaults.military);
+    const stuLimit = matchedEmp?.studyLimit !== undefined && matchedEmp?.studyLimit !== null ? Number(matchedEmp.studyLimit) : typeDefaults.study;
+    const intLimit = matchedEmp?.internationalLimit !== undefined && matchedEmp?.internationalLimit !== null ? Number(matchedEmp.internationalLimit) : typeDefaults.international;
+    const spoLimit = matchedEmp?.spouseLimit !== undefined && matchedEmp?.spouseLimit !== null ? Number(matchedEmp.spouseLimit) : typeDefaults.spouse;
+    const rehLimit = matchedEmp?.rehabLimit !== undefined && matchedEmp?.rehabLimit !== null ? Number(matchedEmp.rehabLimit) : typeDefaults.rehab;
     const isSickActual = typeDefaults.isSickAsActual || matchedEmp?.isSickAsActual || sicLimit === 999;
 
     if (preferEmpQuotas && matchedEmp) {
@@ -998,16 +1048,32 @@ export function LeaveProvider({ children }) {
       const personalUsed = Number(matchedEmp.personalUsed ?? 0);
       const sickUsed = Number(matchedEmp.sickUsed ?? 0);
       const maternityUsed = isMale ? 0 : Number(matchedEmp.maternityUsed ?? 0);
+      const paternityUsed = !isMale ? 0 : Number(matchedEmp.paternityUsed ?? 0);
+      const ordinationUsed = !isMale ? 0 : Number(matchedEmp.ordinationUsed ?? 0);
+      const militaryUsed = !isMale ? 0 : Number(matchedEmp.militaryUsed ?? 0);
+      const studyUsed = Number(matchedEmp.studyUsed ?? 0);
+      const internationalUsed = Number(matchedEmp.internationalUsed ?? 0);
+      const spouseUsed = Number(matchedEmp.spouseUsed ?? 0);
+      const rehabUsed = Number(matchedEmp.rehabUsed ?? 0);
+
       const vacationRem = Number(matchedEmp.vacationRem ?? Math.max(0, vacLimit - vacationUsed));
       const personalRem = Number(matchedEmp.personalRem ?? Math.max(0, perLimit - personalUsed));
       const sickRem = isSickActual ? 'เท่าที่ป่วยจริง' : Number(matchedEmp.sickRem ?? Math.max(0, sicLimit - sickUsed));
       const maternityRem = isMale ? 0 : Number(matchedEmp.maternityRem ?? Math.max(0, matLimit - maternityUsed));
+      const paternityRem = !isMale ? 0 : Number(matchedEmp.paternityRem ?? Math.max(0, patLimit - paternityUsed));
+      const ordinationRem = !isMale ? 0 : Number(matchedEmp.ordinationRem ?? Math.max(0, ordLimit - ordinationUsed));
+      const militaryRem = !isMale ? 0 : Number(matchedEmp.militaryRem ?? Math.max(0, milLimit - militaryUsed));
+      const studyRem = Number(matchedEmp.studyRem ?? Math.max(0, stuLimit - studyUsed));
+      const internationalRem = Number(matchedEmp.internationalRem ?? Math.max(0, intLimit - internationalUsed));
+      const spouseRem = Number(matchedEmp.spouseRem ?? Math.max(0, spoLimit - spouseUsed));
+      const rehabRem = Number(matchedEmp.rehabRem ?? Math.max(0, rehLimit - rehabUsed));
+
       const totalRem = isSickActual
-        ? (vacationRem + personalRem + maternityRem)
-        : (vacationRem + personalRem + (typeof sickRem === 'number' ? sickRem : 0) + maternityRem);
+        ? (vacationRem + personalRem + maternityRem + paternityRem + ordinationRem + militaryRem + studyRem + internationalRem + spouseRem + rehabRem)
+        : (vacationRem + personalRem + (typeof sickRem === 'number' ? sickRem : 0) + maternityRem + paternityRem + ordinationRem + militaryRem + studyRem + internationalRem + spouseRem + rehabRem);
       const totalLim = isSickActual
-        ? (vacLimit + perLimit + matLimit)
-        : (vacLimit + perLimit + sicLimit + matLimit);
+        ? (vacLimit + perLimit + matLimit + patLimit + ordLimit + milLimit + stuLimit + intLimit + spoLimit + rehLimit)
+        : (vacLimit + perLimit + sicLimit + matLimit + patLimit + ordLimit + milLimit + stuLimit + intLimit + spoLimit + rehLimit);
       setQuotas({
         totalRemaining: totalRem,
         totalLimit: totalLim,
@@ -1022,6 +1088,13 @@ export function LeaveProvider({ children }) {
           isSickAsActual: isSickActual,
         },
         maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: matLimit },
+        paternity: { ...initialQuotas.paternity, remaining: paternityRem, used: paternityUsed, limit: patLimit },
+        ordination: { ...initialQuotas.ordination, remaining: ordinationRem, used: ordinationUsed, limit: ordLimit },
+        military: { ...initialQuotas.military, remaining: militaryRem, used: militaryUsed, limit: milLimit },
+        study: { ...initialQuotas.study, remaining: studyRem, used: studyUsed, limit: stuLimit },
+        international: { ...initialQuotas.international, remaining: internationalRem, used: internationalUsed, limit: intLimit },
+        spouse: { ...initialQuotas.spouse, remaining: spouseRem, used: spouseUsed, limit: spoLimit },
+        rehab: { ...initialQuotas.rehab, remaining: rehabRem, used: rehabUsed, limit: rehLimit },
       });
       return;
     }
@@ -1055,6 +1128,33 @@ export function LeaveProvider({ children }) {
       : userApprovedRequests
         .filter((r) => r.typeKey === 'maternity')
         .reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const paternityUsed = !isMale
+      ? 0
+      : userApprovedRequests
+        .filter((r) => r.typeKey === 'paternity')
+        .reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const ordinationUsed = !isMale
+      ? 0
+      : userApprovedRequests
+        .filter((r) => r.typeKey === 'ordination')
+        .reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const militaryUsed = !isMale
+      ? 0
+      : userApprovedRequests
+        .filter((r) => r.typeKey === 'military')
+        .reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const studyUsed = userApprovedRequests
+      .filter((r) => r.typeKey === 'study')
+      .reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const internationalUsed = userApprovedRequests
+      .filter((r) => r.typeKey === 'international')
+      .reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const spouseUsed = userApprovedRequests
+      .filter((r) => r.typeKey === 'spouse')
+      .reduce((sum, r) => sum + Number(r.days || 0), 0);
+    const rehabUsed = userApprovedRequests
+      .filter((r) => r.typeKey === 'rehab')
+      .reduce((sum, r) => sum + Number(r.days || 0), 0);
 
     const vacationRound1 = round1Requests.filter((r) => r.typeKey === 'vacation').reduce((sum, r) => sum + Number(r.days || 0), 0);
     const vacationRound2 = round2Requests.filter((r) => r.typeKey === 'vacation').reduce((sum, r) => sum + Number(r.days || 0), 0);
@@ -1069,12 +1169,20 @@ export function LeaveProvider({ children }) {
     const personalRem = Math.max(0, perLimit - personalUsed);
     const sickRem = isSickActual ? 'เท่าที่ป่วยจริง' : Math.max(0, sicLimit - sickUsed);
     const maternityRem = isMale ? 0 : Math.max(0, matLimit - maternityUsed);
+    const paternityRem = !isMale ? 0 : Math.max(0, patLimit - paternityUsed);
+    const ordinationRem = !isMale ? 0 : Math.max(0, ordLimit - ordinationUsed);
+    const militaryRem = !isMale ? 0 : Math.max(0, milLimit - militaryUsed);
+    const studyRem = Math.max(0, stuLimit - studyUsed);
+    const internationalRem = Math.max(0, intLimit - internationalUsed);
+    const spouseRem = Math.max(0, spoLimit - spouseUsed);
+    const rehabRem = Math.max(0, rehLimit - rehabUsed);
+
     const totalRem = isSickActual
-      ? (vacationRem + personalRem + maternityRem)
-      : (vacationRem + personalRem + (typeof sickRem === 'number' ? sickRem : 0) + maternityRem);
+      ? (vacationRem + personalRem + maternityRem + paternityRem + ordinationRem + militaryRem + studyRem + internationalRem + spouseRem + rehabRem)
+      : (vacationRem + personalRem + (typeof sickRem === 'number' ? sickRem : 0) + maternityRem + paternityRem + ordinationRem + militaryRem + studyRem + internationalRem + spouseRem + rehabRem);
     const totalLim = isSickActual
-      ? (vacLimit + perLimit + matLimit)
-      : (vacLimit + perLimit + sicLimit + matLimit);
+      ? (vacLimit + perLimit + matLimit + patLimit + ordLimit + milLimit + stuLimit + intLimit + spoLimit + rehLimit)
+      : (vacLimit + perLimit + sicLimit + matLimit + patLimit + ordLimit + milLimit + stuLimit + intLimit + spoLimit + rehLimit);
 
     setQuotas({
       totalRemaining: totalRem,
@@ -1092,6 +1200,13 @@ export function LeaveProvider({ children }) {
         round2Used: sickRound2,
       },
       maternity: { ...initialQuotas.maternity, remaining: maternityRem, used: maternityUsed, limit: matLimit, round1Used: maternityRound1, round2Used: maternityRound2 },
+      paternity: { ...initialQuotas.paternity, remaining: paternityRem, used: paternityUsed, limit: patLimit },
+      ordination: { ...initialQuotas.ordination, remaining: ordinationRem, used: ordinationUsed, limit: ordLimit },
+      military: { ...initialQuotas.military, remaining: militaryRem, used: militaryUsed, limit: milLimit },
+      study: { ...initialQuotas.study, remaining: studyRem, used: studyUsed, limit: stuLimit },
+      international: { ...initialQuotas.international, remaining: internationalRem, used: internationalUsed, limit: intLimit },
+      spouse: { ...initialQuotas.spouse, remaining: spouseRem, used: spouseUsed, limit: spoLimit },
+      rehab: { ...initialQuotas.rehab, remaining: rehabRem, used: rehabUsed, limit: rehLimit },
     });
   };
 
@@ -1912,6 +2027,13 @@ export function LeaveProvider({ children }) {
     const perLim = Number(newEmpData.personalLimit ?? defs.personal);
     const sicLim = Number(newEmpData.sickLimit ?? defs.sick);
     const matLim = isMale ? 0 : Number(newEmpData.maternityLimit ?? defs.maternity);
+    const patLim = !isMale ? 0 : Number(newEmpData.paternityLimit ?? defs.paternity);
+    const ordLim = !isMale ? 0 : Number(newEmpData.ordinationLimit ?? defs.ordination);
+    const milLim = !isMale ? 0 : Number(newEmpData.militaryLimit ?? defs.military);
+    const stuLim = Number(newEmpData.studyLimit ?? defs.study);
+    const intLim = Number(newEmpData.internationalLimit ?? defs.international);
+    const spoLim = Number(newEmpData.spouseLimit ?? defs.spouse);
+    const rehLim = Number(newEmpData.rehabLimit ?? defs.rehab);
 
     let createdEmp = {
       id: `usr-${Date.now()}`,
@@ -1931,6 +2053,27 @@ export function LeaveProvider({ children }) {
       maternityRem: matLim,
       maternityLimit: matLim,
       maternityUsed: 0,
+      paternityRem: patLim,
+      paternityLimit: patLim,
+      paternityUsed: 0,
+      ordinationRem: ordLim,
+      ordinationLimit: ordLim,
+      ordinationUsed: 0,
+      militaryRem: milLim,
+      militaryLimit: milLim,
+      militaryUsed: 0,
+      studyRem: stuLim,
+      studyLimit: stuLim,
+      studyUsed: 0,
+      internationalRem: intLim,
+      internationalLimit: intLim,
+      internationalUsed: 0,
+      spouseRem: spoLim,
+      spouseLimit: spoLim,
+      spouseUsed: 0,
+      rehabRem: rehLim,
+      rehabLimit: rehLim,
+      rehabUsed: 0,
       avatar: newEmpData.avatar || 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg',
     };
 
@@ -2727,6 +2870,27 @@ export function LeaveProvider({ children }) {
       maternityLimit: regDefs.maternity,
       maternityUsed: 0,
       maternityRem: regDefs.maternity,
+      paternityLimit: regDefs.paternity,
+      paternityUsed: 0,
+      paternityRem: regDefs.paternity,
+      ordinationLimit: regDefs.ordination,
+      ordinationUsed: 0,
+      ordinationRem: regDefs.ordination,
+      militaryLimit: regDefs.military,
+      militaryUsed: 0,
+      militaryRem: regDefs.military,
+      studyLimit: regDefs.study,
+      studyUsed: 0,
+      studyRem: regDefs.study,
+      internationalLimit: regDefs.international,
+      internationalUsed: 0,
+      internationalRem: regDefs.international,
+      spouseLimit: regDefs.spouse,
+      spouseUsed: 0,
+      spouseRem: regDefs.spouse,
+      rehabLimit: regDefs.rehab,
+      rehabUsed: 0,
+      rehabRem: regDefs.rehab,
       status: 'ปกติ',
     };
 

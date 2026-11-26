@@ -117,6 +117,14 @@ export default function CalendarWidget() {
     if (first.typeKey === 'sick') dot = 'red';
     else if (first.typeKey === 'personal') dot = 'blue';
     else if (first.typeKey === 'vacation') dot = 'green';
+    else if (first.typeKey === 'maternity') dot = 'purple';
+    else if (first.typeKey === 'paternity') dot = 'sky';
+    else if (first.typeKey === 'ordination') dot = 'amber';
+    else if (first.typeKey === 'military') dot = 'indigo';
+    else if (first.typeKey === 'study') dot = 'violet';
+    else if (first.typeKey === 'international') dot = 'blue';
+    else if (first.typeKey === 'spouse') dot = 'rose';
+    else if (first.typeKey === 'rehab') dot = 'teal';
 
     return {
       type: first.typeKey,
@@ -302,14 +310,35 @@ export default function CalendarWidget() {
                       {cell.event.dot === 'orange' && (
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-white" />
                       )}
+                      {cell.event.dot === 'amber' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-white" />
+                      )}
                       {cell.event.dot === 'blue' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500 ring-1 ring-white" />
+                      )}
+                      {cell.event.dot === 'sky' && (
                         <span className="w-1.5 h-1.5 rounded-full bg-sky-500 ring-1 ring-white" />
                       )}
                       {cell.event.dot === 'green' && (
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 ring-1 ring-white" />
                       )}
+                      {cell.event.dot === 'teal' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-600 ring-1 ring-white" />
+                      )}
                       {cell.event.dot === 'red' && (
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 ring-1 ring-white" />
+                      )}
+                      {cell.event.dot === 'rose' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 ring-1 ring-white" />
+                      )}
+                      {cell.event.dot === 'purple' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 ring-1 ring-white" />
+                      )}
+                      {cell.event.dot === 'indigo' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 ring-1 ring-white" />
+                      )}
+                      {cell.event.dot === 'violet' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-500 ring-1 ring-white" />
                       )}
                     </>
                   )}

@@ -34,6 +34,13 @@ const LEAVE_QUOTA_TYPES = [
   { key: 'personal', label: 'ลากิจส่วนตัว', dotColor: 'bg-teal-500', textColor: 'text-teal-700' },
   { key: 'sick', label: 'ลาป่วย', dotColor: 'bg-rose-500', textColor: 'text-rose-600' },
   { key: 'maternity', label: 'ลาคลอดบุตร', dotColor: 'bg-pink-500', textColor: 'text-pink-600' },
+  { key: 'paternity', label: 'ลาไปช่วยเหลือภริยาที่คลอดบุตร', dotColor: 'bg-sky-500', textColor: 'text-sky-700' },
+  { key: 'ordination', label: 'ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์', dotColor: 'bg-amber-500', textColor: 'text-amber-700' },
+  { key: 'military', label: 'ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล', dotColor: 'bg-indigo-500', textColor: 'text-indigo-700' },
+  { key: 'study', label: 'ลาไปศึกษา ฝึกอบรม หรือดูงาน', dotColor: 'bg-violet-500', textColor: 'text-violet-700' },
+  { key: 'international', label: 'ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ', dotColor: 'bg-blue-500', textColor: 'text-blue-700' },
+  { key: 'spouse', label: 'ลาติดตามคู่สมรส', dotColor: 'bg-rose-400', textColor: 'text-rose-600' },
+  { key: 'rehab', label: 'ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ', dotColor: 'bg-teal-600', textColor: 'text-teal-800' },
 ];
 
 function matchesEmployee(req, emp) {
@@ -156,6 +163,27 @@ export default function AdminEmployeesView() {
     maternityLimit: 90,
     maternityUsed: 0,
     maternityRem: 90,
+    paternityLimit: 15,
+    paternityUsed: 0,
+    paternityRem: 15,
+    ordinationLimit: 120,
+    ordinationUsed: 0,
+    ordinationRem: 120,
+    militaryLimit: 7,
+    militaryUsed: 0,
+    militaryRem: 7,
+    studyLimit: 1460,
+    studyUsed: 0,
+    studyRem: 1460,
+    internationalLimit: 1460,
+    internationalUsed: 0,
+    internationalRem: 1460,
+    spouseLimit: 730,
+    spouseUsed: 0,
+    spouseRem: 730,
+    rehabLimit: 365,
+    rehabUsed: 0,
+    rehabRem: 365,
   });
 
   const [addForm, setAddForm] = useState({
@@ -177,6 +205,13 @@ export default function AdminEmployeesView() {
     personalLimit: 45,
     sickLimit: 60,
     maternityLimit: 90,
+    paternityLimit: 15,
+    ordinationLimit: 120,
+    militaryLimit: 7,
+    studyLimit: 1460,
+    internationalLimit: 1460,
+    spouseLimit: 730,
+    rehabLimit: 365,
   });
 
   const getEmployeeLeaveStats = (emp) => {
@@ -194,6 +229,13 @@ export default function AdminEmployeesView() {
       personal: approvedLeaves.filter((r) => r.typeKey === 'personal').length,
       sick: approvedLeaves.filter((r) => r.typeKey === 'sick').length,
       maternity: isMale ? 0 : approvedLeaves.filter((r) => r.typeKey === 'maternity').length,
+      paternity: !isMale ? 0 : approvedLeaves.filter((r) => r.typeKey === 'paternity').length,
+      ordination: !isMale ? 0 : approvedLeaves.filter((r) => r.typeKey === 'ordination').length,
+      military: !isMale ? 0 : approvedLeaves.filter((r) => r.typeKey === 'military').length,
+      study: approvedLeaves.filter((r) => r.typeKey === 'study').length,
+      international: approvedLeaves.filter((r) => r.typeKey === 'international').length,
+      spouse: approvedLeaves.filter((r) => r.typeKey === 'spouse').length,
+      rehab: approvedLeaves.filter((r) => r.typeKey === 'rehab').length,
     };
 
     const vacationLimit = Number(emp.vacationLimit ?? 10);
@@ -216,15 +258,47 @@ export default function AdminEmployeesView() {
     const maternityRem = isMale ? 0 : Number(emp.maternityRem ?? maternityLimit);
     const maternityUsed = isMale ? 0 : Number(emp.maternityUsed ?? Math.max(0, maternityLimit - maternityRem));
 
-    const totalUsedDays = vacationUsed + personalUsed + sickUsed + maternityUsed;
+    const paternityLimit = !isMale ? 0 : Number(emp.paternityLimit ?? 15);
+    const paternityRem = !isMale ? 0 : Number(emp.paternityRem ?? paternityLimit);
+    const paternityUsed = !isMale ? 0 : Number(emp.paternityUsed ?? Math.max(0, paternityLimit - paternityRem));
+
+    const ordinationLimit = !isMale ? 0 : Number(emp.ordinationLimit ?? 120);
+    const ordinationRem = !isMale ? 0 : Number(emp.ordinationRem ?? ordinationLimit);
+    const ordinationUsed = !isMale ? 0 : Number(emp.ordinationUsed ?? Math.max(0, ordinationLimit - ordinationRem));
+
+    const militaryLimit = !isMale ? 0 : Number(emp.militaryLimit ?? 7);
+    const militaryRem = !isMale ? 0 : Number(emp.militaryRem ?? militaryLimit);
+    const militaryUsed = !isMale ? 0 : Number(emp.militaryUsed ?? Math.max(0, militaryLimit - militaryRem));
+
+    const studyLimit = Number(emp.studyLimit ?? 1460);
+    const studyRem = Number(emp.studyRem ?? studyLimit);
+    const studyUsed = Number(emp.studyUsed ?? Math.max(0, studyLimit - studyRem));
+
+    const internationalLimit = Number(emp.internationalLimit ?? 1460);
+    const internationalRem = Number(emp.internationalRem ?? internationalLimit);
+    const internationalUsed = Number(emp.internationalUsed ?? Math.max(0, internationalLimit - internationalRem));
+
+    const spouseLimit = Number(emp.spouseLimit ?? 730);
+    const spouseRem = Number(emp.spouseRem ?? spouseLimit);
+    const spouseUsed = Number(emp.spouseUsed ?? Math.max(0, spouseLimit - spouseRem));
+
+    const rehabLimit = Number(emp.rehabLimit ?? 365);
+    const rehabRem = Number(emp.rehabRem ?? rehabLimit);
+    const rehabUsed = Number(emp.rehabUsed ?? Math.max(0, rehabLimit - rehabRem));
+
+    const totalUsedDays = vacationUsed + personalUsed + sickUsed + maternityUsed + paternityUsed + ordinationUsed + militaryUsed + studyUsed + internationalUsed + spouseUsed + rehabUsed;
     const femaleMatRem = isMale ? 0 : maternityRem;
     const femaleMatLimit = isMale ? 0 : maternityLimit;
+    const maleOnlyRem = isMale ? (paternityRem + ordinationRem + militaryRem) : 0;
+    const maleOnlyLimit = isMale ? (paternityLimit + ordinationLimit + militaryLimit) : 0;
+    const commonNewRem = studyRem + internationalRem + spouseRem + rehabRem;
+    const commonNewLimit = studyLimit + internationalLimit + spouseLimit + rehabLimit;
     const generalRem = isSickAsActual
-      ? (vacationRem + personalRem + femaleMatRem)
-      : (vacationRem + personalRem + sickRem + femaleMatRem);
+      ? (vacationRem + personalRem + femaleMatRem + maleOnlyRem + commonNewRem)
+      : (vacationRem + personalRem + sickRem + femaleMatRem + maleOnlyRem + commonNewRem);
     const generalLimit = isSickAsActual
-      ? (vacationLimit + personalLimit + femaleMatLimit)
-      : (vacationLimit + personalLimit + sickLimit + femaleMatLimit);
+      ? (vacationLimit + personalLimit + femaleMatLimit + maleOnlyLimit + commonNewLimit)
+      : (vacationLimit + personalLimit + sickLimit + femaleMatLimit + maleOnlyLimit + commonNewLimit);
 
     return {
       approvedLeaves,
@@ -242,6 +316,27 @@ export default function AdminEmployeesView() {
       maternityLimit,
       maternityUsed,
       maternityRem,
+      paternityLimit,
+      paternityUsed,
+      paternityRem,
+      ordinationLimit,
+      ordinationUsed,
+      ordinationRem,
+      militaryLimit,
+      militaryUsed,
+      militaryRem,
+      studyLimit,
+      studyUsed,
+      studyRem,
+      internationalLimit,
+      internationalUsed,
+      internationalRem,
+      spouseLimit,
+      spouseUsed,
+      spouseRem,
+      rehabLimit,
+      rehabUsed,
+      rehabRem,
       totalUsedDays,
       generalRem,
       generalLimit,
@@ -329,6 +424,27 @@ export default function AdminEmployeesView() {
       maternityLimit: isMale ? 0 : stats.maternityLimit,
       maternityUsed: isMale ? 0 : stats.maternityUsed,
       maternityRem: isMale ? 0 : stats.maternityRem,
+      paternityLimit: !isMale ? 0 : stats.paternityLimit,
+      paternityUsed: !isMale ? 0 : stats.paternityUsed,
+      paternityRem: !isMale ? 0 : stats.paternityRem,
+      ordinationLimit: !isMale ? 0 : stats.ordinationLimit,
+      ordinationUsed: !isMale ? 0 : stats.ordinationUsed,
+      ordinationRem: !isMale ? 0 : stats.ordinationRem,
+      militaryLimit: !isMale ? 0 : stats.militaryLimit,
+      militaryUsed: !isMale ? 0 : stats.militaryUsed,
+      militaryRem: !isMale ? 0 : stats.militaryRem,
+      studyLimit: stats.studyLimit,
+      studyUsed: stats.studyUsed,
+      studyRem: stats.studyRem,
+      internationalLimit: stats.internationalLimit,
+      internationalUsed: stats.internationalUsed,
+      internationalRem: stats.internationalRem,
+      spouseLimit: stats.spouseLimit,
+      spouseUsed: stats.spouseUsed,
+      spouseRem: stats.spouseRem,
+      rehabLimit: stats.rehabLimit,
+      rehabUsed: stats.rehabUsed,
+      rehabRem: stats.rehabRem,
     });
   };
 
@@ -1370,9 +1486,12 @@ export default function AdminEmployeesView() {
                       <div className="col-span-3 text-center">คงเหลือ (วัน)</div>
                     </div>
 
-                    {LEAVE_QUOTA_TYPES.filter(
-                      (lt) => !(lt.key === 'maternity' && (editForm.gender === 'ชาย' || isMaleEmployee(editingEmp)))
-                    ).map((lt) => (
+                    {LEAVE_QUOTA_TYPES.filter((lt) => {
+                      const isMale = editForm.gender === 'ชาย' || isMaleEmployee(editingEmp);
+                      if (lt.key === 'maternity' && isMale) return false;
+                      if ((lt.key === 'paternity' || lt.key === 'ordination' || lt.key === 'military') && !isMale) return false;
+                      return true;
+                    }).map((lt) => (
                       <div
                         key={lt.key}
                         className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center p-3 rounded-2xl bg-slate-50/70 border border-slate-200/70"
@@ -1725,7 +1844,7 @@ export default function AdminEmployeesView() {
                   <CalendarCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>กำหนดโควตาวันลาเริ่มต้นต่อปี (วัน)</span>
                 </label>
-                <div className={`grid gap-2.5 ${addForm.gender === 'ชาย' ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                     <span className="block text-[11px] font-bold text-emerald-700 mb-1">ลาพักผ่อน</span>
                     <input
@@ -1762,9 +1881,9 @@ export default function AdminEmployeesView() {
                       />
                     )}
                   </div>
-                  {addForm.gender !== 'ชาย' && (
+                  {addForm.gender !== 'ชาย' ? (
                     <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <span className="block text-[11px] font-bold text-pink-600 mb-1">ลาคลอดบุตร</span>
+                      <span className="block text-[11px] font-bold text-pink-600 mb-1 truncate">ลาคลอดบุตร</span>
                       <input
                         type="number"
                         min="0"
@@ -1773,7 +1892,80 @@ export default function AdminEmployeesView() {
                         className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
                       />
                     </div>
+                  ) : (
+                    <>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <span className="block text-[11px] font-bold text-sky-700 mb-1 truncate">ลาช่วยภริยาคลอด</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={addForm.paternityLimit}
+                          onChange={(e) => setAddForm((p) => ({ ...p, paternityLimit: e.target.value }))}
+                          className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                        />
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <span className="block text-[11px] font-bold text-amber-700 mb-1 truncate">ลาอุปสมบท/ฮัจย์</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={addForm.ordinationLimit}
+                          onChange={(e) => setAddForm((p) => ({ ...p, ordinationLimit: e.target.value }))}
+                          className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                        />
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <span className="block text-[11px] font-bold text-indigo-700 mb-1 truncate">ลาตรวจเลือกทหาร</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={addForm.militaryLimit}
+                          onChange={(e) => setAddForm((p) => ({ ...p, militaryLimit: e.target.value }))}
+                          className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                        />
+                      </div>
+                    </>
                   )}
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="block text-[11px] font-bold text-violet-700 mb-1 truncate">ลาไปศึกษา/อบรม</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.studyLimit}
+                      onChange={(e) => setAddForm((p) => ({ ...p, studyLimit: e.target.value }))}
+                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                    />
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="block text-[11px] font-bold text-blue-700 mb-1 truncate">ลาไปองค์กรระหว่างประเทศ</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.internationalLimit}
+                      onChange={(e) => setAddForm((p) => ({ ...p, internationalLimit: e.target.value }))}
+                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                    />
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="block text-[11px] font-bold text-rose-600 mb-1 truncate">ลาติดตามคู่สมรส</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.spouseLimit}
+                      onChange={(e) => setAddForm((p) => ({ ...p, spouseLimit: e.target.value }))}
+                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                    />
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="block text-[11px] font-bold text-teal-800 mb-1 truncate">ลาฟื้นฟูสมรรถภาพ</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={addForm.rehabLimit}
+                      onChange={(e) => setAddForm((p) => ({ ...p, rehabLimit: e.target.value }))}
+                      className="w-full px-2 py-1 text-center bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 

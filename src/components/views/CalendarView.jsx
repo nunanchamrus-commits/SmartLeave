@@ -84,6 +84,20 @@ export default function CalendarView() {
         return 'bg-amber-50 text-amber-800 border-amber-200';
       case 'maternity':
         return 'bg-purple-50 text-purple-800 border-purple-200';
+      case 'paternity':
+        return 'bg-sky-50 text-sky-800 border-sky-200';
+      case 'ordination':
+        return 'bg-amber-50 text-amber-800 border-amber-200';
+      case 'military':
+        return 'bg-indigo-50 text-indigo-800 border-indigo-200';
+      case 'study':
+        return 'bg-violet-50 text-violet-800 border-violet-200';
+      case 'international':
+        return 'bg-blue-50 text-blue-800 border-blue-200';
+      case 'spouse':
+        return 'bg-rose-50 text-rose-800 border-rose-200';
+      case 'rehab':
+        return 'bg-teal-50 text-teal-800 border-teal-200';
       case 'vacation':
       default:
         return 'bg-emerald-50 text-emerald-800 border-emerald-200';

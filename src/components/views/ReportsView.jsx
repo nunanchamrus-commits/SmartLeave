@@ -106,6 +106,13 @@ export default function ReportsView() {
     { key: 'personal', label: 'ลากิจส่วนตัว (Personal Leave)', color: 'bg-teal-500', barColor: 'bg-teal-500' },
     { key: 'sick', label: 'ลาป่วย (Sick Leave)', color: 'bg-rose-500', barColor: 'bg-rose-500' },
     { key: 'maternity', label: 'ลาคลอดบุตร (Maternity Leave)', color: 'bg-purple-500', barColor: 'bg-purple-500' },
+    { key: 'paternity', label: 'ลาไปช่วยเหลือภริยาที่คลอดบุตร (Paternity Leave)', color: 'bg-sky-500', barColor: 'bg-sky-500' },
+    { key: 'ordination', label: 'ลาอุปสมบทหรือฮัจย์ (Ordination/Hajj Leave)', color: 'bg-amber-500', barColor: 'bg-amber-500' },
+    { key: 'military', label: 'ลาตรวจเลือก/เตรียมพล (Military Leave)', color: 'bg-indigo-500', barColor: 'bg-indigo-500' },
+    { key: 'study', label: 'ลาไปศึกษา ฝึกอบรม หรือดูงาน (Study Leave)', color: 'bg-violet-500', barColor: 'bg-violet-500' },
+    { key: 'international', label: 'ลาปฏิบัติงานในองค์กรระหว่างประเทศ (International Leave)', color: 'bg-blue-500', barColor: 'bg-blue-500' },
+    { key: 'spouse', label: 'ลาติดตามคู่สมรส (Spouse Leave)', color: 'bg-rose-400', barColor: 'bg-rose-400' },
+    { key: 'rehab', label: 'ลาฟื้นฟูสมรรถภาพด้านอาชีพ (Rehab Leave)', color: 'bg-teal-600', barColor: 'bg-teal-600' },
   ];
 
   const typeStats = typeDefinitions.map((def) => {

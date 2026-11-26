@@ -293,6 +293,13 @@ export default function LeaveHistoryView() {
               <option value="personal">ลากิจส่วนตัว</option>
               <option value="sick">ลาป่วย</option>
               <option value="maternity">ลาคลอดบุตร</option>
+              <option value="paternity">ลาไปช่วยเหลือภริยาที่คลอดบุตร</option>
+              <option value="ordination">ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์</option>
+              <option value="military">ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล</option>
+              <option value="study">ลาไปศึกษา ฝึกอบรม หรือดูงาน</option>
+              <option value="international">ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ</option>
+              <option value="spouse">ลาติดตามคู่สมรส</option>
+              <option value="rehab">ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ</option>
             </select>
           </div>
 
