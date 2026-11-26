@@ -14,12 +14,16 @@ import {
   ShieldCheck,
   CalendarCheck,
   Calendar,
+  CalendarPlus,
   Grid,
   List,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { useLeave } from '../../context/LeaveContext';
 import { getCalendarHolidays, getHolidaysMap } from '../../data/holidays';
 import DinoMascot from '../DinoMascot';
+import ThaiDatePicker from '../ThaiDatePicker';
+import { formatThaiDateBE } from '../../utils/thaiDate';
 
 const THAI_MONTHS = [
   'มกราคม',
@@ -175,14 +179,23 @@ export default function HolidaysView() {
     });
   }
 
+  const getTodayISO = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   // Form State for Add Holiday
   const [formData, setFormData] = useState({
     name: '',
-    date: '',
+    date: getTodayISO(),
     description: '',
     type: 'special',
   });
   const [formError, setFormError] = useState('');
+  const [isAddSuccess, setIsAddSuccess] = useState(false);
 
   const handleSubmitAdd = (e) => {
     e.preventDefault();
@@ -197,8 +210,12 @@ export default function HolidaysView() {
 
     const success = addCustomHoliday(formData);
     if (success) {
-      setIsAddModalOpen(false);
-      setFormData({ name: '', date: '', description: '', type: 'special' });
+      confetti({
+        particleCount: 70,
+        spread: 60,
+        origin: { y: 0.6 },
+      });
+      setIsAddSuccess(true);
       setFormError('');
 
       // Auto jump calendar to the month of the added holiday
@@ -287,6 +304,8 @@ export default function HolidaysView() {
               type="button"
               onClick={() => {
                 setFormError('');
+                setIsAddSuccess(false);
+                setFormData({ name: '', date: getTodayISO(), description: '', type: 'special' });
                 setIsAddModalOpen(true);
               }}
               className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer"
@@ -608,27 +627,29 @@ export default function HolidaysView() {
       {selectedHolidayDetail && (
         <div
           onClick={() => setSelectedHolidayDetail(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-slate-900/10 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200/90 ring-1 ring-slate-900/10 overflow-hidden animate-fade-in-up"
+            className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90vh] animate-fade-in-up"
           >
-            <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-[#2E6F4E] text-white">
               <div className="flex items-center space-x-2.5">
-                <CalendarCheck className="w-5 h-5 text-emerald-300" />
-                <h3 className="font-bold text-base font-prompt">รายละเอียดวันหยุดราชการ</h3>
+                <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-emerald-300">
+                  <CalendarCheck className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-base sm:text-lg font-prompt">รายละเอียดวันหยุดราชการ</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedHolidayDetail(null)}
-                className="p-1 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                className="p-1.5 rounded-full hover:bg-white/15 text-emerald-100 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto text-xs sm:text-sm">
               <div className="p-4 rounded-2xl bg-[#F3E8FF] border border-[#D8B4FE] space-y-2 text-purple-950">
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-700 text-white">
@@ -659,7 +680,7 @@ export default function HolidaysView() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                 {isAdmin && selectedHolidayDetail.isCustom ? (
                   <button
                     type="button"
@@ -667,7 +688,7 @@ export default function HolidaysView() {
                       setDeleteConfirmId(selectedHolidayDetail.id);
                       setSelectedHolidayDetail(null);
                     }}
-                    className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-colors"
+                    className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                     <span>ลบวันหยุดนี้</span>
@@ -679,7 +700,7 @@ export default function HolidaysView() {
                 <button
                   type="button"
                   onClick={() => setSelectedHolidayDetail(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                  className="px-6 py-2 rounded-full bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
                 >
                   ปิด
                 </button>
@@ -693,11 +714,11 @@ export default function HolidaysView() {
       {deleteConfirmId && (
         <div
           onClick={() => setDeleteConfirmId(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-slate-900/10 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200/90 ring-1 ring-slate-900/10 text-center space-y-4"
+            className="bg-white rounded-2xl sm:rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4"
           >
             <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
               <AlertCircle className="w-6 h-6" />
@@ -714,7 +735,7 @@ export default function HolidaysView() {
               <button
                 type="button"
                 onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 ยกเลิก
               </button>
@@ -724,7 +745,7 @@ export default function HolidaysView() {
                   deleteCustomHoliday(deleteConfirmId);
                   setDeleteConfirmId(null);
                 }}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors shadow-sm"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors shadow-sm cursor-pointer"
               >
                 ยืนยันลบ
               </button>
@@ -733,135 +754,178 @@ export default function HolidaysView() {
         </div>
       )}
 
-      {/* Add Custom Holiday Modal (Admin Only) */}
+      {/* Add Custom Holiday Modal (Admin Only) - Styled exactly like LeaveRequestModal */}
       {isAddModalOpen && (
-        <div
-          onClick={() => setIsAddModalOpen(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-slate-900/10 animate-fade-in"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200/90 ring-1 ring-slate-900/10 overflow-hidden animate-fade-in-up"
-          >
-            <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90vh]">
+            {/* Header matching LeaveRequestModal */}
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-[#2E6F4E] text-white">
               <div className="flex items-center space-x-2.5">
-                <CalendarPlusIcon className="w-5 h-5 text-emerald-300" />
-                <h3 className="font-bold text-base font-prompt">เพิ่มวันหยุดพิเศษประจำหน่วยงาน</h3>
+                <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center text-emerald-300">
+                  <CalendarPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg font-prompt">
+                    เพิ่มวันหยุดพิเศษประจำหน่วยงาน
+                  </h3>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-1 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  setIsAddSuccess(false);
+                }}
+                className="p-1.5 rounded-full hover:bg-white/15 text-emerald-100 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitAdd} className="p-6 space-y-4">
-              {formError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center space-x-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{formError}</span>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ชื่อวันหยุด <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น วันหยุดพิเศษประจำจังหวัด / วันหยุดกรณีพิเศษ"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            {/* Modal Body: Success or Form */}
+            {isAddSuccess ? (
+              <div className="p-8 sm:p-10 text-center flex flex-col items-center justify-center space-y-3 animate-fade-in-up">
+                <DinoMascot
+                  pose="success"
+                  size={140}
+                  bubbleText="บันทึกวันหยุดพิเศษเรียบร้อยแล้วครับ! ✨"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  วันที่หยุด <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ประเภทวันหยุด
-                </label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
-                >
-                  <option value="special">วันหยุดพิเศษประจำหน่วยงาน</option>
-                  <option value="official">วันหยุดราชการกรณีพิเศษ (มติ ครม.)</option>
-                  <option value="substitute">วันหยุดชดเชย</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  รายละเอียด / หมายเหตุ (ถ้ามี)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="ระบุวัตถุประสงค์ หรือประกาศหน่วยงานที่เกี่ยวข้อง..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end space-x-2 pt-2">
+                <h4 className="text-xl font-extrabold text-slate-800 font-prompt mt-1">
+                  เพิ่มวันหยุดเรียบร้อยแล้ว!
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-sm">
+                  วันหยุดใหม่ถูกบันทึกและแสดงผลบนปฏิทินของทุกคนในระบบเรียบร้อยแล้ว
+                </p>
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors"
+                  onClick={() => {
+                    setIsAddSuccess(false);
+                    setIsAddModalOpen(false);
+                    setFormData({ name: '', date: getTodayISO(), description: '', type: 'special' });
+                  }}
+                  className="mt-2 px-6 py-2 rounded-full bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold shadow-sm transition-all cursor-pointer"
                 >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-md transition-all cursor-pointer"
-                >
-                  + บันทึกวันหยุด
+                  ตกลง
                 </button>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSubmitAdd} className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
+                {formError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 flex items-center space-x-2 text-xs">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{formError}</span>
+                  </div>
+                )}
+
+                {/* Holiday Type Selection Cards */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-2">
+                    ประเภทวันหยุด <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: 'special', label: 'วันหยุดพิเศษ', desc: 'ประจำหน่วยงาน' },
+                      { id: 'official', label: 'วันหยุดราชการ', desc: 'มติ ครม. กรณีพิเศษ' },
+                      { id: 'substitute', label: 'วันหยุดชดเชย', desc: 'ชดเชยวันหยุดราชการ' },
+                    ].map((t) => (
+                      <button
+                        type="button"
+                        key={t.id}
+                        onClick={() => setFormData({ ...formData, type: t.id })}
+                        className={`py-2 px-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                          formData.type === t.id
+                            ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-bold ring-2 ring-emerald-500/20 shadow-2xs'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="text-xs font-semibold">{t.label}</div>
+                        <div className="text-[10.5px] text-slate-400 mt-0.5">{t.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Holiday Name */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    ชื่อวันหยุด <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => {
+                      setFormData({ ...formData, name: e.target.value });
+                      setFormError('');
+                    }}
+                    placeholder="เช่น วันหยุดพิเศษประจำจังหวัด / วันหยุดกรณีพิเศษ"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none text-slate-800 placeholder-slate-400 text-xs sm:text-sm"
+                  />
+                </div>
+
+                {/* Date Picker using ThaiDatePicker (พ.ศ.) */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    วันที่กำหนดหยุด (พ.ศ.) <span className="text-red-500">*</span>
+                  </label>
+                  <ThaiDatePicker
+                    value={formData.date}
+                    onChange={(val) => {
+                      setFormData({ ...formData, date: val });
+                      setFormError('');
+                    }}
+                    placeholder="เลือกวันที่ (พ.ศ.)"
+                  />
+                </div>
+
+                {/* Selected Date Summary Badge */}
+                {formData.date && (
+                  <div className="p-3 bg-emerald-50/80 rounded-2xl flex items-center justify-between text-xs text-emerald-900 border border-emerald-100">
+                    <span className="font-medium">สรุปวันที่กำหนดหยุด:</span>
+                    <span className="font-bold text-xs sm:text-sm bg-white px-3 py-1 rounded-full shadow-xs border border-emerald-200 text-emerald-800 font-prompt">
+                      {formatThaiDateBE(formData.date)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Description */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    รายละเอียด / วัตถุประสงค์ (ถ้ามี)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="ระบุวัตถุประสงค์ หรือประกาศหน่วยงานที่เกี่ยวข้อง..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none resize-none text-slate-800 placeholder-slate-400 text-xs sm:text-sm"
+                  />
+                </div>
+
+                {/* Footer Buttons matching LeaveRequestModal */}
+                <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddModalOpen(false);
+                      setIsAddSuccess(false);
+                    }}
+                    className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2 rounded-full bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold shadow-sm hover:shadow transition-all cursor-pointer"
+                  >
+                    บันทึกวันหยุด
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-function CalendarPlusIcon(props) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="24"
-      height="24"
-      stroke="currentColor"
-      strokeWidth="2"
-      fill="none"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M8 2v4" />
-      <path d="M16 2v4" />
-      <rect width="18" height="18" x="3" y="4" rx="2" />
-      <path d="M3 10h18" />
-      <path d="M10 16h4" />
-      <path d="M12 14v4" />
-    </svg>
   );
 }
