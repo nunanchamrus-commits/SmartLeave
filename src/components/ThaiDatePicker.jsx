@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { THAI_MONTHS_FULL, formatThaiDateBE } from '../utils/thaiDate';
+import { getHolidaysMap } from '../data/holidays';
 
 const WEEKDAYS_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
@@ -33,6 +34,7 @@ export default function ThaiDatePicker({
   min,
   max,
   disabled = false,
+  disableHolidays = true,
   className = '',
   placeholder = 'เลือกวันที่ (พ.ศ.)',
 }) {
@@ -42,6 +44,16 @@ export default function ThaiDatePicker({
   const parsed = parseISO(value);
   const [viewYear, setViewYear] = useState(parsed.year);
   const [viewMonth, setViewMonth] = useState(parsed.month);
+
+  const holidaysMap = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('smartleave_custom_holidays');
+      const customHolidays = saved ? JSON.parse(saved) : [];
+      return getHolidaysMap(viewYear, customHolidays);
+    } catch {
+      return getHolidaysMap(viewYear);
+    }
+  }, [viewYear]);
 
   useEffect(() => {
     if (value) {
@@ -98,6 +110,7 @@ export default function ThaiDatePicker({
     const iso = toISO(viewYear, viewMonth, day);
     if (min && iso < min) return;
     if (max && iso > max) return;
+    if (disableHolidays && holidaysMap[iso]) return;
     if (onChange) onChange(iso);
     setOpen(false);
   };
@@ -105,6 +118,7 @@ export default function ThaiDatePicker({
   const handleSelectToday = () => {
     if (min && todayISO < min) return;
     if (max && todayISO > max) return;
+    if (disableHolidays && holidaysMap[todayISO]) return;
     setViewYear(now.getFullYear());
     setViewMonth(now.getMonth());
     if (onChange) onChange(todayISO);
@@ -200,44 +214,60 @@ export default function ThaiDatePicker({
               const iso = toISO(viewYear, viewMonth, day);
               const isSelected = value === iso;
               const isToday = todayISO === iso;
-              const isDisabled = Boolean((min && iso < min) || (max && iso > max));
+              const holiday = disableHolidays ? holidaysMap[iso] : null;
+              const isHoliday = Boolean(holiday);
+              const isDisabled = Boolean((min && iso < min) || (max && iso > max) || isHoliday);
               return (
                 <button
                   type="button"
                   key={iso}
                   disabled={isDisabled}
                   onClick={() => handleSelectDay(day)}
-                  className={`h-8 w-8 mx-auto rounded-lg text-xs font-medium flex items-center justify-center transition-all ${
+                  title={holiday ? `วันหยุดราชการ: ${holiday.name} (ไม่สามารถขอลาได้)` : undefined}
+                  className={`relative h-8 w-8 mx-auto rounded-lg text-xs font-medium flex items-center justify-center transition-all ${
                     isSelected
                       ? 'bg-[#2F855A] text-white font-bold shadow-xs'
-                      : isToday
-                        ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-300'
-                        : 'text-slate-700 hover:bg-slate-100'
-                  } ${isDisabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : 'cursor-pointer'}`}
+                      : isHoliday
+                        ? 'bg-purple-50 text-purple-700 border border-purple-200/90 font-semibold'
+                        : isToday
+                          ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-300'
+                          : 'text-slate-700 hover:bg-slate-100'
+                  } ${isDisabled ? 'opacity-40 cursor-not-allowed hover:bg-transparent' : 'cursor-pointer'}`}
                 >
                   {day}
+                  {isHoliday && (
+                    <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-purple-600" />
+                  )}
                 </button>
               );
             })}
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 text-[11px]">
-            <button
-              type="button"
-              onClick={handleSelectToday}
-              disabled={Boolean((min && todayISO < min) || (max && todayISO > max))}
-              className="text-emerald-700 hover:text-emerald-900 font-bold disabled:opacity-40"
-            >
-              วันนี้ ({formatThaiDateBE(todayISO)})
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="text-slate-400 hover:text-slate-600 font-medium"
-            >
-              ปิด
-            </button>
+          <div className="flex flex-col gap-2 mt-3 pt-2.5 border-t border-slate-100 text-[11px]">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleSelectToday}
+                disabled={Boolean((min && todayISO < min) || (max && todayISO > max) || (disableHolidays && holidaysMap[todayISO]))}
+                className="text-emerald-700 hover:text-emerald-900 font-bold disabled:opacity-40"
+              >
+                วันนี้ ({formatThaiDateBE(todayISO)})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-medium"
+              >
+                ปิด
+              </button>
+            </div>
+            {disableHolidays && (
+              <div className="flex items-center gap-1.5 text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded-md">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-600 inline-block shrink-0" />
+                <span className="truncate">จุดสีม่วง = วันหยุดราชการ (ไม่สามารถขอลาได้)</span>
+              </div>
+            )}
           </div>
         </div>
       )}

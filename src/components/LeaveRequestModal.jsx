@@ -15,6 +15,7 @@ import {
 import { downloadCancelLeaveSlipPdf } from '../utils/exportPdf';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
+import { getHolidaysMap } from '../data/holidays';
 import ThaiDatePicker from './ThaiDatePicker';
 import DinoMascot from './DinoMascot';
 import {
@@ -37,6 +38,7 @@ export default function LeaveRequestModal() {
     currentUser,
     preselectedCancelId,
     setPreselectedCancelId,
+    customHolidays,
   } = useLeave();
 
   const isMale =
@@ -73,6 +75,37 @@ export default function LeaveRequestModal() {
     return `${y}-${m}-${day}`;
   };
 
+  const isDateHoliday = (isoDate) => {
+    if (!isoDate) return null;
+    try {
+      const year = parseInt(isoDate.slice(0, 4), 10);
+      const hMap = getHolidaysMap(year, customHolidays || []);
+      return hMap[isoDate] || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getInitialStartDate = () => {
+    const today = getTodayISO();
+    try {
+      const year = new Date().getFullYear();
+      const hMap = getHolidaysMap(year, customHolidays || []);
+      if (!hMap[today]) return today;
+      // หากวันนี้เป็นวันหยุด ให้เลื่อนไปวันทำการถัดไป
+      const d = new Date();
+      for (let i = 1; i <= 30; i++) {
+        d.setDate(d.getDate() + 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const iso = `${y}-${m}-${day}`;
+        if (!hMap[iso]) return iso;
+      }
+    } catch {}
+    return today;
+  };
+
   const getSickMinDateISO = () => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -87,8 +120,8 @@ export default function LeaveRequestModal() {
 
   // --- State สำหรับแท็บ "ขอลา" ---
   const [leaveType, setLeaveType] = useState('vacation');
-  const [startDate, setStartDate] = useState(getTodayISO);
-  const [endDate, setEndDate] = useState(getTodayISO);
+  const [startDate, setStartDate] = useState(getInitialStartDate);
+  const [endDate, setEndDate] = useState(getInitialStartDate);
   const [durationMode, setDurationMode] = useState('full'); // 'full', 'half-morning', 'half-afternoon'
   const [reason, setReason] = useState('');
   const [substitute, setSubstitute] = useState('');
@@ -358,6 +391,25 @@ export default function LeaveRequestModal() {
   const handleSubmit = (e) => {
     e.preventDefault();
     const todayIso = getTodayISO();
+
+    // ตรวจสอบวันหยุดราชการ: บล็อกไม่ให้ขอลาในวันหยุดราชการ
+    const startHol = isDateHoliday(startDate);
+    if (startHol) {
+      setErrorMsg(`ไม่สามารถขอลาในวันหยุดราชการได้ (${startHol.name})`);
+      return;
+    }
+    const endHol = isDateHoliday(endDate);
+    if (endHol) {
+      setErrorMsg(`ไม่สามารถขอลาในวันหยุดราชการได้ (${endHol.name})`);
+      return;
+    }
+    const datesInRange = enumerateIsoDates(startDate, endDate);
+    const nonHolidayDates = datesInRange.filter((d) => !isDateHoliday(d));
+    if (nonHolidayDates.length === 0) {
+      setErrorMsg('ช่วงวันที่เลือกเป็นวันหยุดราชการทั้งหมด ไม่สามารถยื่นขอลาได้');
+      return;
+    }
+
     if ((leaveType === 'vacation' || leaveType === 'personal') && startDate < todayIso) {
       setErrorMsg('การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้');
       return;

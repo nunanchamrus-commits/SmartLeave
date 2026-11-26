@@ -5,7 +5,6 @@ import {
   CalendarX2,
   FileText,
   Calendar,
-  CalendarDays,
   Users,
   BarChart3,
   Settings,
@@ -43,7 +42,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
     { id: 'request', label: 'ขอลา/ยกเลิกวันลา', icon: CalendarPlus, isAction: true },
     { id: 'history', label: 'ตรวจสอบสถานะการลา', icon: FileText },
     { id: 'calendar', label: 'ปฏิทินการลา', icon: Calendar },
-    { id: 'holidays', label: 'ปฏิทินวันหยุดราชการ', icon: CalendarDays },
     { id: 'settings', label: 'ข้อมูลส่วนตัว', icon: Settings },
   ];
 
@@ -63,7 +61,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
     },
     { id: 'employees', label: 'จัดการพนักงาน & โควตา', icon: Users },
     { id: 'calendar', label: 'ปฏิทินการลา', icon: Calendar },
-    { id: 'holidays', label: 'ปฏิทินวันหยุดราชการ', icon: CalendarDays },
     { id: 'reports', label: 'รายงานสถิติการลา', icon: BarChart3 },
     { id: 'settings', label: 'ตั้งค่าระบบ', icon: Settings },
   ];

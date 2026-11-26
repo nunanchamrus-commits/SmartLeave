@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadCancelLeaveSlipPdf } from '../utils/exportPdf';
+import { getHolidaysMap } from '../data/holidays';
 import {
   formatThaiDateRangeBE,
   formatThaiDateBE,
@@ -40,6 +41,7 @@ export default function LeaveDetailModal() {
     approveLeaveRequest,
     rejectLeaveRequest,
     showToast,
+    customHolidays,
   } = useLeave();
 
   const [approverRemark, setApproverRemark] = useState('');
@@ -123,6 +125,33 @@ export default function LeaveDetailModal() {
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
+
+    // ตรวจสอบวันหยุดราชการ: บล็อกไม่ให้เลือกวันหยุดราชการ
+    if (editForm.startDate) {
+      const year = parseInt(editForm.startDate.slice(0, 4), 10);
+      const hMap = getHolidaysMap(year, customHolidays || []);
+      if (hMap[editForm.startDate]) {
+        if (showToast) {
+          showToast(`ไม่สามารถเลือกวันลาในวันหยุดราชการได้ (${hMap[editForm.startDate].name})`, 'error');
+        } else {
+          alert(`ไม่สามารถเลือกวันลาในวันหยุดราชการได้ (${hMap[editForm.startDate].name})`);
+        }
+        return;
+      }
+    }
+    if (editForm.endDate) {
+      const year = parseInt(editForm.endDate.slice(0, 4), 10);
+      const hMap = getHolidaysMap(year, customHolidays || []);
+      if (hMap[editForm.endDate]) {
+        if (showToast) {
+          showToast(`ไม่สามารถเลือกวันลาในวันหยุดราชการได้ (${hMap[editForm.endDate].name})`, 'error');
+        } else {
+          alert(`ไม่สามารถเลือกวันลาในวันหยุดราชการได้ (${hMap[editForm.endDate].name})`);
+        }
+        return;
+      }
+    }
+
     const typeNames = {
       vacation: 'ลาพักผ่อน',
       personal: 'ลากิจส่วนตัว',

@@ -11,6 +11,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
+import { getHolidaysMap } from '../../data/holidays';
 import EmptyState from '../EmptyState';
 
 export default function CalendarView() {
@@ -21,6 +22,7 @@ export default function CalendarView() {
     setIsRequestModalOpen,
     currentUser,
     isAdmin,
+    customHolidays,
   } = useLeave();
 
   // ปฏิทินของ User แสดงเฉพาะของตัวเองเท่านั้น ส่วน Admin แสดงของทุกคนเป็นค่าเริ่มต้น
@@ -62,6 +64,12 @@ export default function CalendarView() {
   const displayYear = displayDate.getFullYear();
   const displayMonth = displayDate.getMonth();
   const displayYearBE = displayYear + 543;
+
+  // โหลดวันหยุดราชการและวันหยุดนักขัตฤกษ์สำหรับปีที่กำลังแสดง
+  const holidaysMap = useMemo(
+    () => getHolidaysMap(displayYear, customHolidays || []),
+    [displayYear, customHolidays]
+  );
 
   const todayDescription = `${thaiDayNames[realToday.getDay()]}ที่ ${realDate} ${monthsThai[realMonth]} ${realYear + 543}`;
   const formattedTime = currentTime.toLocaleTimeString('th-TH', {
@@ -188,12 +196,14 @@ export default function CalendarView() {
 
     const dayStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const dayEvents = getEventsForDay(d);
+    const holiday = holidaysMap[dayStr] || null;
     days.push({
       day: d,
       dateStr: dayStr,
       dayOfWeek: new Date(displayYear, displayMonth, d).getDay(),
       isCurrent: true,
       isToday,
+      holiday,
       events: dayEvents,
     });
   }
@@ -362,10 +372,18 @@ export default function CalendarView() {
                   item.isCurrent
                     ? item.isToday
                       ? 'bg-emerald-50/40 border-emerald-400 ring-2 ring-emerald-500/20 shadow-xs cursor-pointer hover:bg-emerald-50/70'
+                      : item.holiday
+                      ? 'bg-purple-50/30 border-purple-200/90 hover:border-purple-300 hover:bg-purple-50/60 hover:shadow-sm cursor-pointer'
                       : 'bg-white border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/20 hover:shadow-sm cursor-pointer'
                     : 'bg-slate-50/50 border-slate-50 text-slate-300'
                 }`}
-                title={item.isCurrent ? 'คลิกเพื่อดูรายละเอียดการลาในวันนี้' : undefined}
+                title={
+                  item.isCurrent
+                    ? item.holiday
+                      ? `วันหยุดราชการ: ${item.holiday.name} (คลิกดูรายละเอียด)`
+                      : 'คลิกเพื่อดูรายละเอียดการลาในวันนี้'
+                    : undefined
+                }
               >
                 <div className="flex items-center justify-between gap-1">
                   <span
@@ -373,16 +391,27 @@ export default function CalendarView() {
                       item.isToday
                         ? 'w-6 h-6 rounded-full bg-[#2F855A] text-white flex items-center justify-center shadow-xs'
                         : item.isCurrent
-                        ? 'text-slate-700'
+                        ? item.holiday
+                          ? 'text-purple-900 font-extrabold'
+                          : 'text-slate-700'
                         : 'text-slate-300'
                     }`}
                   >
                     {item.day}
                   </span>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center space-x-1 flex-wrap justify-end">
                     {item.isToday && (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-md">
                         วันนี้
+                      </span>
+                    )}
+                    {item.holiday && (
+                      <span
+                        className="text-[10px] font-bold text-purple-700 bg-purple-100/90 border border-purple-200 px-1.5 py-0.2 rounded-md flex items-center gap-0.5"
+                        title={item.holiday.name}
+                      >
+                        <span>🚩</span>
+                        <span className="hidden sm:inline">วันหยุด</span>
                       </span>
                     )}
                     {item.isCurrent && item.events && item.events.length > 0 && (
@@ -393,8 +422,17 @@ export default function CalendarView() {
                   </div>
                 </div>
 
-                {/* Event Chips */}
+                {/* Event Chips & Holiday Chip */}
                 <div className="space-y-1 mt-1.5 overflow-hidden">
+                  {item.holiday && (
+                    <div
+                      className="w-full text-left px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200 truncate flex items-center gap-1 shadow-xs"
+                      title={`วันหยุดราชการ: ${item.holiday.name}`}
+                    >
+                      <span className="shrink-0">🚩</span>
+                      <span className="truncate">{item.holiday.name}</span>
+                    </div>
+                  )}
                   {visibleEvents.map((ev, i) => (
                     <div
                       key={ev.id || i}
@@ -415,6 +453,32 @@ export default function CalendarView() {
               </div>
             );
           })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-3.5 sm:gap-4">
+            <span className="font-bold text-slate-700">สัญลักษณ์:</span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+              <span className="font-semibold text-purple-800">วันหยุดราชการ 🚩</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span>ลาพักผ่อน</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <span>ลากิจ</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+              <span>ลาป่วย</span>
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-400">
+            *คลิกที่ช่องวันที่เพื่อดูรายละเอียดรายการลาและวันหยุดราชการ
+          </span>
         </div>
       </div>
 
@@ -439,7 +503,9 @@ export default function CalendarView() {
                     {thaiDayNames[selectedDayItem.dayOfWeek]}ที่ {selectedDayItem.day} {monthsThai[displayMonth]} {displayYearBE}
                   </h3>
                   <p className="text-[11px] text-emerald-200">
-                    {selectedDayItem.events.length > 0
+                    {selectedDayItem.holiday
+                      ? `วันหยุดราชการ: ${selectedDayItem.holiday.name}`
+                      : selectedDayItem.events.length > 0
                       ? `มีรายการลาทั้งหมด ${selectedDayItem.events.length} รายการ`
                       : 'ไม่มีรายการลาในวันนี้'}
                   </p>
@@ -456,6 +522,27 @@ export default function CalendarView() {
 
             {/* Modal Content */}
             <div className="p-5 overflow-y-auto space-y-3">
+              {selectedDayItem.holiday && (
+                <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center shrink-0 text-base">
+                    🚩
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-bold text-purple-950 text-sm">
+                        {selectedDayItem.holiday.name}
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-200 text-purple-800">
+                        {selectedDayItem.holiday.badge || 'วันหยุดราชการ'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-purple-700 mt-1 leading-relaxed">
+                      {selectedDayItem.holiday.description || 'วันหยุดตามประกาศสำนักนายกรัฐมนตรี (งดการปฏิบัติงานราชการ)'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {selectedDayItem.events.length === 0 ? (
                 <EmptyState
                   compact
@@ -509,17 +596,24 @@ export default function CalendarView() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDayStr(null);
-                  setIsRequestModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white text-xs font-semibold transition-colors shadow-xs"
-              >
-                + ขอลา / ยกเลิกวันลา
-              </button>
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+              {selectedDayItem.holiday ? (
+                <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-3.5 py-2 rounded-xl">
+                  <span>🚫</span>
+                  <span>เป็นวันหยุดราชการ (ไม่สามารถขอลาได้)</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDayStr(null);
+                    setIsRequestModalOpen(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white text-xs font-semibold transition-colors shadow-xs"
+                >
+                  + ขอลา / ยกเลิกวันลา
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setSelectedDayStr(null)}

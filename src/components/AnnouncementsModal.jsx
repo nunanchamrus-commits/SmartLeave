@@ -87,12 +87,12 @@ export default function AnnouncementsModal() {
             type="button"
             onClick={() => {
               setIsAnnouncementModalOpen(false);
-              if (setActiveTab) setActiveTab('holidays');
+              if (setActiveTab) setActiveTab('calendar');
             }}
             className="flex items-center space-x-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition-colors cursor-pointer"
           >
             <CalendarDays className="w-4 h-4 text-emerald-600" />
-            <span>ดูปฏิทินวันหยุดทั้งหมด</span>
+            <span>ดูปฏิทินการลาและวันหยุด</span>
           </button>
           <button
             onClick={() => setIsAnnouncementModalOpen(false)}
