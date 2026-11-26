@@ -1,5 +1,18 @@
-import React from 'react';
-import { Calendar, Plane, Briefcase, Plus, HeartPulse, Baby } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Calendar,
+  Plane,
+  Briefcase,
+  Plus,
+  HeartPulse,
+  Baby,
+  Heart,
+  Award,
+  Shield,
+  GraduationCap,
+  Globe,
+  Activity,
+} from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 
 /**
@@ -64,12 +77,15 @@ function DonutRing({
 
 export default function StatCards() {
   const { quotas, setActiveTab, currentUser, fiscalYearInfo } = useLeave();
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   const isFemale =
     currentUser?.gender === 'หญิง' ||
     currentUser?.gender === 'female' ||
     (!currentUser?.gender &&
       /^(นางสาว|น\.ส\.|นาง|Ms\.|Mrs\.|Miss)/.test((currentUser?.name || currentUser?.prefix || '').trim()));
+
+  const isMale = !isFemale;
 
   const isSickActual =
     currentUser?.employmentType === 'พนักงานราชการ' ||
@@ -96,9 +112,52 @@ export default function StatCards() {
   const sickUsed = Math.max(0, Number(quotas.sick?.used) || 0);
   const sickUsedPercent = isSickActual ? 0 : Math.min(100, Math.round((sickUsed / sickLimit) * 100));
 
+  // คำนวณวันลาไปช่วยเหลือภริยาที่คลอดบุตร (ชาย)
+  const patLimit = Number(quotas.paternity?.limit) || 15;
+  const patRemaining = Number(quotas.paternity?.remaining) ?? 15;
+  const patUsed = Math.max(0, Number(quotas.paternity?.used) ?? (patLimit - patRemaining));
+  const patUsedPercent = Math.min(100, Math.round((patUsed / patLimit) * 100));
+
+  // คำนวณวันลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์ (ชาย)
+  const ordLimit = Number(quotas.ordination?.limit) || 120;
+  const ordRemaining = Number(quotas.ordination?.remaining) ?? 120;
+  const ordUsed = Math.max(0, Number(quotas.ordination?.used) ?? (ordLimit - ordRemaining));
+  const ordUsedPercent = Math.min(100, Math.round((ordUsed / ordLimit) * 100));
+
+  // คำนวณวันลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล (ชาย)
+  const milLimit = Number(quotas.military?.limit) || 7;
+  const milRemaining = Number(quotas.military?.remaining) ?? 7;
+  const milUsed = Math.max(0, Number(quotas.military?.used) ?? (milLimit - milRemaining));
+  const milUsedPercent = Math.min(100, Math.round((milUsed / milLimit) * 100));
+
+  // คำนวณวันลาไปศึกษา ฝึกอบรม หรือดูงาน (ชาย-หญิง)
+  const stuLimit = Number(quotas.study?.limit) || 1460;
+  const stuRemaining = Number(quotas.study?.remaining) ?? 1460;
+  const stuUsed = Math.max(0, Number(quotas.study?.used) ?? (stuLimit - stuRemaining));
+  const stuUsedPercent = Math.min(100, Math.round((stuUsed / stuLimit) * 100));
+
+  // คำนวณวันลาไปปฏิบัติงานในองค์กรระหว่างประเทศ (ชาย-หญิง)
+  const intLimit = Number(quotas.international?.limit) || 1460;
+  const intRemaining = Number(quotas.international?.remaining) ?? 1460;
+  const intUsed = Math.max(0, Number(quotas.international?.used) ?? (intLimit - intRemaining));
+  const intUsedPercent = Math.min(100, Math.round((intUsed / intLimit) * 100));
+
+  // คำนวณวันลาติดตามคู่สมรส (ชาย-หญิง)
+  const spoLimit = Number(quotas.spouse?.limit) || 730;
+  const spoRemaining = Number(quotas.spouse?.remaining) ?? 730;
+  const spoUsed = Math.max(0, Number(quotas.spouse?.used) ?? (spoLimit - spoRemaining));
+  const spoUsedPercent = Math.min(100, Math.round((spoUsed / spoLimit) * 100));
+
+  // คำนวณวันลาไปฟื้นฟูสมรรถภาพด้านอาชีพ (ชาย-หญิง)
+  const rehLimit = Number(quotas.rehab?.limit) || 365;
+  const rehRemaining = Number(quotas.rehab?.remaining) ?? 365;
+  const rehUsed = Math.max(0, Number(quotas.rehab?.used) ?? (rehLimit - rehRemaining));
+  const rehUsedPercent = Math.min(100, Math.round((rehUsed / rehLimit) * 100));
+
   const cards = [
     {
       id: 'vacation',
+      category: 'general',
       title: 'ลาพักผ่อน',
       remainingText: `${vacRemaining} วัน`,
       limitText: `${vacLimit} วัน`,
@@ -119,6 +178,7 @@ export default function StatCards() {
     },
     {
       id: 'personal',
+      category: 'general',
       title: 'ลากิจ',
       remainingText: `${perRemaining} วัน`,
       limitText: `${perLimit} วัน`,
@@ -146,6 +206,7 @@ export default function StatCards() {
     },
     {
       id: 'sick',
+      category: 'general',
       title: 'ลาป่วย',
       remainingText: isSickActual ? 'เท่าที่ป่วยจริง' : `${sickRemaining} วัน`,
       limitText: isSickActual ? 'ตามความจำเป็น' : `${sickLimit} วัน`,
@@ -170,14 +231,16 @@ export default function StatCards() {
     },
   ];
 
-  if (isFemale && quotas.maternity) {
-    const matLimit = Number(quotas.maternity.limit) || 90;
-    const matRemaining = Number(quotas.maternity.remaining) ?? 90;
-    const matUsed = Math.max(0, Number(quotas.maternity.used) ?? (matLimit - matRemaining));
+  // สิทธิ์ลาเฉพาะผู้หญิง: ลาคลอดบุตร
+  if (isFemale) {
+    const matLimit = Number(quotas.maternity?.limit) || 90;
+    const matRemaining = Number(quotas.maternity?.remaining) ?? 90;
+    const matUsed = Math.max(0, Number(quotas.maternity?.used) ?? (matLimit - matRemaining));
     const matUsedPercent = Math.min(100, Math.round((matUsed / matLimit) * 100));
 
     cards.push({
       id: 'maternity',
+      category: 'general',
       title: 'ลาคลอดบุตร',
       remainingText: `${matRemaining} วัน`,
       limitText: `${matLimit} วัน`,
@@ -198,14 +261,180 @@ export default function StatCards() {
     });
   }
 
+  // สิทธิ์ลาเฉพาะผู้ชาย: ลาไปช่วยเหลือภริยาที่คลอดบุตร, ลาอุปสมบท/ฮัจย์, ลาตรวจเลือกทหาร
+  if (isMale) {
+    cards.push({
+      id: 'paternity',
+      category: 'general',
+      title: 'ลาไปช่วยเหลือภริยาที่คลอดบุตร',
+      remainingText: `${patRemaining} วัน`,
+      limitText: `${patLimit} วัน`,
+      usedText: `${patUsed} วัน`,
+      usedPercent: patUsedPercent,
+      isUnlimited: false,
+      theme: {
+        cardBg: 'bg-gradient-to-br from-white via-sky-50/30 to-blue-50/40',
+        borderColor: 'border-sky-100/90 hover:border-sky-300',
+        glowColor: 'bg-sky-400/15',
+        ringStroke: '#0284C7',
+        ringTrack: '#E0F2FE',
+        iconBg: 'bg-[#E0F2FE] text-[#0284C7]',
+        barGradient: 'bg-gradient-to-r from-sky-500 to-blue-500',
+        badgeBg: 'bg-sky-100/70 text-sky-800 border-sky-200/60',
+      },
+      icon: <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-sky-600" />,
+    });
+
+    cards.push({
+      id: 'ordination',
+      category: 'special',
+      title: 'ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์',
+      remainingText: `${ordRemaining} วัน`,
+      limitText: `${ordLimit} วัน`,
+      usedText: `${ordUsed} วัน`,
+      usedPercent: ordUsedPercent,
+      isUnlimited: false,
+      theme: {
+        cardBg: 'bg-gradient-to-br from-white via-amber-50/30 to-yellow-50/40',
+        borderColor: 'border-amber-100/90 hover:border-amber-300',
+        glowColor: 'bg-amber-400/15',
+        ringStroke: '#D97706',
+        ringTrack: '#FEF3C7',
+        iconBg: 'bg-[#FEF3C7] text-[#D97706]',
+        barGradient: 'bg-gradient-to-r from-amber-500 to-yellow-500',
+        badgeBg: 'bg-amber-100/70 text-amber-800 border-amber-200/60',
+      },
+      icon: <Award className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />,
+    });
+
+    cards.push({
+      id: 'military',
+      category: 'special',
+      title: 'ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล',
+      remainingText: `${milRemaining} วัน`,
+      limitText: `${milLimit} วัน`,
+      usedText: `${milUsed} วัน`,
+      usedPercent: milUsedPercent,
+      isUnlimited: false,
+      theme: {
+        cardBg: 'bg-gradient-to-br from-white via-indigo-50/30 to-blue-50/40',
+        borderColor: 'border-indigo-100/90 hover:border-indigo-300',
+        glowColor: 'bg-indigo-400/15',
+        ringStroke: '#4F46E5',
+        ringTrack: '#EEF2FF',
+        iconBg: 'bg-[#EEF2FF] text-[#4F46E5]',
+        barGradient: 'bg-gradient-to-r from-indigo-500 to-purple-500',
+        badgeBg: 'bg-indigo-100/70 text-indigo-800 border-indigo-200/60',
+      },
+      icon: <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />,
+    });
+  }
+
+  // สิทธิ์ลาทั่วไปแสดงทั้งชายและหญิง: ศึกษาดูงาน, องค์กรระหว่างประเทศ, ติดตามคู่สมรส, ฟื้นฟูสมรรถภาพ
+  cards.push({
+    id: 'study',
+    category: 'special',
+    title: 'ลาไปศึกษา ฝึกอบรม หรือดูงาน',
+    remainingText: stuRemaining === 1460 ? '4 ปี' : `${stuRemaining} วัน`,
+    limitText: '4 ปี (1,460 วัน)',
+    usedText: `${stuUsed} วัน`,
+    usedPercent: stuUsedPercent,
+    isUnlimited: false,
+    theme: {
+      cardBg: 'bg-gradient-to-br from-white via-violet-50/30 to-purple-50/40',
+      borderColor: 'border-violet-100/90 hover:border-violet-300',
+      glowColor: 'bg-violet-400/15',
+      ringStroke: '#7C3AED',
+      ringTrack: '#F3E8FF',
+      iconBg: 'bg-[#F3E8FF] text-[#7C3AED]',
+      barGradient: 'bg-gradient-to-r from-violet-500 to-purple-500',
+      badgeBg: 'bg-violet-100/70 text-violet-800 border-violet-200/60',
+    },
+    icon: <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-violet-600" />,
+  });
+
+  cards.push({
+    id: 'international',
+    category: 'special',
+    title: 'ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ',
+    remainingText: intRemaining === 1460 ? '4 ปี' : `${intRemaining} วัน`,
+    limitText: '4 ปี (1,460 วัน)',
+    usedText: `${intUsed} วัน`,
+    usedPercent: intUsedPercent,
+    isUnlimited: false,
+    theme: {
+      cardBg: 'bg-gradient-to-br from-white via-blue-50/30 to-cyan-50/40',
+      borderColor: 'border-blue-100/90 hover:border-blue-300',
+      glowColor: 'bg-blue-400/15',
+      ringStroke: '#2563EB',
+      ringTrack: '#DBEAFE',
+      iconBg: 'bg-[#DBEAFE] text-[#2563EB]',
+      barGradient: 'bg-gradient-to-r from-blue-500 to-cyan-500',
+      badgeBg: 'bg-blue-100/70 text-blue-800 border-blue-200/60',
+    },
+    icon: <Globe className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />,
+  });
+
+  cards.push({
+    id: 'spouse',
+    category: 'special',
+    title: 'ลาติดตามคู่สมรส',
+    remainingText: spoRemaining === 730 ? '2 ปี' : `${spoRemaining} วัน`,
+    limitText: '2 ปี (730 วัน)',
+    usedText: `${spoUsed} วัน`,
+    usedPercent: spoUsedPercent,
+    isUnlimited: false,
+    theme: {
+      cardBg: 'bg-gradient-to-br from-white via-rose-50/25 to-pink-50/35',
+      borderColor: 'border-rose-100/90 hover:border-rose-300',
+      glowColor: 'bg-rose-400/15',
+      ringStroke: '#E11D48',
+      ringTrack: '#FFE4E6',
+      iconBg: 'bg-[#FFE4E6] text-[#E11D48]',
+      barGradient: 'bg-gradient-to-r from-rose-500 to-pink-500',
+      badgeBg: 'bg-rose-100/70 text-rose-800 border-rose-200/60',
+    },
+    icon: <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-rose-500" />,
+  });
+
+  cards.push({
+    id: 'rehab',
+    category: 'special',
+    title: 'ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ',
+    remainingText: rehRemaining === 365 ? '12 เดือน' : `${rehRemaining} วัน`,
+    limitText: '12 เดือน (365 วัน)',
+    usedText: `${rehUsed} วัน`,
+    usedPercent: rehUsedPercent,
+    isUnlimited: false,
+    theme: {
+      cardBg: 'bg-gradient-to-br from-white via-emerald-50/30 to-green-50/40',
+      borderColor: 'border-emerald-100/90 hover:border-emerald-300',
+      glowColor: 'bg-emerald-500/15',
+      ringStroke: '#059669',
+      ringTrack: '#D1FAE5',
+      iconBg: 'bg-[#D1FAE5] text-[#059669]',
+      barGradient: 'bg-gradient-to-r from-emerald-600 to-teal-600',
+      badgeBg: 'bg-emerald-100/70 text-emerald-800 border-emerald-200/60',
+    },
+    icon: <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-700" />,
+  });
+
+  const generalCount = cards.filter((c) => c.category === 'general').length;
+  const specialCount = cards.filter((c) => c.category === 'special').length;
+
+  const displayCards =
+    selectedCategory === 'all'
+      ? cards
+      : cards.filter((c) => c.category === selectedCategory);
+
   const currentFiscalYearBE = fiscalYearInfo?.fiscalYearBE || 2569;
   const currentRoundTitle = fiscalYearInfo?.roundTitle || 'รอบที่ 1 (1 ต.ค. 2568 - 31 มี.ค. 2569)';
 
   return (
     <div className="space-y-3 mt-6">
-      {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-        <div className="flex items-center space-x-2">
+      {/* Header Info & Category Filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
             ประจำปีงบประมาณ {currentFiscalYearBE}
           </span>
@@ -213,18 +442,50 @@ export default function StatCards() {
             {currentRoundTitle}
           </span>
         </div>
-        <span className="text-[11px] text-slate-400">
-          รอบการตัดวันลาตามระเบียบทางราชการ
-        </span>
+
+        {/* Category Filter Pills */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80 self-start sm:self-auto text-xs">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('all')}
+            className={`px-3 py-1 rounded-xl font-semibold transition-all ${
+              selectedCategory === 'all'
+                ? 'bg-white text-emerald-800 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            ทั้งหมด ({cards.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('general')}
+            className={`px-3 py-1 rounded-xl font-semibold transition-all ${
+              selectedCategory === 'general'
+                ? 'bg-white text-emerald-800 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            การลาทั่วไป ({generalCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('special')}
+            className={`px-3 py-1 rounded-xl font-semibold transition-all ${
+              selectedCategory === 'special'
+                ? 'bg-white text-emerald-800 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            การลาตามระเบียบอื่นๆ ({specialCount})
+          </button>
+        </div>
       </div>
 
       {/* Bento Grid Cards */}
       <div
-        className={`grid grid-cols-1 sm:grid-cols-2 ${
-          cards.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
-        } gap-3 sm:gap-4 lg:gap-5`}
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5"
       >
-        {cards.map((card) => {
+        {displayCards.map((card) => {
           const { theme } = card;
           return (
             <div
@@ -261,11 +522,11 @@ export default function StatCards() {
                 {/* Middle Info: Title & Big Highlight Value */}
                 <div className="mt-3.5 relative z-10">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-slate-500">
+                    <span className="text-xs font-semibold text-slate-500 line-clamp-1" title={card.title}>
                       {card.title}
                     </span>
                     <span
-                      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${theme.badgeBg}`}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${theme.badgeBg}`}
                     >
                       คงเหลือ
                     </span>
