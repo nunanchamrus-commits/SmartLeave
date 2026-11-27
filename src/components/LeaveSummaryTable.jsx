@@ -16,7 +16,23 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadLeaveSummaryPdf } from '../utils/exportPdf';
+import { DEPARTMENT_OPTIONS } from './RegisterView';
 import EmptyState from './EmptyState';
+
+// รายการประเภทการลาครบทุกประเภทตามระเบียบราชการและระบบ SmartLeave (11 ประเภท)
+export const ALL_LEAVE_TYPES = [
+  'ลาพักผ่อน',
+  'ลากิจ',
+  'ลาป่วย',
+  'ลาคลอดบุตร',
+  'ลาไปช่วยเหลือภริยาที่คลอดบุตร',
+  'ลาอุปสมบทหรือลาไปประกอบพิธีฮัจย์',
+  'ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล',
+  'ลาไปศึกษา ฝึกอบรม หรือดูงาน',
+  'ลาไปปฏิบัติงานในองค์กรระหว่างประเทศ',
+  'ลาติดตามคู่สมรส',
+  'ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ',
+];
 
 // Helper formatting request ID to SL-XXXX
 export const formatRequestId = (id) => {
@@ -50,22 +66,23 @@ export default function LeaveSummaryTable({ requests = null }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Distinct departments for filter dropdown
+  // รายการฝ่าย/กลุ่มงานสังกัด ครบทุกฝ่ายในองค์กร
   const departments = useMemo(() => {
-    const set = new Set();
-    allRequests.forEach((r) => {
-      if (r.department) set.add(r.department.trim());
-    });
-    return Array.from(set).sort();
-  }, [allRequests]);
+    const set = new Set([
+      ...DEPARTMENT_OPTIONS,
+      ...employees.map((e) => e.department).filter(Boolean),
+      ...allRequests.map((r) => r.department).filter(Boolean),
+    ]);
+    return Array.from(set).filter(Boolean);
+  }, [allRequests, employees]);
 
-  // Distinct leave types for filter dropdown
+  // รายการประเภทการลา ครบทุกประเภท 11 ประเภท และประเภทที่มีในระบบ
   const leaveTypes = useMemo(() => {
-    const set = new Set();
+    const set = new Set(ALL_LEAVE_TYPES);
     allRequests.forEach((r) => {
       if (r.type) set.add(r.type.trim());
     });
-    return Array.from(set).sort();
+    return Array.from(set).filter(Boolean);
   }, [allRequests]);
 
   // Summary counts
@@ -136,8 +153,12 @@ export default function LeaveSummaryTable({ requests = null }) {
       }
 
       // 3. Type filter
-      if (typeFilter !== 'all' && r.type !== typeFilter) {
-        return false;
+      if (typeFilter !== 'all') {
+        const reqType = (r.type || '').trim();
+        const filterT = typeFilter.trim();
+        if (reqType !== filterT && !reqType.includes(filterT) && !filterT.includes(reqType)) {
+          return false;
+        }
       }
 
       // 4. Department filter
@@ -296,8 +317,14 @@ export default function LeaveSummaryTable({ requests = null }) {
     let colorClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
     if (type?.includes('ป่วย')) colorClass = 'bg-rose-50 text-rose-800 border-rose-200';
     else if (type?.includes('กิจ')) colorClass = 'bg-teal-50 text-teal-800 border-teal-200';
+    else if (type?.includes('ช่วยเหลือภริยา') || type?.includes('ภริยา')) colorClass = 'bg-blue-50 text-blue-800 border-blue-200';
     else if (type?.includes('คลอด')) colorClass = 'bg-purple-50 text-purple-800 border-purple-200';
-    else if (type?.includes('ฟื้นฟู')) colorClass = 'bg-amber-50 text-amber-800 border-amber-200';
+    else if (type?.includes('อุปสมบท') || type?.includes('ฮัจย์')) colorClass = 'bg-amber-50 text-amber-800 border-amber-200';
+    else if (type?.includes('ตรวจเลือก') || type?.includes('เตรียมพล') || type?.includes('ทหาร')) colorClass = 'bg-indigo-50 text-indigo-800 border-indigo-200';
+    else if (type?.includes('ศึกษา') || type?.includes('ฝึกอบรม')) colorClass = 'bg-cyan-50 text-cyan-800 border-cyan-200';
+    else if (type?.includes('ระหว่างประเทศ')) colorClass = 'bg-violet-50 text-violet-800 border-violet-200';
+    else if (type?.includes('คู่สมรส')) colorClass = 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200';
+    else if (type?.includes('ฟื้นฟู')) colorClass = 'bg-orange-50 text-orange-800 border-orange-200';
 
     return (
       <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold border ${colorClass}`}>
