@@ -105,6 +105,10 @@ export default function LeaveDetailModal() {
     (isOwner && (currentUser?.gender === 'ชาย' || currentUser?.prefix?.includes('นาย')));
 
   const handleStatusChange = (nextStatus) => {
+    if (nextStatus === 'ไม่อนุมัติ' && !approverRemark.trim()) {
+      if (showToast) showToast('กรุณาระบุเหตุผลการไม่อนุมัติในช่องข้อคิดเห็นด้านล่าง (จำเป็นต้องระบุ)', 'error');
+      return;
+    }
     setPendingStatusConfirm(nextStatus);
     setShowDeleteConfirm(false);
   };
@@ -652,14 +656,16 @@ export default function LeaveDetailModal() {
               {/* Status Management Buttons (Admin / Approver) */}
               {isApprover && (
                 <div className="pt-3 border-t border-slate-100 space-y-2.5">
-                  <label className="block font-semibold text-slate-700 text-xs">
-                    ข้อคิดเห็น / หมายเหตุจากผู้อนุมัติ
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block font-semibold text-slate-700 text-xs">
+                      ข้อคิดเห็น / หมายเหตุจากผู้อนุมัติ {req.status === 'อยู่ระหว่างตรวจสอบ' && <span className="text-rose-500 font-normal">(จำเป็นต้องระบุเมื่อไม่อนุมัติ)</span>}
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={approverRemark}
                     onChange={(e) => setApproverRemark(e.target.value)}
-                    placeholder="ระบุข้อความถึงผู้ขอลา..."
+                    placeholder={req.status === 'อยู่ระหว่างตรวจสอบ' ? "ระบุเหตุผล (จำเป็นเมื่อกดไม่อนุมัติ)..." : "ระบุข้อความถึงผู้ขอลา (ถ้ามี)..."}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
                   />
                   <div className="space-y-1.5 pt-1">
@@ -667,58 +673,51 @@ export default function LeaveDetailModal() {
                       ปรับสถานะคำขอลา (อัปเดตลง D1 และส่งแจ้งเตือนให้ผู้ใช้งานทันที)
                     </span>
                     <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        disabled={req.status === 'ยังไม่ยื่นเอกสาร' || req.status === 'ยังไม่ส่งเอกสาร'}
-                        onClick={() => handleStatusChange('ยังไม่ยื่นเอกสาร')}
-                        className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl font-semibold text-xs border transition-all ${
-                          req.status === 'ยังไม่ยื่นเอกสาร' || req.status === 'ยังไม่ส่งเอกสาร'
-                            ? 'bg-orange-100 text-orange-800 border-orange-300 ring-2 ring-orange-400/30 cursor-default'
-                            : 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'
-                        }`}
-                      >
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>ยังไม่ยื่นเอกสาร</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={req.status === 'อยู่ระหว่างตรวจสอบ'}
-                        onClick={() => handleStatusChange('อยู่ระหว่างตรวจสอบ')}
-                        className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl font-semibold text-xs border transition-all ${
-                          req.status === 'อยู่ระหว่างตรวจสอบ'
-                            ? 'bg-yellow-100 text-yellow-800 border-yellow-300 ring-2 ring-yellow-400/40 cursor-default'
-                            : 'bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100'
-                        }`}
-                      >
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>อยู่ระหว่างตรวจสอบ</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={req.status === 'อนุมัติ'}
-                        onClick={() => handleStatusChange('อนุมัติ')}
-                        className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all shadow-sm ${
-                          req.status === 'อนุมัติ'
-                            ? 'bg-[#15803D] text-white ring-2 ring-emerald-400/40 cursor-default'
-                            : 'bg-[#2F855A] text-white hover:bg-[#256F4A]'
-                        }`}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>อนุมัติ</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={req.status === 'ไม่อนุมัติ'}
-                        onClick={() => handleStatusChange('ไม่อนุมัติ')}
-                        className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl font-semibold text-xs border transition-all ${
-                          req.status === 'ไม่อนุมัติ'
-                            ? 'bg-red-100 text-red-700 border-red-300 ring-2 ring-red-400/30 cursor-default'
-                            : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-                        }`}
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        <span>ไม่อนุมัติ</span>
-                      </button>
+                      {req.status !== 'อยู่ระหว่างตรวจสอบ' && req.status !== 'อนุมัติ' && req.status !== 'ไม่อนุมัติ' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange('อยู่ระหว่างตรวจสอบ')}
+                          className="col-span-2 flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl font-semibold text-xs border transition-all bg-sky-100 text-sky-800 border-sky-300 hover:bg-sky-200 shadow-2xs cursor-pointer"
+                        >
+                          <Clock className="w-3.5 h-3.5 text-sky-700" />
+                          <span>อยู่ระหว่างตรวจสอบ</span>
+                        </button>
+                      ) : (
+                        <>
+                          {req.status === 'อยู่ระหว่างตรวจสอบ' && (
+                            <div className="col-span-2 flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 text-xs font-semibold">
+                              <Clock className="w-3.5 h-3.5 text-sky-600" />
+                              <span>สถานะปัจจุบัน: อยู่ระหว่างตรวจสอบ</span>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            disabled={req.status === 'อนุมัติ'}
+                            onClick={() => handleStatusChange('อนุมัติ')}
+                            className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all shadow-sm cursor-pointer ${
+                              req.status === 'อนุมัติ'
+                                ? 'bg-[#15803D] text-white ring-2 ring-emerald-400/40 cursor-default'
+                                : 'bg-[#2F855A] text-white hover:bg-[#256F4A]'
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>อนุมัติ</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={req.status === 'ไม่อนุมัติ'}
+                            onClick={() => handleStatusChange('ไม่อนุมัติ')}
+                            className={`flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl font-semibold text-xs border transition-all cursor-pointer ${
+                              req.status === 'ไม่อนุมัติ'
+                                ? 'bg-red-100 text-red-700 border-red-300 ring-2 ring-red-400/30 cursor-default'
+                                : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                            }`}
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>ไม่อนุมัติ</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -730,7 +729,7 @@ export default function LeaveDetailModal() {
                         : pendingStatusConfirm === 'ไม่อนุมัติ'
                         ? 'bg-red-50 border-red-200 text-red-900'
                         : pendingStatusConfirm === 'อยู่ระหว่างตรวจสอบ'
-                        ? 'bg-yellow-50 border-yellow-200 text-yellow-900'
+                        ? 'bg-sky-50 border-sky-200 text-sky-900'
                         : 'bg-orange-50 border-orange-200 text-orange-900'
                     }`}>
                       <div className="flex items-center space-x-2 font-semibold text-xs sm:text-sm">
@@ -739,7 +738,7 @@ export default function LeaveDetailModal() {
                         ) : pendingStatusConfirm === 'ไม่อนุมัติ' ? (
                           <X className="w-4 h-4 flex-shrink-0 text-red-600" />
                         ) : pendingStatusConfirm === 'อยู่ระหว่างตรวจสอบ' ? (
-                          <Clock className="w-4 h-4 flex-shrink-0 text-yellow-600" />
+                          <Clock className="w-4 h-4 flex-shrink-0 text-sky-600" />
                         ) : (
                           <AlertCircle className="w-4 h-4 flex-shrink-0 text-orange-600" />
                         )}
@@ -771,7 +770,7 @@ export default function LeaveDetailModal() {
                               : pendingStatusConfirm === 'ไม่อนุมัติ'
                               ? 'bg-red-600 hover:bg-red-700'
                               : pendingStatusConfirm === 'อยู่ระหว่างตรวจสอบ'
-                              ? 'bg-amber-600 hover:bg-amber-700'
+                              ? 'bg-sky-600 hover:bg-sky-700'
                               : 'bg-orange-600 hover:bg-orange-700'
                           }`}
                         >

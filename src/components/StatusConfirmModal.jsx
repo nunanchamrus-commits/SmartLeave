@@ -10,10 +10,12 @@ export default function StatusConfirmModal({
   defaultRemark = '',
 }) {
   const [remark, setRemark] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       setRemark(defaultRemark || '');
+      setError('');
     }
   }, [isOpen, defaultRemark]);
 
@@ -28,7 +30,7 @@ export default function StatusConfirmModal({
     : isReject
     ? 'bg-red-600'
     : isChecking
-    ? 'bg-amber-600'
+    ? 'bg-sky-600'
     : 'bg-orange-600';
 
   const confirmBtnBg = isApprove
@@ -36,7 +38,7 @@ export default function StatusConfirmModal({
     : isReject
     ? 'bg-red-600 hover:bg-red-700'
     : isChecking
-    ? 'bg-amber-600 hover:bg-amber-700'
+    ? 'bg-sky-600 hover:bg-sky-700'
     : 'bg-orange-600 hover:bg-orange-700';
 
   const statusBadgeClass = isApprove
@@ -44,7 +46,7 @@ export default function StatusConfirmModal({
     : isReject
     ? 'bg-red-100 text-red-800 border-red-200'
     : isChecking
-    ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    ? 'bg-sky-100 text-sky-800 border-sky-300'
     : 'bg-orange-100 text-orange-800 border-orange-200';
 
   const titleText = isApprove
@@ -63,7 +65,11 @@ export default function StatusConfirmModal({
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
-    onConfirm(remark);
+    if (isReject && !remark.trim()) {
+      setError('กรุณาระบุเหตุผลการไม่อนุมัติคำขอลา (จำเป็นต้องระบุ)');
+      return;
+    }
+    onConfirm(remark.trim());
   };
 
   return (
@@ -144,16 +150,50 @@ export default function StatusConfirmModal({
 
           {/* Remark Input */}
           <div className="space-y-1.5">
-            <label className="block font-semibold text-slate-700 text-xs">
-              ข้อคิดเห็น / หมายเหตุจากผู้อนุมัติ
-            </label>
-            <input
-              type="text"
+            <div className="flex items-center justify-between">
+              <label className="block font-semibold text-slate-700 text-xs">
+                {isReject ? (
+                  <span>
+                    เหตุผลการไม่อนุมัติ <span className="text-rose-500 font-bold">* (จำเป็นต้องระบุ)</span>
+                  </span>
+                ) : (
+                  <span>
+                    ข้อคิดเห็น / หมายเหตุจากผู้อนุมัติ <span className="text-slate-400 font-normal">(ไม่บังคับ)</span>
+                  </span>
+                )}
+              </label>
+              {isReject && (
+                <span className="text-[10px] text-rose-500 font-medium">บังคับระบุ</span>
+              )}
+            </div>
+
+            <textarea
+              rows={isReject ? 3 : 2}
               value={remark}
-              onChange={(e) => setRemark(e.target.value)}
-              placeholder="ระบุข้อความถึงผู้ขอลา (ถ้ามี)..."
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all text-slate-800"
+              onChange={(e) => {
+                setRemark(e.target.value);
+                if (error) setError('');
+              }}
+              placeholder={
+                isReject
+                  ? 'กรุณาระบุเหตุผลการไม่อนุมัติคำขอลา (จำเป็น เช่น ติดภารกิจเร่งด่วน, เอกสารไม่ครบถ้วน)...'
+                  : 'ระบุข้อความถึงผู้ขอลา (ถ้ามี หรือสามารถเว้นว่างได้)...'
+              }
+              className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-xs outline-none focus:bg-white focus:ring-2 transition-all ${
+                error
+                  ? 'border-rose-400 focus:ring-rose-500/20 focus:border-rose-500 bg-rose-50/20 text-slate-800'
+                  : isReject
+                  ? 'border-slate-300 focus:ring-red-500/20 focus:border-red-600 text-slate-800'
+                  : 'border-slate-200 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800'
+              }`}
             />
+
+            {error && (
+              <p className="text-xs text-rose-600 font-medium flex items-center space-x-1 animate-in fade-in">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{error}</span>
+              </p>
+            )}
           </div>
 
           <p className="text-[11px] text-slate-500 text-center">

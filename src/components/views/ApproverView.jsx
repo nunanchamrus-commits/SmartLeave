@@ -60,8 +60,8 @@ export default function ApproverView() {
     let defaultRemark = remarks[req.id] || '';
     if (!defaultRemark) {
       if (targetStatus === 'อนุมัติ') defaultRemark = 'อนุมัติเรียบร้อย';
-      else if (targetStatus === 'ไม่อนุมัติ') defaultRemark = 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน';
       else if (targetStatus === 'อยู่ระหว่างตรวจสอบ') defaultRemark = 'อยู่ระหว่างตรวจสอบเอกสาร';
+      else if (targetStatus === 'ไม่อนุมัติ') defaultRemark = ''; // บังคับให้แอดมินพิมพ์เหตุผลเอง
     }
     setConfirmModal({
       isOpen: true,
@@ -71,10 +71,15 @@ export default function ApproverView() {
     });
   };
 
+  const handleSetInReview = async (req) => {
+    await updateLeaveStatus(req.id, 'อยู่ระหว่างตรวจสอบ', 'อยู่ระหว่างตรวจสอบเอกสาร');
+    if (showToast) showToast(`คำขอลา ${req.id} เปลี่ยนสถานะเป็น "อยู่ระหว่างตรวจสอบ" เรียบร้อยแล้ว`, 'info');
+  };
+
   const handleCloseConfirm = () => {
     setConfirmModal({
       isOpen: false,
-      req: null,
+      req,
       targetStatus: '',
       defaultRemark: '',
     });
@@ -88,7 +93,7 @@ export default function ApproverView() {
     if (targetStatus === 'อนุมัติ') {
       await approveLeaveRequest(req.id, remark || 'อนุมัติเรียบร้อย');
     } else if (targetStatus === 'ไม่อนุมัติ') {
-      await rejectLeaveRequest(req.id, remark || 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน');
+      await rejectLeaveRequest(req.id, remark || 'ไม่อนุมัติเนื่องจากมีภารกิจจำเป็น');
     } else {
       await updateLeaveStatus(req.id, targetStatus, remark || '');
     }
@@ -227,7 +232,7 @@ export default function ApproverView() {
                           </span>
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${req.status === 'อยู่ระหว่างตรวจสอบ'
-                              ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                              ? 'bg-sky-100 text-sky-800 border-sky-300'
                               : 'bg-orange-100 text-orange-700 border-orange-200'
                               }`}
                           >
@@ -284,46 +289,46 @@ export default function ApproverView() {
                           <span>ดูรายละเอียด</span>
                         </button>
 
-                        {/* Toggle Status: ยังไม่ยื่นเอกสาร <-> อยู่ระหว่างตรวจสอบ */}
-                        {req.status === 'ยังไม่ยื่นเอกสาร' ? (
+                        {/* หากยังไม่อยู่ระหว่างตรวจสอบ: แสดงเฉพาะปุ่ม "อยู่ระหว่างตรวจสอบ" (สีน้ำเงินอ่อน) */}
+                        {req.status !== 'อยู่ระหว่างตรวจสอบ' ? (
                           <button
                             type="button"
-                            onClick={() => handleOpenConfirm(req, 'อยู่ระหว่างตรวจสอบ')}
-                            className="px-3.5 py-2 rounded-xl bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
+                            onClick={() => handleSetInReview(req)}
+                            className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 font-semibold text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
+                            title="คลิกเพื่อเปลี่ยนเป็นสถานะอยู่ระหว่างตรวจสอบ และแสดงปุ่มอนุมัติ/ไม่อนุมัติ"
                           >
-                            <Clock className="w-3.5 h-3.5" />
+                            <Clock className="w-3.5 h-3.5 text-sky-700" />
                             <span>อยู่ระหว่างตรวจสอบ</span>
                           </button>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenConfirm(req, 'ยังไม่ยื่นเอกสาร')}
-                            className="px-3.5 py-2 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
-                          >
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            <span>ยังไม่ยื่นเอกสาร</span>
-                          </button>
+                          <>
+                            {/* ป้ายแสดงสถานะ อยู่ระหว่างตรวจสอบ */}
+                            <span className="px-3 py-1.5 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 text-xs font-semibold flex items-center justify-center space-x-1">
+                              <Clock className="w-3.5 h-3.5 text-sky-600" />
+                              <span>อยู่ระหว่างตรวจสอบ</span>
+                            </span>
+
+                            {/* ปุ่ม ไม่อนุมัติ */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenConfirm(req, 'ไม่อนุมัติ')}
+                              className="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1 shadow-2xs cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span>ไม่อนุมัติ</span>
+                            </button>
+
+                            {/* ปุ่ม อนุมัติ */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
+                              className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1 cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>อนุมัติ</span>
+                            </button>
+                          </>
                         )}
-
-                        {/* Reject */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenConfirm(req, 'ไม่อนุมัติ')}
-                          className="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          <span>ไม่อนุมัติ</span>
-                        </button>
-
-                        {/* Approve */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
-                          className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>อนุมัติ</span>
-                        </button>
                       </div>
                     </div>
                   ))}
