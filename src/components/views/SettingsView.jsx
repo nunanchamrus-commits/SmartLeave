@@ -624,23 +624,7 @@ export default function SettingsView() {
               <p className="text-xs text-slate-500 mt-1">
                 {displayUser.title || displayUser.position || 'เจ้าหน้าที่'} • {displayUser.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น'}
               </p>
-              {displayUser.employeeId && (
-                <p className="text-[11px] font-mono text-slate-400 mt-0.5">
-                  รหัสประจำตัว: {displayUser.employeeId}
-                </p>
-              )}
             </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={openEditModal}
-              className="px-5 py-2.5 bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] flex items-center space-x-2 cursor-pointer"
-            >
-              <Edit3 className="w-4 h-4" />
-              <span>แก้ไขข้อมูล</span>
-            </button>
           </div>
         </div>
 

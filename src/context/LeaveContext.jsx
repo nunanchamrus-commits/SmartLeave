@@ -1288,9 +1288,9 @@ export function LeaveProvider({ children }) {
     const reqTypeKey = newRequestData?.typeKey;
     const reqStartDate = newRequestData?.startDate;
 
-    if (reqTypeKey === 'sick' && reqStartDate && reqStartDate < getBackdateMinISO(10)) {
-      if (showToast) showToast('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 10 วัน', 'error');
-      return { success: false, message: 'การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 10 วัน' };
+    if (reqTypeKey === 'sick' && reqStartDate && reqStartDate < getBackdateMinISO(30)) {
+      if (showToast) showToast('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 30 วัน', 'error');
+      return { success: false, message: 'การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 30 วัน' };
     }
     if (reqTypeKey === 'maternity' && reqStartDate && reqStartDate < getBackdateMinISO(30)) {
       if (showToast) showToast('การลาคลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 30 วัน', 'error');

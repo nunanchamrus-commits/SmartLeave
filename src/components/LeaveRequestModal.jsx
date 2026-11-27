@@ -109,7 +109,7 @@ export default function LeaveRequestModal() {
   // คำนวณวันต่ำสุดที่สามารถเลือกได้ตามเงื่อนไขการลาย้อนหลัง
   const getMinLeaveDateISO = (type) => {
     let daysBack = 0;
-    if (type === 'sick') daysBack = 10;
+    if (type === 'sick') daysBack = 30;
     else if (type === 'maternity') daysBack = 30;
     else if (type === 'paternity') daysBack = 15;
     else if (type === 'rehab') daysBack = 30;
@@ -126,7 +126,7 @@ export default function LeaveRequestModal() {
   };
 
   const getBackdateNotice = (type) => {
-    if (type === 'sick') return '* การลาป่วยสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 10 วัน';
+    if (type === 'sick') return '* การลาป่วยสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 30 วัน';
     if (type === 'maternity') return '* การลาคลอดบุตรสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 30 วัน';
     if (type === 'paternity') return '* การลาไปช่วยเหลือภริยาที่คลอดบุตรสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 15 วัน';
     if (type === 'rehab') return '* การลาไปฟื้นฟูสมรรถภาพด้านอาชีพสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 30 วัน';
@@ -442,7 +442,7 @@ export default function LeaveRequestModal() {
     const minAllowedIso = getMinLeaveDateISO(leaveType);
     if (startDate < minAllowedIso) {
       if (leaveType === 'sick') {
-        setErrorMsg('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 10 วัน');
+        setErrorMsg('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 30 วัน');
       } else if (leaveType === 'maternity') {
         setErrorMsg('การลาคลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 30 วัน');
       } else if (leaveType === 'paternity') {
