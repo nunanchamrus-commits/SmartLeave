@@ -13,6 +13,7 @@ import {
   FileDown,
   Printer,
   ChevronRight,
+  ChevronDown,
   FileText,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
@@ -71,9 +72,23 @@ export default function ApproverView() {
     });
   };
 
+  const handleStatusChange = (req, newStatus) => {
+    if (newStatus === req.status) return;
+    const note =
+      newStatus === 'อยู่ระหว่างตรวจสอบ'
+        ? 'อยู่ระหว่างตรวจสอบเอกสาร'
+        : 'เปลี่ยนสถานะเป็นยังไม่ยื่นเอกสาร';
+    updateLeaveStatus(req.id, newStatus, note);
+    if (showToast) {
+      showToast(
+        `คำขอลา ${req.id} เปลี่ยนสถานะเป็น "${newStatus}" เรียบร้อยแล้ว`,
+        newStatus === 'อยู่ระหว่างตรวจสอบ' ? 'info' : 'warning'
+      );
+    }
+  };
+
   const handleSetInReview = (req) => {
-    updateLeaveStatus(req.id, 'อยู่ระหว่างตรวจสอบ', 'อยู่ระหว่างตรวจสอบเอกสาร');
-    if (showToast) showToast(`คำขอลา ${req.id} เปลี่ยนสถานะเป็น "อยู่ระหว่างตรวจสอบ" เรียบร้อยแล้ว`, 'info');
+    handleStatusChange(req, 'อยู่ระหว่างตรวจสอบ');
   };
 
   const handleCloseConfirm = () => {
@@ -171,8 +186,8 @@ export default function ApproverView() {
               <span>มีคำขอยกเลิกวันลา {pendingCancellationsCount} รายการ ➔</span>
             </button>
           )}
-          <div className="px-3.5 py-2 rounded-xl bg-amber-100 text-amber-800 font-bold text-xs flex items-center space-x-1.5 border border-amber-200">
-            <Clock className="w-3.5 h-3.5" />
+          <div className="px-3.5 py-2 rounded-xl bg-sky-100 text-sky-800 font-bold text-xs flex items-center space-x-1.5 border border-sky-300">
+            <Clock className="w-3.5 h-3.5 text-sky-700" />
             <span>รอพิจารณา {pendingRequests.length} รายการ</span>
           </div>
         </div>
@@ -257,19 +272,35 @@ export default function ApproverView() {
 
                       {/* Actions & Status Section (Right Side) */}
                       <div className="flex flex-col items-start sm:items-end justify-center gap-2.5 w-full lg:w-auto pt-2 lg:pt-0 border-t border-slate-100 lg:border-t-0 flex-shrink-0">
-                        {/* Status Badge (อยู่ข้างบนปุ่มส่งออก ปุ่มดูรายละเอียด) */}
-                        <div className="flex items-center">
-                          {req.status === 'อยู่ระหว่างตรวจสอบ' ? (
-                            <span className="px-3 py-1 rounded-xl bg-sky-100 text-sky-800 border border-sky-300 text-xs font-semibold flex items-center space-x-1.5 shadow-2xs">
-                              <Clock className="w-3.5 h-3.5 text-sky-700" />
-                              <span>สถานะ: อยู่ระหว่างตรวจสอบ</span>
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1 rounded-xl bg-orange-100 text-orange-800 border border-orange-200 text-xs font-semibold flex items-center space-x-1.5 shadow-2xs">
-                              <AlertCircle className="w-3.5 h-3.5 text-orange-600" />
-                              <span>สถานะ: {req.status}</span>
-                            </span>
-                          )}
+                        {/* Status Dropdown Selector (ตัวเลือกสถานะ: ยังไม่ยื่นเอกสาร / อยู่ระหว่างตรวจสอบ สามารถเลือกสลับไปมาได้) */}
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-semibold text-slate-500">สถานะ:</span>
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={req.status === 'อยู่ระหว่างตรวจสอบ' ? 'อยู่ระหว่างตรวจสอบ' : 'ยังไม่ยื่นเอกสาร'}
+                              onChange={(e) => handleStatusChange(req, e.target.value)}
+                              className={`appearance-none pl-7 pr-8 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-2xs focus:outline-none focus:ring-2 ${
+                                req.status === 'อยู่ระหว่างตรวจสอบ'
+                                  ? 'bg-sky-100 hover:bg-sky-200/80 text-sky-800 border-sky-300 focus:ring-sky-200'
+                                  : 'bg-orange-100 hover:bg-orange-200/80 text-orange-800 border-orange-200 focus:ring-orange-200'
+                              }`}
+                            >
+                              <option value="ยังไม่ยื่นเอกสาร" className="bg-white text-slate-800 font-normal">
+                                ยังไม่ยื่นเอกสาร
+                              </option>
+                              <option value="อยู่ระหว่างตรวจสอบ" className="bg-white text-slate-800 font-normal">
+                                อยู่ระหว่างตรวจสอบ
+                              </option>
+                            </select>
+                            <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                              {req.status === 'อยู่ระหว่างตรวจสอบ' ? (
+                                <Clock className="w-3.5 h-3.5 text-sky-700" />
+                              ) : (
+                                <AlertCircle className="w-3.5 h-3.5 text-orange-600" />
+                              )}
+                            </div>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          </div>
                         </div>
 
                         {/* Action Buttons Row (ข้างล่างป้ายสถานะ) */}
@@ -300,18 +331,8 @@ export default function ApproverView() {
                             <span>ดูรายละเอียด</span>
                           </button>
 
-                          {/* หากยังไม่อยู่ระหว่างตรวจสอบ: แสดงปุ่ม "อยู่ระหว่างตรวจสอบ" (สีน้ำเงินอ่อน) */}
-                          {req.status !== 'อยู่ระหว่างตรวจสอบ' ? (
-                            <button
-                              type="button"
-                              onClick={() => handleSetInReview(req)}
-                              className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 font-semibold text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
-                              title="คลิกเพื่อเปลี่ยนเป็นสถานะอยู่ระหว่างตรวจสอบ และแสดงปุ่มอนุมัติ/ไม่อนุมัติ"
-                            >
-                              <Clock className="w-3.5 h-3.5 text-sky-700" />
-                              <span>อยู่ระหว่างตรวจสอบ</span>
-                            </button>
-                          ) : (
+                          {/* ปุ่ม ไม่อนุมัติ และ อนุมัติ: แสดงเมื่อเลือกสถานะเป็น "อยู่ระหว่างตรวจสอบ" */}
+                          {req.status === 'อยู่ระหว่างตรวจสอบ' && (
                             <>
                               {/* ปุ่ม ไม่อนุมัติ */}
                               <button

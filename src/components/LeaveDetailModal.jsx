@@ -685,10 +685,15 @@ export default function LeaveDetailModal() {
                       ) : (
                         <>
                           {req.status === 'อยู่ระหว่างตรวจสอบ' && (
-                            <div className="col-span-2 flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 text-xs font-semibold">
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange('ยังไม่ยื่นเอกสาร')}
+                              className="col-span-2 flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded-xl bg-sky-50 hover:bg-orange-50 text-sky-800 hover:text-orange-800 border border-sky-200 hover:border-orange-200 text-xs font-semibold transition-colors cursor-pointer"
+                              title="คลิกเพื่อเปลี่ยนสถานะกลับเป็นยังไม่ยื่นเอกสาร"
+                            >
                               <Clock className="w-3.5 h-3.5 text-sky-600" />
-                              <span>สถานะปัจจุบัน: อยู่ระหว่างตรวจสอบ</span>
-                            </div>
+                              <span>สถานะปัจจุบัน: อยู่ระหว่างตรวจสอบ (คลิกเพื่อเปลี่ยนเป็น "ยังไม่ยื่นเอกสาร")</span>
+                            </button>
                           )}
                           <button
                             type="button"
