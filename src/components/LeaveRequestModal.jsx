@@ -324,11 +324,17 @@ export default function LeaveRequestModal() {
     setLeaveType('vacation');
   }
 
+  // กำหนดให้มีแค่ ลากิจ (personal), ลาป่วย (sick), ลาพักผ่อน (vacation) ที่สามารถลาครึ่งวันได้ นอกนั้นไม่สามารถลาครึ่งวันได้
+  const allowsHalfDay = ['vacation', 'personal', 'sick'].includes(leaveType);
+  if (!allowsHalfDay && durationMode !== 'full') {
+    setDurationMode('full');
+  }
+
   if (!isRequestModalOpen) return null;
 
   // Calculate duration in days
   const calculateDays = () => {
-    if (durationMode === 'half-morning' || durationMode === 'half-afternoon') {
+    if (allowsHalfDay && (durationMode === 'half-morning' || durationMode === 'half-afternoon')) {
       return 0.5;
     }
     const start = new Date(startDate);
@@ -407,6 +413,11 @@ export default function LeaveRequestModal() {
     const nonHolidayDates = datesInRange.filter((d) => !isDateHoliday(d));
     if (nonHolidayDates.length === 0) {
       setErrorMsg('ช่วงวันที่เลือกเป็นวันหยุดราชการทั้งหมด ไม่สามารถยื่นขอลาได้');
+      return;
+    }
+
+    if (!allowsHalfDay && durationMode !== 'full') {
+      setErrorMsg('ประเภทการลานี้ไม่สามารถลาครึ่งวันได้ ต้องลาเต็มวันเท่านั้น (มีเฉพาะลากิจ ลาป่วย ลาพักผ่อน)');
       return;
     }
 
@@ -686,6 +697,9 @@ export default function LeaveRequestModal() {
                           key={t.id}
                           onClick={() => {
                             setLeaveType(t.id);
+                            if (!['vacation', 'personal', 'sick'].includes(t.id)) {
+                              setDurationMode('full');
+                            }
                             setErrorMsg('');
                             const today = getTodayISO();
                             const sickMin = getSickMinDateISO();
@@ -713,26 +727,46 @@ export default function LeaveRequestModal() {
 
                 {/* Duration Mode */}
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1.5">ช่วงเวลา</label>
+                  <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                    <label className="block font-semibold text-slate-700">ช่วงเวลา</label>
+                    {!allowsHalfDay && (
+                      <span className="text-[11px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                        *ประเภทการลานี้ต้องลาเต็มวันเท่านั้น (ไม่สามารถลาครึ่งวันได้)
+                      </span>
+                    )}
+                  </div>
                   <div className="flex space-x-2">
                     {[
                       { id: 'full', label: 'เต็มวัน' },
                       { id: 'half-morning', label: 'ครึ่งวันเช้า' },
                       { id: 'half-afternoon', label: 'ครึ่งวันบ่าย' },
-                    ].map((m) => (
-                      <button
-                        type="button"
-                        key={m.id}
-                        onClick={() => setDurationMode(m.id)}
-                        className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-medium border transition-colors ${
-                          durationMode === m.id
-                            ? 'bg-[#2F855A] text-white border-[#2F855A]'
-                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
+                    ].map((m) => {
+                      const isDisabled = !allowsHalfDay && m.id !== 'full';
+                      return (
+                        <button
+                          type="button"
+                          key={m.id}
+                          disabled={isDisabled}
+                          onClick={() => {
+                            if (isDisabled) return;
+                            setDurationMode(m.id);
+                            if (m.id !== 'full') {
+                              setEndDate(startDate);
+                            }
+                          }}
+                          title={isDisabled ? 'ประเภทการลานี้ไม่สามารถลาครึ่งวันได้ (มีเฉพาะลากิจ ลาป่วย ลาพักผ่อน)' : undefined}
+                          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-medium border transition-all ${
+                            durationMode === m.id
+                              ? 'bg-[#2F855A] text-white border-[#2F855A] shadow-xs'
+                              : isDisabled
+                              ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed opacity-50'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

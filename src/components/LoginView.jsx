@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Lock,
   Eye,
@@ -15,15 +15,21 @@ import {
 import { useLeave } from '../context/LeaveContext';
 import DinoMascot from './DinoMascot';
 
-export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword }) {
+export default function LoginView({ onSwitchToRegister, onSwitchToForgotPassword, initialEnglishName = '' }) {
   const { login } = useLeave();
 
-  const [englishName, setEnglishName] = useState('');
+  const [englishName, setEnglishName] = useState(initialEnglishName || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialEnglishName) {
+      setEnglishName(initialEnglishName);
+    }
+  }, [initialEnglishName]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

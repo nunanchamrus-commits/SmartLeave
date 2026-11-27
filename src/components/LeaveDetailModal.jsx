@@ -152,6 +152,19 @@ export default function LeaveDetailModal() {
       }
     }
 
+    // กำหนดให้มีแค่ ลากิจ, ลาป่วย, ลาพักผ่อน ที่สามารถลาครึ่งวันได้
+    if (!['vacation', 'personal', 'sick'].includes(editForm.typeKey)) {
+      const numDays = parseFloat(editForm.days);
+      if (numDays < 1 || numDays % 1 !== 0) {
+        if (showToast) {
+          showToast('ประเภทการลานี้ไม่สามารถลาครึ่งวันได้ ต้องเป็นจำนวนเต็มวันเท่านั้น (มีเฉพาะลากิจ ลาป่วย ลาพักผ่อน)', 'error');
+        } else {
+          alert('ประเภทการลานี้ไม่สามารถลาครึ่งวันได้ ต้องเป็นจำนวนเต็มวันเท่านั้น (มีเฉพาะลากิจ ลาป่วย ลาพักผ่อน)');
+        }
+        return;
+      }
+    }
+
     const typeNames = {
       vacation: 'ลาพักผ่อน',
       personal: 'ลากิจส่วนตัว',
@@ -309,11 +322,18 @@ export default function LeaveDetailModal() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">จำนวนวันลา</label>
+                <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>จำนวนวันลา</span>
+                  {!['vacation', 'personal', 'sick'].includes(editForm.typeKey) && (
+                    <span className="text-[11px] text-amber-600 font-normal">
+                      *(ต้องเป็นจำนวนเต็มวันเท่านั้น)
+                    </span>
+                  )}
+                </label>
                 <input
                   type="number"
-                  step="0.5"
-                  min="0.5"
+                  step={['vacation', 'personal', 'sick'].includes(editForm.typeKey) ? '0.5' : '1'}
+                  min={['vacation', 'personal', 'sick'].includes(editForm.typeKey) ? '0.5' : '1'}
                   value={editForm.days}
                   onChange={(e) => setEditForm({ ...editForm, days: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-800"

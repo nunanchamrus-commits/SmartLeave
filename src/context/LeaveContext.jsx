@@ -2716,7 +2716,7 @@ export function LeaveProvider({ children }) {
   };
 
   // Register action - บันทึกลง Cloudflare D1 จริง 100%
-  const register = async (userData) => {
+  const register = async (userData, autoLogin = false) => {
     const newId = `usr-${Date.now()}`;
     const empCode = `EMP-${new Date().getFullYear() + 543}-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -2896,17 +2896,22 @@ export function LeaveProvider({ children }) {
 
     const updatedEmployees = [newUser, ...employees];
     setEmployees(updatedEmployees);
+    try {
+      localStorage.setItem('smartleave_employees', JSON.stringify(updatedEmployees));
+    } catch (e) {}
 
-    setCurrentUser(newUser);
-    setIsAuthenticated(true);
-    setIsPdpaAccepted(false);
-    sessionStorage.setItem('smartleave_auth', 'true');
-    sessionStorage.removeItem('smartleave_pdpa');
-    sessionStorage.setItem('smartleave_user', JSON.stringify(newUser));
-    localStorage.setItem('smartleave_user', JSON.stringify(newUser));
+    if (autoLogin) {
+      setCurrentUser(newUser);
+      setIsAuthenticated(true);
+      setIsPdpaAccepted(false);
+      sessionStorage.setItem('smartleave_auth', 'true');
+      sessionStorage.removeItem('smartleave_pdpa');
+      sessionStorage.setItem('smartleave_user', JSON.stringify(newUser));
+      localStorage.setItem('smartleave_user', JSON.stringify(newUser));
+    }
 
     // ดึงข้อมูลล่าสุดจาก Cloudflare D1
-    await fetchLiveDatabaseData({ resetBaseline: true, silent: true });
+    await fetchLiveDatabaseData({ resetBaseline: true, silent: true }).catch(() => {});
 
     showToast(`ยินดีต้อนรับ คุณ${newUser.name} สมัครสมาชิกสำเร็จแล้ว!`, 'success');
     return newUser;

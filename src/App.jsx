@@ -86,6 +86,7 @@ function MainLayout() {
 function AppContent() {
   const { isAuthenticated, isPdpaAccepted, toast } = useLeave();
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'forgot-password'
+  const [prefilledLoginUser, setPrefilledLoginUser] = useState('');
 
   // Reset authMode to login once user logs in, so future logouts go back to login screen
   useEffect(() => {
@@ -97,13 +98,23 @@ function AppContent() {
   const renderScreen = () => {
     if (!isAuthenticated) {
       if (authMode === 'register') {
-        return <RegisterView onSwitchToLogin={() => setAuthMode('login')} />;
+        return (
+          <RegisterView
+            onSwitchToLogin={(username) => {
+              if (username && typeof username === 'string') {
+                setPrefilledLoginUser(username);
+              }
+              setAuthMode('login');
+            }}
+          />
+        );
       }
       if (authMode === 'forgot-password') {
         return <ForgotPasswordView onSwitchToLogin={() => setAuthMode('login')} />;
       }
       return (
         <LoginView
+          initialEnglishName={prefilledLoginUser}
           onSwitchToRegister={() => setAuthMode('register')}
           onSwitchToForgotPassword={() => setAuthMode('forgot-password')}
         />

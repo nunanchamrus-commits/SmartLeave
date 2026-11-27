@@ -17,9 +17,13 @@ import {
   ChevronDown,
   UserCheck,
   Globe,
+  Copy,
+  Check,
+  KeyRound,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLeave } from '../context/LeaveContext';
+import DinoMascot from './DinoMascot';
 
 export const POSITIONS_BY_EMPLOYMENT_TYPE = {
   'ข้าราชการ': [
@@ -83,12 +87,14 @@ export const DEPARTMENT_OPTIONS = [
 ];
 
 export default function RegisterView({ onSwitchToLogin }) {
-  const { register } = useLeave();
+  const { register, login } = useLeave();
 
   const [formData, setFormData] = useState({
+    prefix: 'นาย',
+    prefixEn: 'Mr.',
     fullName: '',
     englishName: '',
-    gender: '',
+    gender: 'ชาย',
     email: '',
     title: '',
     department: '',
@@ -102,6 +108,9 @@ export default function RegisterView({ onSwitchToLogin }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [registeredInfo, setRegisteredInfo] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const availablePositions = formData.employmentType
     ? POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType] || []
@@ -118,9 +127,61 @@ export default function RegisterView({ onSwitchToLogin }) {
     setError('');
   };
 
+  const handlePrefixChange = (e) => {
+    const val = e.target.value;
+    let nextGender = formData.gender;
+    let nextPrefixEn = formData.prefixEn;
+    if (val === 'นาย') {
+      nextGender = 'ชาย';
+      nextPrefixEn = 'Mr.';
+    } else if (val === 'นาง') {
+      nextGender = 'หญิง';
+      nextPrefixEn = 'Mrs.';
+    } else if (val === 'นางสาว') {
+      nextGender = 'หญิง';
+      nextPrefixEn = 'Miss';
+    } else if (val === 'ดร.') {
+      nextPrefixEn = 'Dr.';
+    }
+    setFormData((prev) => ({
+      ...prev,
+      prefix: val,
+      gender: nextGender,
+      prefixEn: nextPrefixEn,
+    }));
+    setError('');
+  };
+
+  const handleGenderChange = (val) => {
+    let nextPrefix = formData.prefix;
+    let nextPrefixEn = formData.prefixEn;
+    if (val === 'ชาย' && (nextPrefix === 'นาง' || nextPrefix === 'นางสาว')) {
+      nextPrefix = 'นาย';
+      nextPrefixEn = 'Mr.';
+    } else if (val === 'หญิง' && nextPrefix === 'นาย') {
+      nextPrefix = 'นางสาว';
+      nextPrefixEn = 'Miss';
+    }
+    setFormData((prev) => ({
+      ...prev,
+      gender: val,
+      prefix: nextPrefix,
+      prefixEn: nextPrefixEn,
+    }));
+    setError('');
+  };
+
   // Auto-generate valid ASCII email preview when empty
   const handleNameChange = (e) => {
-    const val = e.target.value;
+    let val = e.target.value;
+    // หากพิมพ์คำนำหน้าซ้ำเข้ามา ให้ตัดออกเพื่อให้คำนำหน้าอยู่ใน dropdown
+    const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.'];
+    for (const p of thaiPrefixes) {
+      if (val.startsWith(p)) {
+        val = val.slice(p.length).trim();
+        break;
+      }
+    }
     const asciiSlug = val
       .toLowerCase()
       .replace(/[^a-z0-9\s.]/g, '')
@@ -141,7 +202,12 @@ export default function RegisterView({ onSwitchToLogin }) {
   };
 
   const handleEnglishNameChange = (e) => {
-    const val = e.target.value;
+    let val = e.target.value;
+    // ตัด Mr. / Mrs. / Miss / Ms. / Dr. ออกถ้าพิมพ์ซ้ำ
+    const m = val.match(/^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.)\s*(.*)$/i);
+    if (m) {
+      val = m[2];
+    }
     const asciiSlug = val
       .toLowerCase()
       .replace(/[^a-z0-9\s.]/g, '')
@@ -159,8 +225,12 @@ export default function RegisterView({ onSwitchToLogin }) {
     e.preventDefault();
 
     // 1. Validation
+    if (!formData.prefix) {
+      setError('กรุณาเลือกคำนำหน้าชื่อ');
+      return;
+    }
     if (!formData.fullName.trim()) {
-      setError('กรุณากรอกชื่อ - นามสกุล');
+      setError('กรุณากรอกชื่อจริง และ นามสกุล (ภาษาไทย)');
       return;
     }
     if (!formData.englishName.trim()) {
@@ -214,24 +284,40 @@ export default function RegisterView({ onSwitchToLogin }) {
 
     setTimeout(async () => {
       try {
-        // Register through LeaveContext into D1 Database
-        await register({
-          fullName: formData.fullName.trim(),
-          englishName: formData.englishName.trim(),
+        const fullThai = `${formData.prefix}${formData.fullName.trim()}`;
+        const fullEn = `${formData.prefixEn ? formData.prefixEn + ' ' : ''}${formData.englishName.trim()}`;
+
+        // Register through LeaveContext into D1 Database (autoLogin = false เพื่อให้แสดงหน้าต่างแจ้งข้อมูลเข้าสู่ระบบแก่ผู้ใช้ก่อน)
+        const newUser = await register({
+          prefix: formData.prefix,
+          prefixEn: formData.prefixEn,
+          fullName: fullThai,
+          englishName: fullEn,
           gender: formData.gender,
           title: formData.title.trim(),
           department: formData.department.trim(),
           employmentType: formData.employmentType,
           email: formData.email.trim(),
           password: formData.password,
-        });
+        }, false);
 
         // Fire celebratory confetti
         confetti({
-          particleCount: 100,
-          spread: 70,
+          particleCount: 120,
+          spread: 75,
           origin: { y: 0.6 },
         });
+
+        setRegisteredInfo({
+          ...newUser,
+          prefix: formData.prefix,
+          fullName: fullThai,
+          englishName: fullEn,
+          email: formData.email.trim(),
+          employeeId: newUser?.employeeId || '',
+          password: formData.password,
+        });
+        setIsSuccessModalOpen(true);
       } catch (err) {
         setError(err.message || 'เกิดข้อผิดพลาดในการลงทะเบียน');
       } finally {
@@ -379,41 +465,86 @@ export default function RegisterView({ onSwitchToLogin }) {
             {/* Form */}
             <form onSubmit={handleSubmit} className="mt-5 space-y-3.5 text-xs sm:text-sm">
 
-              {/* 1. ชื่อ - นามสกุล */}
+              {/* 1. คำนำหน้า และ ชื่อ - นามสกุล (ภาษาไทย) */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ชื่อ - นามสกุล <span className="text-red-500">*</span>
+                  คำนำหน้า และ ชื่อ - นามสกุล (ภาษาไทย) <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <User className="w-4 h-4" />
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-4 sm:col-span-3">
+                    <div className="relative">
+                      <select
+                        aria-label="คำนำหน้าชื่อ (ภาษาไทย)"
+                        value={formData.prefix}
+                        onChange={handlePrefixChange}
+                        className="w-full pl-2.5 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-semibold focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all cursor-pointer appearance-none"
+                      >
+                        <option value="นาย">นาย</option>
+                        <option value="นาง">นาง</option>
+                        <option value="นางสาว">นางสาว</option>
+                        <option value="ดร.">ดร.</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={formData.fullName}
-                    onChange={handleNameChange}
-                    placeholder="เช่น นายชาญชัย มิ่งขวัญ"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
-                  />
+                  <div className="col-span-8 sm:col-span-9">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        value={formData.fullName}
+                        onChange={handleNameChange}
+                        placeholder="ชื่อจริง และนามสกุล (เช่น ชาญชัย มิ่งขวัญ)"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* 1.2 ชื่อ - นามสกุล (ภาษาอังกฤษ) */}
+              {/* 1.2 คำนำหน้า และ ชื่อ - นามสกุล (ภาษาอังกฤษ) */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ชื่อ - นามสกุล (ภาษาอังกฤษ) <span className="text-red-500">*</span>
+                  คำนำหน้า และ ชื่อ - นามสกุล (ภาษาอังกฤษ) <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Globe className="w-4 h-4" />
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-4 sm:col-span-3">
+                    <div className="relative">
+                      <select
+                        aria-label="คำนำหน้าชื่อ (ภาษาอังกฤษ)"
+                        value={formData.prefixEn}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, prefixEn: e.target.value }))}
+                        className="w-full pl-2.5 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-semibold focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all cursor-pointer appearance-none"
+                      >
+                        <option value="Mr.">Mr.</option>
+                        <option value="Mrs.">Mrs.</option>
+                        <option value="Miss">Miss</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Dr.">Dr.</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={formData.englishName}
-                    onChange={handleEnglishNameChange}
-                    placeholder="เช่น Chanchai Mingkwan"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
-                  />
+                  <div className="col-span-8 sm:col-span-9">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        value={formData.englishName}
+                        onChange={handleEnglishNameChange}
+                        placeholder="First name and Surname (e.g. Chanchai Mingkwan)"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -434,10 +565,7 @@ export default function RegisterView({ onSwitchToLogin }) {
                         type="button"
                         role="radio"
                         aria-checked={isSelected}
-                        onClick={() => {
-                          setFormData((prev) => ({ ...prev, gender: option.value }));
-                          setError('');
-                        }}
+                        onClick={() => handleGenderChange(option.value)}
                         className={`py-2.5 px-3 rounded-xl border text-xs sm:text-sm font-medium transition-all flex items-center justify-center ${
                           isSelected
                             ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold ring-2 ring-emerald-500/20'
@@ -710,6 +838,118 @@ export default function RegisterView({ onSwitchToLogin }) {
         </div>
 
       </div>
+
+      {/* Registration Success & Login Credentials Dialog (แจ้งข้อมูลสำหรับเข้าสู่ระบบแก่ผู้ใช้) */}
+      {isSuccessModalOpen && registeredInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/65 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col p-6 sm:p-8 animate-in zoom-in-95 duration-200 max-h-[95dvh] overflow-y-auto">
+            
+            {/* Top Icon & Dino Mascot */}
+            <div className="flex flex-col items-center text-center">
+              <DinoMascot
+                pose="success"
+                src="/Dino-mascot1.png"
+                size={120}
+                className="filter drop-shadow-md"
+                bubbleText="สมัครสำเร็จแล้วครับ! จดจำข้อมูลเข้าสู่ระบบด้านล่างนี้นะครับ ✨"
+              />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mt-2 shadow-xs border border-emerald-200">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 font-prompt mt-3">
+                สมัครสมาชิกสำเร็จเรียบร้อยแล้ว!
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                ยินดีต้อนรับ คุณ{registeredInfo.fullName} เข้าสู่ระบบ SmartLeave
+              </p>
+            </div>
+
+            {/* Prominent Login Credentials Box */}
+            <div className="mt-5 p-4 sm:p-5 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-emerald-50/80 rounded-2xl border-2 border-emerald-500/30 space-y-3.5">
+              <div className="flex items-center space-x-2 text-emerald-900 font-bold text-xs sm:text-sm border-b border-emerald-200/80 pb-2">
+                <KeyRound className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                <span>ข้อมูลที่ต้องใช้ในการเข้าสู่ระบบ (Login Credentials)</span>
+              </div>
+
+              {/* 1. English Name (Username) */}
+              <div>
+                <span className="text-[11px] font-bold text-slate-700 block mb-1">
+                  1. ข้อมูลในช่อง &quot;ชื่อ-สกุล ภาษาอังกฤษ&quot; (ใช้เป็นชื่อผู้ใช้เข้าสู่ระบบ):
+                </span>
+                <div className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-emerald-300 shadow-xs gap-2">
+                  <span className="font-mono font-bold text-sm sm:text-base text-emerald-950 truncate select-all">
+                    {registeredInfo.englishName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(registeredInfo.englishName);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="text-[11px] font-semibold px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg transition-colors flex items-center space-x-1 flex-shrink-0"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copied ? 'คัดลอกแล้ว' : 'คัดลอก'}</span>
+                  </button>
+                </div>
+                <p className="text-[10.5px] text-emerald-800/90 mt-1 pl-1">
+                  *หรือสามารถใช้อีเมล: <span className="font-semibold">{registeredInfo.email}</span> เข้าสู่ระบบได้เช่นกัน
+                </p>
+              </div>
+
+              {/* 2. Password */}
+              <div>
+                <span className="text-[11px] font-bold text-slate-700 block mb-1">
+                  2. ช่อง &quot;รหัสผ่าน&quot; (Password):
+                </span>
+                <div className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 flex items-center justify-between shadow-xs">
+                  <span>รหัสผ่านที่คุณได้ตั้งไว้ตอนสมัคร (ความยาว 8 ตัวอักษรขึ้นไป)</span>
+                  <Lock className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 ml-2" />
+                </div>
+              </div>
+
+              {/* 3. Employee ID */}
+              {registeredInfo.employeeId && (
+                <div className="pt-2 border-t border-emerald-100/90 flex items-center justify-between text-xs text-slate-600">
+                  <span>รหัสประจำตัวบุคลากร:</span>
+                  <span className="font-mono font-bold text-emerald-800">{registeredInfo.employeeId}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Note */}
+            <div className="mt-3.5 text-[11px] text-slate-600 bg-amber-50/90 border border-amber-200 p-3 rounded-xl flex items-start space-x-2">
+              <span className="text-amber-600 font-bold flex-shrink-0">💡</span>
+              <p>
+                <strong>คำแนะนำ:</strong> เมื่อกดปุ่ม &quot;ไปยังหน้าเข้าสู่ระบบ&quot; ระบบจะนำชื่อภาษาอังกฤษไปกรอกในช่องเข้าสู่ระบบให้ท่านโดยอัตโนมัติ
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={() => onSwitchToLogin(registeredInfo.englishName)}
+                className="flex-1 py-3 px-4 bg-[#2F855A] hover:bg-[#256F4A] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-md shadow-emerald-950/10 hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+              >
+                <span>ไปยังหน้าเข้าสู่ระบบ</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await login(registeredInfo.englishName, formData.password);
+                }}
+                className="py-3 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center space-x-1"
+              >
+                <span>เข้าสู่ระบบทันที</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
