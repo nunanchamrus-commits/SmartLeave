@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import api from '../../services/api';
 import {
   User,
   Mail,
@@ -154,6 +155,18 @@ export default function SettingsView() {
   const initialTh = extractThaiNameFields(currentUser);
   const initialEn = extractEnglishNameFields(currentUser);
 
+  const standardPrefixes = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
+  const [prefixChoice, setPrefixChoice] = useState(() => {
+    const p = initialTh.prefix?.trim();
+    if (standardPrefixes.includes(p)) return p;
+    if (p) return 'อื่นๆ';
+    return initialTh.gender === 'ชาย' ? 'นาย' : 'นางสาว';
+  });
+  const [customPrefix, setCustomPrefix] = useState(() => {
+    const p = initialTh.prefix?.trim();
+    return standardPrefixes.includes(p) ? '' : p;
+  });
+
   const [formData, setFormData] = useState({
     name: initialTh.name,
     prefix: initialTh.prefix,
@@ -172,6 +185,79 @@ export default function SettingsView() {
     employeeId: currentUser?.employeeId || '',
     avatar: currentUser?.avatar || '',
   });
+
+  // ดึงข้อมูลโปรไฟล์ล่าสุดโดยตรงจากฐานข้อมูล D1 มาแสดงในหน้าข้อมูลส่วนตัว
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFreshProfileFromDb = async () => {
+      try {
+        let dbUser = null;
+        if (api && api.getProfile) {
+          const res = await api.getProfile().catch(() => null);
+          if (res && res.success && res.user) {
+            dbUser = res.user;
+          }
+        }
+        if (!dbUser && api && api.getEmployees && currentUser) {
+          const emps = await api.getEmployees().catch(() => []);
+          if (Array.isArray(emps)) {
+            dbUser = emps.find(
+              (e) =>
+                (e.raw_id && currentUser.raw_id && Number(e.raw_id) === Number(currentUser.raw_id)) ||
+                (e.id && currentUser.id && String(e.id) === String(currentUser.id)) ||
+                (e.employeeId && currentUser.employeeId && e.employeeId.toLowerCase() === currentUser.employeeId.toLowerCase()) ||
+                (e.email && currentUser.email && e.email.toLowerCase() === currentUser.email.toLowerCase())
+            );
+          }
+        }
+
+        if (dbUser && isMounted) {
+          const userToUse = { ...currentUser, ...dbUser };
+          const th = extractThaiNameFields(userToUse);
+          const en = extractEnglishNameFields(userToUse);
+
+          const standardList = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
+          const userPfx = (th.prefix || '').trim();
+          if (standardList.includes(userPfx)) {
+            setPrefixChoice(userPfx);
+            setCustomPrefix('');
+          } else if (userPfx) {
+            setPrefixChoice('อื่นๆ');
+            setCustomPrefix(userPfx);
+          } else {
+            setPrefixChoice(userToUse.gender === 'ชาย' ? 'นาย' : 'นางสาว');
+            setCustomPrefix('');
+          }
+
+          setFormData({
+            name: th.name,
+            prefix: userPfx || (userToUse.gender === 'ชาย' ? 'นาย' : 'นางสาว'),
+            firstName: th.firstName,
+            lastName: th.lastName,
+            prefixEn: en.prefixEn,
+            firstNameEn: en.firstNameEn,
+            lastNameEn: en.lastNameEn,
+            englishName: en.englishName,
+            gender: normalizeGender(userToUse),
+            employmentType: userToUse.employmentType || 'ข้าราชการ',
+            title: userToUse.title || userToUse.position || '',
+            department: userToUse.department || '',
+            email: userToUse.email || '',
+            phone: userToUse.phone || '',
+            employeeId: userToUse.employeeId || '',
+            avatar: userToUse.avatar || '',
+          });
+        }
+      } catch (err) {
+        console.log('[SettingsView] fetchFreshProfileFromDb Note:', err.message);
+      }
+    };
+
+    fetchFreshProfileFromDb();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -265,9 +351,23 @@ export default function SettingsView() {
 
     const th = extractThaiNameFields(currentUser);
     const en = extractEnglishNameFields(currentUser);
+
+    const standardList = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
+    const userPfx = (th.prefix || '').trim();
+    if (standardList.includes(userPfx)) {
+      setPrefixChoice(userPfx);
+      setCustomPrefix('');
+    } else if (userPfx) {
+      setPrefixChoice('อื่นๆ');
+      setCustomPrefix(userPfx);
+    } else {
+      setPrefixChoice(currentUser.gender === 'ชาย' ? 'นาย' : 'นางสาว');
+      setCustomPrefix('');
+    }
+
     setFormData({
       name: th.name,
-      prefix: th.prefix,
+      prefix: userPfx || (currentUser.gender === 'ชาย' ? 'นาย' : 'นางสาว'),
       firstName: th.firstName,
       lastName: th.lastName,
       prefixEn: en.prefixEn,
@@ -289,8 +389,20 @@ export default function SettingsView() {
     e.preventDefault();
     if (isSavingProfile) return;
 
-    const fullThaiName = `${formData.prefix || ''}${formData.firstName} ${formData.lastName || ''}`.trim();
-    if (!formData.firstName?.trim() && !formData.name?.trim()) {
+    const chosenPrefix = prefixChoice === 'อื่นๆ' ? customPrefix.trim() : prefixChoice;
+    if (prefixChoice === 'อื่นๆ' && !chosenPrefix) {
+      if (showToast) showToast('กรุณาระบุคำนำหน้าชื่อ', 'error');
+      return;
+    }
+
+    let cleanFn = (formData.firstName || '').trim();
+    if (chosenPrefix && cleanFn.startsWith(chosenPrefix)) {
+      cleanFn = cleanFn.slice(chosenPrefix.length).trim();
+    }
+    const cleanLn = (formData.lastName || '').trim();
+    const fullThaiName = `${chosenPrefix}${cleanFn}${cleanLn ? ' ' + cleanLn : ''}`.trim();
+
+    if (!cleanFn && !formData.name?.trim()) {
       if (showToast) showToast('กรุณากรอกชื่อจริงภาษาไทย', 'error');
       return;
     }
@@ -308,6 +420,9 @@ export default function SettingsView() {
 
     const payload = {
       ...formData,
+      prefix: chosenPrefix,
+      firstName: cleanFn,
+      lastName: cleanLn,
       title: formData.title,
       position: formData.title,
       id: currentUser?.id,
@@ -573,32 +688,72 @@ export default function SettingsView() {
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
               <div className="sm:col-span-3">
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">คำนำหน้า (ไทย)</label>
-                <select
-                  value={formData.prefix || 'นางสาว'}
-                  onChange={(e) => {
-                    const newPrefix = e.target.value;
-                    const isMale = newPrefix === 'นาย';
-                    const newGender = isMale ? 'ชาย' : (['นาง', 'นางสาว'].includes(newPrefix) ? 'หญิง' : formData.gender);
-                    const newPrefixEn = isMale ? 'Mr.' : (newPrefix === 'นาง' ? 'Mrs.' : 'Miss');
-                    const newFullName = `${newPrefix}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
-                    setFormData((prev) => ({
-                      ...prev,
-                      prefix: newPrefix,
-                      gender: newGender,
-                      prefixEn: prev.prefixEn || newPrefixEn,
-                      name: newFullName,
-                    }));
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium cursor-pointer"
-                >
-                  <option value="นาย">นาย</option>
-                  <option value="นาง">นาง</option>
-                  <option value="นางสาว">นางสาว</option>
-                  <option value="ดร.">ดร.</option>
-                  <option value="">(ไม่มี)</option>
-                </select>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  คำนำหน้า (ไทย) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={prefixChoice}
+                    onChange={(e) => {
+                      const choice = e.target.value;
+                      setPrefixChoice(choice);
+                      let newPrefix = choice === 'อื่นๆ' ? customPrefix.trim() : choice;
+                      let newGender = formData.gender;
+                      let newPrefixEn = formData.prefixEn;
+                      if (choice === 'นาย') {
+                        newGender = 'ชาย';
+                        newPrefixEn = 'Mr.';
+                      } else if (choice === 'นาง') {
+                        newGender = 'หญิง';
+                        newPrefixEn = 'Mrs.';
+                      } else if (choice === 'นางสาว') {
+                        newGender = 'หญิง';
+                        newPrefixEn = 'Miss';
+                      }
+                      const newFullName = `${newPrefix}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
+                      setFormData((prev) => ({
+                        ...prev,
+                        prefix: newPrefix,
+                        gender: newGender,
+                        prefixEn: prev.prefixEn || newPrefixEn,
+                        name: newFullName,
+                      }));
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium cursor-pointer"
+                  >
+                    <option value="นาย">นาย</option>
+                    <option value="นาง">นาง</option>
+                    <option value="นางสาว">นางสาว</option>
+                    <option value="ดร.">ดร.</option>
+                    <option value="อื่นๆ">อื่นๆ</option>
+                  </select>
+                </div>
               </div>
+
+              {/* เมื่อเลือก "อื่นๆ" ให้แสดงช่องกรอกคำนำหน้าเอง */}
+              {prefixChoice === 'อื่นๆ' && (
+                <div className="sm:col-span-12 flex items-center space-x-2 p-2.5 bg-emerald-50/70 border border-emerald-300 rounded-xl animate-in fade-in duration-150">
+                  <span className="text-xs font-bold text-emerald-800 flex-shrink-0">
+                    ระบุคำนำหน้า:
+                  </span>
+                  <input
+                    type="text"
+                    value={customPrefix}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomPrefix(val);
+                      const newFullName = `${val}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
+                      setFormData((prev) => ({
+                        ...prev,
+                        prefix: val,
+                        name: newFullName,
+                      }));
+                    }}
+                    placeholder="พิมพ์คำนำหน้าของท่าน เช่น ว่าที่ ร.ต., ผศ., อาจารย์, พันเอก"
+                    className="flex-1 px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all font-medium"
+                  />
+                </div>
+              )}
 
               <div className="sm:col-span-4">
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">

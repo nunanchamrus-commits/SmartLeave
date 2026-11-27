@@ -1279,26 +1279,38 @@ export function LeaveProvider({ children }) {
     }
 
     const todayIso = new Date().toISOString().slice(0, 10);
-    const d7 = new Date();
-    d7.setDate(d7.getDate() - 7);
-    const sickMinIso = d7.toISOString().slice(0, 10);
+    const getBackdateMinISO = (days) => {
+      const d = new Date();
+      d.setDate(d.getDate() - days);
+      return d.toISOString().slice(0, 10);
+    };
 
-    if (
-      (newRequestData?.typeKey === 'vacation' || newRequestData?.typeKey === 'personal') &&
-      newRequestData?.startDate &&
-      newRequestData.startDate < todayIso
-    ) {
-      if (showToast) showToast('การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้', 'error');
-      return { success: false, message: 'การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้' };
+    const reqTypeKey = newRequestData?.typeKey;
+    const reqStartDate = newRequestData?.startDate;
+
+    if (reqTypeKey === 'sick' && reqStartDate && reqStartDate < getBackdateMinISO(10)) {
+      if (showToast) showToast('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 10 วัน', 'error');
+      return { success: false, message: 'การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 10 วัน' };
     }
-
+    if (reqTypeKey === 'maternity' && reqStartDate && reqStartDate < getBackdateMinISO(30)) {
+      if (showToast) showToast('การลาคลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 30 วัน', 'error');
+      return { success: false, message: 'การลาคลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 30 วัน' };
+    }
+    if (reqTypeKey === 'paternity' && reqStartDate && reqStartDate < getBackdateMinISO(15)) {
+      if (showToast) showToast('การลาไปช่วยเหลือภริยาที่คลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 15 วัน', 'error');
+      return { success: false, message: 'การลาไปช่วยเหลือภริยาที่คลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 15 วัน' };
+    }
+    if (reqTypeKey === 'rehab' && reqStartDate && reqStartDate < getBackdateMinISO(30)) {
+      if (showToast) showToast('การลาไปฟื้นฟูสมรรถภาพด้านอาชีพสามารถลาย้อนหลังได้ไม่เกิน 30 วัน', 'error');
+      return { success: false, message: 'การลาไปฟื้นฟูสมรรถภาพด้านอาชีพสามารถลาย้อนหลังได้ไม่เกิน 30 วัน' };
+    }
     if (
-      newRequestData?.typeKey === 'sick' &&
-      newRequestData?.startDate &&
-      newRequestData.startDate < sickMinIso
+      !['sick', 'maternity', 'paternity', 'rehab'].includes(reqTypeKey) &&
+      reqStartDate &&
+      reqStartDate < todayIso
     ) {
-      if (showToast) showToast('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 7 วัน', 'error');
-      return { success: false, message: 'การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 7 วัน' };
+      if (showToast) showToast('การลาประเภทนี้ไม่สามารถลาย้อนหลังได้', 'error');
+      return { success: false, message: 'การลาประเภทนี้ไม่สามารถลาย้อนหลังได้' };
     }
     mutationEpochRef.current += 1;
     const now = new Date();

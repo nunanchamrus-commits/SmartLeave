@@ -106,13 +106,31 @@ export default function LeaveRequestModal() {
     return today;
   };
 
-  const getSickMinDateISO = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+  // คำนวณวันต่ำสุดที่สามารถเลือกได้ตามเงื่อนไขการลาย้อนหลัง
+  const getMinLeaveDateISO = (type) => {
+    let daysBack = 0;
+    if (type === 'sick') daysBack = 10;
+    else if (type === 'maternity') daysBack = 30;
+    else if (type === 'paternity') daysBack = 15;
+    else if (type === 'rehab') daysBack = 30;
+
+    if (daysBack > 0) {
+      const d = new Date();
+      d.setDate(d.getDate() - daysBack);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+    return getTodayISO();
+  };
+
+  const getBackdateNotice = (type) => {
+    if (type === 'sick') return '* การลาป่วยสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 10 วัน';
+    if (type === 'maternity') return '* การลาคลอดบุตรสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 30 วัน';
+    if (type === 'paternity') return '* การลาไปช่วยเหลือภริยาที่คลอดบุตรสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 15 วัน';
+    if (type === 'rehab') return '* การลาไปฟื้นฟูสมรรถภาพด้านอาชีพสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 30 วัน';
+    return null;
   };
 
   // Top-level tab inside modal: 'leave' (ซ้ายมือ: ขอลา) | 'cancel' (ขวามือ: ขอยกเลิกการลา)
@@ -421,13 +439,19 @@ export default function LeaveRequestModal() {
       return;
     }
 
-    if ((leaveType === 'vacation' || leaveType === 'personal') && startDate < todayIso) {
-      setErrorMsg('การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้');
-      return;
-    }
-    const sickMinIso = getSickMinDateISO();
-    if (leaveType === 'sick' && startDate < sickMinIso) {
-      setErrorMsg('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 7 วัน');
+    const minAllowedIso = getMinLeaveDateISO(leaveType);
+    if (startDate < minAllowedIso) {
+      if (leaveType === 'sick') {
+        setErrorMsg('การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 10 วัน');
+      } else if (leaveType === 'maternity') {
+        setErrorMsg('การลาคลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 30 วัน');
+      } else if (leaveType === 'paternity') {
+        setErrorMsg('การลาไปช่วยเหลือภริยาที่คลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 15 วัน');
+      } else if (leaveType === 'rehab') {
+        setErrorMsg('การลาไปฟื้นฟูสมรรถภาพด้านอาชีพสามารถลาย้อนหลังได้ไม่เกิน 30 วัน');
+      } else {
+        setErrorMsg('การลาประเภทนี้ไม่สามารถลาย้อนหลังได้');
+      }
       return;
     }
     if (leaveType !== 'vacation' && !reason.trim()) {
@@ -702,8 +726,7 @@ export default function LeaveRequestModal() {
                             }
                             setErrorMsg('');
                             const today = getTodayISO();
-                            const sickMin = getSickMinDateISO();
-                            const minForNew = t.id === 'sick' ? sickMin : today;
+                            const minForNew = getMinLeaveDateISO(t.id);
                             if (startDate < minForNew) {
                               setStartDate(today);
                               if (endDate < today) setEndDate(today);
@@ -779,7 +802,7 @@ export default function LeaveRequestModal() {
                       </label>
                       <ThaiDatePicker
                         value={startDate}
-                        min={leaveType === 'sick' ? getSickMinDateISO() : getTodayISO()}
+                        min={getMinLeaveDateISO(leaveType)}
                         onChange={(val) => {
                           setStartDate(val);
                           if (val > endDate) setEndDate(val);
@@ -798,14 +821,14 @@ export default function LeaveRequestModal() {
                           setEndDate(val);
                           setErrorMsg('');
                         }}
-                        min={startDate || (leaveType === 'sick' ? getSickMinDateISO() : getTodayISO())}
+                        min={startDate || getMinLeaveDateISO(leaveType)}
                       />
                     </div>
                   </div>
-                  {leaveType === 'sick' && (
+                  {getBackdateNotice(leaveType) && (
                     <div className="text-[11px] px-1">
-                      <span className="text-red-500 font-medium">
-                        * การลาป่วยสามารถเลือกวันลาย้อนหลังได้ไม่เกิน 7 วัน
+                      <span className="text-emerald-700 font-medium">
+                        {getBackdateNotice(leaveType)}
                       </span>
                     </div>
                   )}

@@ -3418,14 +3418,26 @@ export async function onRequest(context) {
         return jsonResponse({ success: false, message: 'หากลาป่วย3วันขึ้นไปต้องแนบใบรับรองแพทย์' }, 400);
       }
 
-      if ((typeKey === 'vacation' || typeKey === 'personal') && safeStart < todayStr) {
-        return jsonResponse({ success: false, message: 'การลาพักผ่อนและลากิจไม่สามารถลาย้อนหลังได้' }, 400);
+      const getBackdateMinISO = (days) => {
+        const d = new Date();
+        d.setDate(d.getDate() - days);
+        return d.toISOString().slice(0, 10);
+      };
+
+      if (typeKey === 'sick' && safeStart < getBackdateMinISO(10)) {
+        return jsonResponse({ success: false, message: 'การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 10 วัน' }, 400);
       }
-      const d7 = new Date();
-      d7.setDate(d7.getDate() - 7);
-      const sickMinStr = d7.toISOString().slice(0, 10);
-      if (typeKey === 'sick' && safeStart < sickMinStr) {
-        return jsonResponse({ success: false, message: 'การลาป่วยสามารถลาย้อนหลังได้ไม่เกิน 7 วัน' }, 400);
+      if (typeKey === 'maternity' && safeStart < getBackdateMinISO(30)) {
+        return jsonResponse({ success: false, message: 'การลาคลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 30 วัน' }, 400);
+      }
+      if (typeKey === 'paternity' && safeStart < getBackdateMinISO(15)) {
+        return jsonResponse({ success: false, message: 'การลาไปช่วยเหลือภริยาที่คลอดบุตรสามารถลาย้อนหลังได้ไม่เกิน 15 วัน' }, 400);
+      }
+      if (typeKey === 'rehab' && safeStart < getBackdateMinISO(30)) {
+        return jsonResponse({ success: false, message: 'การลาไปฟื้นฟูสมรรถภาพด้านอาชีพสามารถลาย้อนหลังได้ไม่เกิน 30 วัน' }, 400);
+      }
+      if (!['sick', 'maternity', 'paternity', 'rehab'].includes(typeKey) && safeStart < todayStr) {
+        return jsonResponse({ success: false, message: 'การลาประเภทนี้ไม่สามารถลาย้อนหลังได้' }, 400);
       }
 
       await ensureTableColumns(env.DB, 'leave_requests', SCHEMA_COLUMNS.leave_requests).catch(() => { });
@@ -4267,11 +4279,21 @@ export async function onRequest(context) {
         prefix = (typeof prefix === 'string' && prefix.trim()) ? prefix.trim() : (rawThaiName ? parseThaiName(rawThaiName, gender).prefix : (gender === 'หญิง' ? 'นางสาว' : 'นาย'));
         firstName = (typeof firstName === 'string') ? firstName.trim() : '';
         lastName = (typeof lastName === 'string') ? lastName.trim() : '';
+        if (prefix && firstName.startsWith(prefix)) {
+          while (firstName.startsWith(prefix)) {
+            firstName = firstName.slice(prefix.length).trim();
+          }
+        }
       } else if (rawThaiName) {
         const parsedTh = parseThaiName(rawThaiName, gender);
         prefix = parsedTh.prefix;
         firstName = parsedTh.firstName;
         lastName = parsedTh.lastName;
+        if (prefix && firstName.startsWith(prefix)) {
+          while (firstName.startsWith(prefix)) {
+            firstName = firstName.slice(prefix.length).trim();
+          }
+        }
       }
       if (!prefix) {
         prefix = gender === 'หญิง' ? 'นางสาว' : (gender === 'ชาย' ? 'นาย' : '');
