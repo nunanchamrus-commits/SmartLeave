@@ -23,6 +23,30 @@ import {
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 
+// Helper: ทำความสะอาดชื่อสำหรับแสดงผล ป้องกันคำนำหน้าซ้ำซ้อน เช่น 'ร้อยเอกร้อยเอกกวิน' -> 'ร้อยเอกกวิน'
+export const getCleanDisplayName = (user) => {
+  if (!user) return '';
+  let name = (user.name || `${user.prefix || ''}${user.firstName || ''} ${user.lastName || ''}`).trim();
+  const prefix = (user.prefix || '').trim();
+  if (prefix) {
+    const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    name = name.replace(new RegExp(`^(${esc}\\s*)+`, 'i'), prefix);
+  }
+  const commonPrefixes = [
+    'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+    'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+    'พล.อ.', 'พล.ท.', 'พล.ต.', 'พ.อ.', 'พ.ท.', 'พ.ต.',
+    'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี'
+  ];
+  for (const p of commonPrefixes) {
+    const esc = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`^(${esc}\\s*){2,}`, 'i').test(name)) {
+      name = name.replace(new RegExp(`^(${esc}\\s*)+`, 'i'), p);
+    }
+  }
+  return name;
+};
+
 export default function Header({ onMenuClick }) {
   const {
     currentUser,
@@ -264,7 +288,7 @@ export default function Header({ onMenuClick }) {
             >
               <div className="text-left hidden sm:block">
                 <div className="text-sm font-semibold text-slate-800 leading-tight">
-                  {currentUser.name}
+                  {getCleanDisplayName(currentUser)}
                 </div>
                 <div className="text-xs text-slate-400 font-normal">
                   {currentUser.title}
@@ -295,7 +319,7 @@ export default function Header({ onMenuClick }) {
                 </button>
                 <div className="min-w-0">
                   <p className="text-xs text-slate-400 font-medium">เข้าสู่ระบบในชื่อ</p>
-                  <p className="text-sm font-semibold text-slate-800 mt-0.5 truncate">{currentUser.name}</p>
+                  <p className="text-sm font-semibold text-slate-800 mt-0.5 truncate">{getCleanDisplayName(currentUser)}</p>
                   <p className="text-xs text-emerald-700 font-medium truncate">{currentUser.department}</p>
                 </div>
               </div>
@@ -410,7 +434,7 @@ export default function Header({ onMenuClick }) {
             <div className="md:col-span-7 space-y-3.5 text-xs sm:text-sm">
               <div className="pb-3 border-b border-slate-100">
                 <h4 className="text-lg sm:text-xl font-bold text-slate-900 font-prompt">
-                  {currentUser.name || '-'}
+                  {getCleanDisplayName(currentUser) || '-'}
                 </h4>
                 {currentUser.englishName && (
                   <p className="text-xs sm:text-sm text-slate-500 mt-0.5">{currentUser.englishName}</p>

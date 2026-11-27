@@ -78,21 +78,39 @@ function extractEnglishNameFields(user) {
 }
 
 function extractThaiNameFields(user) {
-  let prefix = user?.prefix || '';
-  let firstName = user?.firstName || '';
-  let lastName = user?.lastName || '';
+  let prefix = (user?.prefix || '').trim();
+  let firstName = (user?.firstName || '').trim();
+  let lastName = (user?.lastName || '').trim();
   let name = (user?.name || '').trim();
 
+  const prefixes = [
+    'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+    'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+    'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี'
+  ];
+
+  if (prefix && firstName.startsWith(prefix)) {
+    while (firstName.startsWith(prefix)) {
+      firstName = firstName.slice(prefix.length).trim();
+    }
+  }
+
   if (!firstName && name) {
-    const prefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.'];
-    for (const p of prefixes) {
-      if (name.startsWith(p)) {
-        prefix = p;
-        const rest = name.slice(p.length).trim();
-        const parts = rest.split(/\s+/).filter(Boolean);
-        firstName = parts[0] || '';
-        lastName = parts.slice(1).join(' ') || '';
-        break;
+    if (prefix && name.startsWith(prefix)) {
+      const rest = name.slice(prefix.length).trim();
+      const parts = rest.split(/\s+/).filter(Boolean);
+      firstName = parts[0] || '';
+      lastName = parts.slice(1).join(' ') || '';
+    } else {
+      for (const p of prefixes) {
+        if (name.startsWith(p)) {
+          if (!prefix) prefix = p;
+          const rest = name.slice(p.length).trim();
+          const parts = rest.split(/\s+/).filter(Boolean);
+          firstName = parts[0] || '';
+          lastName = parts.slice(1).join(' ') || '';
+          break;
+        }
       }
     }
     if (!firstName) {
@@ -102,11 +120,31 @@ function extractThaiNameFields(user) {
     }
   }
 
+  if (firstName) {
+    let stripped = true;
+    while (stripped && firstName) {
+      stripped = false;
+      if (prefix && firstName.startsWith(prefix)) {
+        firstName = firstName.slice(prefix.length).trim();
+        stripped = true;
+        continue;
+      }
+      for (const p of prefixes) {
+        if (firstName.startsWith(p)) {
+          if (!prefix) prefix = p;
+          firstName = firstName.slice(p.length).trim();
+          stripped = true;
+          break;
+        }
+      }
+    }
+  }
+
   if (!prefix) {
     prefix = user?.gender === 'ชาย' || /^นาย/.test(name) ? 'นาย' : 'นางสาว';
   }
 
-  const fullName = name || `${prefix}${firstName} ${lastName}`.trim();
+  const fullName = `${prefix}${firstName}${lastName ? ' ' + lastName : ''}`.trim();
   return { prefix, firstName, lastName, name: fullName };
 }
 

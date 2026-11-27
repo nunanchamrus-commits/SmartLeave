@@ -617,12 +617,27 @@ function parseThaiName(rawName, fallbackGender = '') {
 }
 
 function sanitizeThaiNameParts({ prefix = '', firstName = '', lastName = '', fullName = '', gender = '' } = {}) {
-  const prefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.', 'พ.ต.ต.', 'พ.ต.ท.', 'พ.ต.อ.', 'ร.ต.อ.', 'ร.ต.ท.', 'ร.ต.ต.'];
+  const prefixes = [
+    'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+    'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+    'พล.อ.', 'พล.ท.', 'พล.ต.', 'พ.อ.', 'พ.ท.', 'พ.ต.',
+    'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี',
+    'พ.ต.ต.', 'พ.ต.ท.', 'พ.ต.อ.', 'ร.ต.อ.', 'ร.ต.ท.', 'ร.ต.ต.'
+  ];
   let pfx = (prefix || '').trim();
   let fn = (firstName || '').trim();
   let ln = (lastName || '').trim();
 
   const raw = (typeof fullName === 'string' && fullName.trim()) || '';
+  if (pfx && raw.startsWith(pfx)) {
+    const withoutPfx = raw.slice(pfx.length).trim();
+    if (!fn) {
+      const parts = withoutPfx.split(/\s+/).filter(Boolean);
+      fn = parts[0] || '';
+      if (!ln) ln = parts.slice(1).join(' ') || '';
+    }
+  }
+
   if ((!fn || !pfx) && raw) {
     const parsed = parseThaiName(raw, gender);
     if (!pfx) pfx = parsed.prefix;
@@ -630,9 +645,21 @@ function sanitizeThaiNameParts({ prefix = '', firstName = '', lastName = '', ful
     if (!ln) ln = parsed.lastName;
   }
 
+  // ถอด pfx ของตัวเองออกจาก fn เสมอ
+  if (pfx) {
+    while (fn.startsWith(pfx)) {
+      fn = fn.slice(pfx.length).trim();
+    }
+  }
+
   let stripped = true;
   while (stripped && fn) {
     stripped = false;
+    if (pfx && fn.startsWith(pfx)) {
+      fn = fn.slice(pfx.length).trim();
+      stripped = true;
+      continue;
+    }
     for (const p of prefixes) {
       if (fn.startsWith(p)) {
         if (!pfx) pfx = p;
@@ -647,7 +674,7 @@ function sanitizeThaiNameParts({ prefix = '', firstName = '', lastName = '', ful
     pfx = gender === 'ชาย' ? 'นาย' : 'นางสาว';
   }
 
-  const fullNameTh = `${pfx}${fn} ${ln}`.trim();
+  const fullNameTh = `${pfx}${fn}${ln ? ' ' + ln : ''}`.trim();
   return { prefix: pfx, firstName: fn, lastName: ln, fullNameTh };
 }
 
@@ -1535,14 +1562,24 @@ async function autoMigrateDatabase(db) {
     await ensureTableColumns(db, table, specs);
   }
 
-  // ทำความสะอาด first_name ในกรณีที่มี prefix ปะปนอยู่ (แก้ไขปัญหาชื่อซ้ำซ้อน เช่น 'นายนาย...')
+  // ทำความสะอาด first_name ในกรณีที่มี prefix ปะปนอยู่ (แก้ไขปัญหาชื่อซ้ำซ้อน เช่น 'นายนาย...' หรือ 'ร้อยเอกร้อยเอก...')
   try {
     const usersWithPrefixInName = await db.prepare("SELECT user_id, prefix, first_name, gender FROM users WHERE first_name IS NOT NULL AND first_name != ''").all();
-    const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.'];
+    const thaiPrefixes = [
+      'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+      'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+      'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี'
+    ];
     for (const u of (usersWithPrefixInName.results || [])) {
       let changed = false;
-      let fn = u.first_name.trim();
-      let pfx = u.prefix || '';
+      let fn = (u.first_name || '').trim();
+      let pfx = (u.prefix || '').trim();
+      if (pfx && fn.startsWith(pfx)) {
+        while (fn.startsWith(pfx)) {
+          fn = fn.slice(pfx.length).trim();
+        }
+        changed = true;
+      }
       for (const p of thaiPrefixes) {
         if (fn.startsWith(p)) {
           if (!pfx) pfx = p;
@@ -1773,16 +1810,25 @@ export async function onRequest(context) {
       }
 
       const gender = user.gender || (user.prefix?.includes('นาง') ? 'หญิง' : (user.prefix?.includes('นาย') ? 'ชาย' : ''));
-      let prefix = user.prefix ? user.prefix : '';
+      let prefix = user.prefix ? user.prefix.trim() : '';
       let cleanFn = (user.first_name || '').trim();
-      const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.'];
+      const thaiPrefixes = [
+        'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+        'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+        'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี'
+      ];
+      if (prefix && cleanFn.startsWith(prefix)) {
+        while (cleanFn.startsWith(prefix)) {
+          cleanFn = cleanFn.slice(prefix.length).trim();
+        }
+      }
       for (const p of thaiPrefixes) {
         if (cleanFn.startsWith(p)) {
           if (!prefix) prefix = p;
           cleanFn = cleanFn.slice(p.length).trim();
         }
       }
-      const displayName = `${prefix}${cleanFn} ${user.last_name || ''}`.trim();
+      const displayName = `${prefix}${cleanFn}${user.last_name ? ' ' + user.last_name : ''}`.trim();
       const prefixEn = user.prefix_en || (gender === 'ชาย' ? 'Mr.' : 'Ms.');
       const firstNameEn = user.first_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).firstNameEn : '');
       const lastNameEn = user.last_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).lastNameEn : '');
@@ -1943,16 +1989,25 @@ export async function onRequest(context) {
       }
 
       const gender = user.gender || (user.prefix?.includes('นาง') ? 'หญิง' : (user.prefix?.includes('นาย') ? 'ชาย' : ''));
-      let prefix = user.prefix ? user.prefix : '';
+      let prefix = user.prefix ? user.prefix.trim() : '';
       let cleanFn = (user.first_name || '').trim();
-      const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.'];
+      const thaiPrefixes = [
+        'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+        'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+        'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี'
+      ];
+      if (prefix && cleanFn.startsWith(prefix)) {
+        while (cleanFn.startsWith(prefix)) {
+          cleanFn = cleanFn.slice(prefix.length).trim();
+        }
+      }
       for (const p of thaiPrefixes) {
         if (cleanFn.startsWith(p)) {
           if (!prefix) prefix = p;
           cleanFn = cleanFn.slice(p.length).trim();
         }
       }
-      const displayName = `${prefix}${cleanFn} ${user.last_name || ''}`.trim();
+      const displayName = `${prefix}${cleanFn}${user.last_name ? ' ' + user.last_name : ''}`.trim();
       const prefixEn = user.prefix_en || (gender === 'ชาย' ? 'Mr.' : 'Ms.');
       const firstNameEn = user.first_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).firstNameEn : '');
       const lastNameEn = user.last_name_en || (user.english_name ? parseEnglishName(user.english_name, gender, prefix).lastNameEn : '');

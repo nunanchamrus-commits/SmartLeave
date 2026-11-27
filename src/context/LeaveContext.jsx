@@ -96,6 +96,32 @@ function doesLeaveBelongToUser(req, user) {
   return false;
 }
 
+export function sanitizeDisplayName(rawName = '', prefix = '') {
+  let name = (rawName || '').trim();
+  const p = (prefix || '').trim();
+  if (!name) return '';
+
+  if (p) {
+    const esc = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    name = name.replace(new RegExp(`^(${esc}\\s*)+`, 'i'), p);
+  }
+
+  const commonPrefixes = [
+    'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+    'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+    'พล.อ.', 'พล.ท.', 'พล.ต.', 'พ.อ.', 'พ.ท.', 'พ.ต.',
+    'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี'
+  ];
+  for (const cp of commonPrefixes) {
+    const esc = cp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`^(${esc}\\s*){2,}`, 'i').test(name)) {
+      name = name.replace(new RegExp(`^(${esc}\\s*)+`, 'i'), cp);
+    }
+  }
+
+  return name;
+}
+
 export function formatThaiDateTime(inputDate = new Date()) {
   if (!inputDate) return '';
   if (typeof inputDate === 'string' && /เวลา\s+\d{1,2}:\d{2}/.test(inputDate)) {
@@ -367,7 +393,12 @@ function normalizeEmployeeQuotas(emp) {
   const empType = emp.employmentType || 'ข้าราชการ';
   const defaults = getQuotaDefaultsForType(empType, gender);
 
-  const next = { ...emp, gender, isSickAsActual: defaults.isSickAsActual };
+  const next = {
+    ...emp,
+    name: sanitizeDisplayName(emp.name, emp.prefix),
+    gender,
+    isSickAsActual: defaults.isSickAsActual,
+  };
   Object.entries(defaults).forEach(([key, defLimit]) => {
     if (key === 'isSickAsActual' || key === 'sickLabel') return;
     const rawRem = emp[`${key}Rem`];
@@ -493,6 +524,7 @@ export function LeaveProvider({ children }) {
         if (parsed && typeof parsed === 'object') {
           return {
             ...parsed,
+            name: sanitizeDisplayName(parsed.name, parsed.prefix),
             gender: parsed.gender || inferUserGender(parsed),
           };
         }
@@ -2038,7 +2070,7 @@ export function LeaveProvider({ children }) {
     let createdEmp = {
       id: `usr-${Date.now()}`,
       employeeId: newEmpData.employeeCode || `EMP-${Date.now().toString().slice(-4)}`,
-      name: newEmpData.name || `${newEmpData.prefix || ''}${newEmpData.firstName || ''} ${newEmpData.lastName || ''}`.trim(),
+      name: sanitizeDisplayName(newEmpData.name || `${newEmpData.prefix || ''}${newEmpData.firstName || ''} ${newEmpData.lastName || ''}`.trim(), newEmpData.prefix),
       ...newEmpData,
       isSickAsActual: defs.isSickAsActual,
       vacationRem: vacLim,
@@ -2303,7 +2335,7 @@ export function LeaveProvider({ children }) {
       prefix: prefix || null,
       firstName: firstName || null,
       lastName: lastName || null,
-      name: computedThaiName || updatedData.name || currentUser?.name,
+      name: sanitizeDisplayName(computedThaiName || updatedData.name || currentUser?.name, prefix || currentUser?.prefix),
       prefixEn: prefixEn || null,
       firstNameEn: firstNameEn || null,
       lastNameEn: lastNameEn || null,
@@ -2476,6 +2508,7 @@ export function LeaveProvider({ children }) {
       const actualRole = user.role || (user.employeeId === 'ADM-001' ? 'admin' : (user.employeeId === 'MGR-002' ? 'approver' : 'employee'));
       const dbUser = {
         ...user,
+        name: sanitizeDisplayName(user.name, user.prefix),
         role: actualRole,
         gender: user.gender || inferUserGender(user),
       };
@@ -2720,15 +2753,34 @@ export function LeaveProvider({ children }) {
     const newId = `usr-${Date.now()}`;
     const empCode = `EMP-${new Date().getFullYear() + 543}-${Math.floor(100 + Math.random() * 900)}`;
 
-    let prefix = userData.prefix || '';
-    let firstName = userData.firstName || '';
-    let lastName = userData.lastName || '';
+    let prefix = (userData.prefix || '').trim();
+    let firstName = (userData.firstName || '').trim();
+    let lastName = (userData.lastName || '').trim();
     const rawFullName = (userData.fullName || '').trim();
 
-    const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.', 'พ.ต.ต.', 'พ.ต.ท.', 'พ.ต.อ.', 'ร.ต.อ.', 'ร.ต.ท.', 'ร.ต.ต.'];
+    const thaiPrefixes = [
+      'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+      'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+      'พล.อ.', 'พล.ท.', 'พล.ต.', 'พ.อ.', 'พ.ท.', 'พ.ต.',
+      'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี',
+      'พ.ต.ต.', 'พ.ต.ท.', 'พ.ต.อ.', 'ร.ต.อ.', 'ร.ต.ท.', 'ร.ต.ต.'
+    ];
 
-    // แยก prefix, firstName, lastName จาก fullName
-    if (rawFullName) {
+    // 1. ถ้ามี prefix ระบุมาแล้ว ให้ตัด prefix นั้นออกจาก rawFullName และ firstName ก่อนเสมอ
+    if (prefix) {
+      if (rawFullName.startsWith(prefix)) {
+        const rest = rawFullName.slice(prefix.length).trim();
+        const parts = rest.split(/\s+/).filter(Boolean);
+        if (!firstName) firstName = parts[0] || '';
+        if (!lastName) lastName = parts.slice(1).join(' ') || '';
+      }
+      while (firstName.startsWith(prefix)) {
+        firstName = firstName.slice(prefix.length).trim();
+      }
+    }
+
+    // 2. แยก prefix, firstName, lastName จาก fullName
+    if (rawFullName && (!firstName || !prefix)) {
       let matchedPrefix = '';
       for (const p of thaiPrefixes) {
         if (rawFullName.startsWith(p)) {
@@ -2754,11 +2806,16 @@ export function LeaveProvider({ children }) {
       }
     }
 
-    // ถอด prefix ที่อาจติดมาข้างหน้า firstName ออกเสมอ
+    // 3. ถอด prefix ที่อาจติดมาข้างหน้า firstName ออกเสมอ
     if (firstName) {
       let stripped = true;
       while (stripped && firstName) {
         stripped = false;
+        if (prefix && firstName.startsWith(prefix)) {
+          firstName = firstName.slice(prefix.length).trim();
+          stripped = true;
+          continue;
+        }
         for (const p of thaiPrefixes) {
           if (firstName.startsWith(p)) {
             if (!prefix) prefix = p;
@@ -2774,7 +2831,7 @@ export function LeaveProvider({ children }) {
       prefix = (userData.gender === 'หญิง' || userData.gender === 'female') ? 'นางสาว' : 'นาย';
     }
 
-    const fullThaiName = `${prefix}${firstName} ${lastName}`.trim();
+    const fullThaiName = `${prefix}${firstName}${lastName ? ' ' + lastName : ''}`.trim();
 
     // จัดการแยกชื่อภาษาอังกฤษ (prefixEn, firstNameEn, lastNameEn)
     let prefixEn = userData.prefixEn || '';
@@ -2839,7 +2896,7 @@ export function LeaveProvider({ children }) {
     const newUser = {
       id: dbUserId,
       raw_id: registeredDbUser?.raw_id,
-      name: (registeredDbUser?.name || fullThaiName || userData.fullName).replace(/^((นางสาว|น\.ส\.|นาง|นาย|ดร\.)\s*)+/g, (match) => { for (const p of ["นางสาว", "น.ส.", "นาง", "นาย", "ดร."]) if (match.includes(p)) return p; return match; }),
+      name: sanitizeDisplayName(registeredDbUser?.name || fullThaiName || userData.fullName, prefix || registeredDbUser?.prefix),
       prefix: registeredDbUser?.prefix || prefix || (userData.gender === 'หญิง' ? 'นางสาว' : 'นาย'),
       firstName: registeredDbUser?.firstName || firstName,
       lastName: registeredDbUser?.lastName || lastName,

@@ -155,7 +155,16 @@ export default function RegisterView({ onSwitchToLogin }) {
   const handleNameChange = (e) => {
     let val = e.target.value;
     // หากพิมพ์คำนำหน้าซ้ำเข้ามา ให้ตัดออกเพื่อให้คำนำหน้าอยู่ใน dropdown
-    const thaiPrefixes = ['นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.'];
+    const thaiPrefixes = [
+      'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+      'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+      'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี'
+    ];
+    if (prefixChoice === 'อื่นๆ' && customPrefix.trim()) {
+      if (val.startsWith(customPrefix.trim())) {
+        val = val.slice(customPrefix.trim().length).trim();
+      }
+    }
     for (const p of thaiPrefixes) {
       if (val.startsWith(p)) {
         val = val.slice(p.length).trim();
@@ -263,11 +272,32 @@ export default function RegisterView({ onSwitchToLogin }) {
 
     setTimeout(async () => {
       try {
-        const fullThai = `${chosenPrefix}${formData.fullName.trim()}`;
+        let cleanFullName = formData.fullName.trim();
+        // หากมีคำนำหน้าซ้ำซ้อนในช่องกรอกชื่อ ให้ตัดออกเสมอ
+        if (chosenPrefix && cleanFullName.startsWith(chosenPrefix)) {
+          cleanFullName = cleanFullName.slice(chosenPrefix.length).trim();
+        }
+        const commonPrefixes = [
+          'นางสาว', 'น.ส.', 'นาง', 'นาย', 'ดร.', 'ศ.', 'รศ.', 'ผศ.',
+          'ร้อยเอก', 'ร้อยโท', 'ร้อยตรี', 'พันเอก', 'พันโท', 'พันตรี',
+          'ว่าที่ ร.ต.', 'ว่าที่ร้อยตรี'
+        ];
+        for (const p of commonPrefixes) {
+          if (cleanFullName.startsWith(p)) {
+            cleanFullName = cleanFullName.slice(p.length).trim();
+            break;
+          }
+        }
+        const parts = cleanFullName.split(/\s+/).filter(Boolean);
+        const firstName = parts[0] || cleanFullName;
+        const lastName = parts.slice(1).join(' ') || '';
+        const fullThai = `${chosenPrefix}${firstName}${lastName ? ' ' + lastName : ''}`.trim();
 
         // Register through LeaveContext into D1 Database (autoLogin = false เพื่อให้แสดงหน้าต่างแจ้งข้อมูลเข้าสู่ระบบแก่ผู้ใช้ก่อน)
         const newUser = await register({
           prefix: chosenPrefix,
+          firstName,
+          lastName,
           prefixEn: '',
           fullName: fullThai,
           englishName: cleanEnName,
