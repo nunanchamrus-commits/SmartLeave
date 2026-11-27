@@ -89,9 +89,10 @@ export const DEPARTMENT_OPTIONS = [
 export default function RegisterView({ onSwitchToLogin }) {
   const { register, login } = useLeave();
 
+  const [prefixChoice, setPrefixChoice] = useState('นาย'); // 'นาย' | 'นาง' | 'นางสาว' | 'ดร.' | 'อื่นๆ'
+  const [customPrefix, setCustomPrefix] = useState('');
+
   const [formData, setFormData] = useState({
-    prefix: 'นาย',
-    prefixEn: 'Mr.',
     fullName: '',
     englishName: '',
     gender: 'ชาย',
@@ -127,47 +128,26 @@ export default function RegisterView({ onSwitchToLogin }) {
     setError('');
   };
 
-  const handlePrefixChange = (e) => {
+  const handlePrefixChoiceChange = (e) => {
     const val = e.target.value;
-    let nextGender = formData.gender;
-    let nextPrefixEn = formData.prefixEn;
+    setPrefixChoice(val);
     if (val === 'นาย') {
-      nextGender = 'ชาย';
-      nextPrefixEn = 'Mr.';
-    } else if (val === 'นาง') {
-      nextGender = 'หญิง';
-      nextPrefixEn = 'Mrs.';
-    } else if (val === 'นางสาว') {
-      nextGender = 'หญิง';
-      nextPrefixEn = 'Miss';
-    } else if (val === 'ดร.') {
-      nextPrefixEn = 'Dr.';
+      setFormData((prev) => ({ ...prev, gender: 'ชาย' }));
+    } else if (val === 'นาง' || val === 'นางสาว') {
+      setFormData((prev) => ({ ...prev, gender: 'หญิง' }));
     }
-    setFormData((prev) => ({
-      ...prev,
-      prefix: val,
-      gender: nextGender,
-      prefixEn: nextPrefixEn,
-    }));
     setError('');
   };
 
   const handleGenderChange = (val) => {
-    let nextPrefix = formData.prefix;
-    let nextPrefixEn = formData.prefixEn;
-    if (val === 'ชาย' && (nextPrefix === 'นาง' || nextPrefix === 'นางสาว')) {
-      nextPrefix = 'นาย';
-      nextPrefixEn = 'Mr.';
-    } else if (val === 'หญิง' && nextPrefix === 'นาย') {
-      nextPrefix = 'นางสาว';
-      nextPrefixEn = 'Miss';
+    if (prefixChoice !== 'อื่นๆ') {
+      if (val === 'ชาย' && (prefixChoice === 'นาง' || prefixChoice === 'นางสาว')) {
+        setPrefixChoice('นาย');
+      } else if (val === 'หญิง' && prefixChoice === 'นาย') {
+        setPrefixChoice('นางสาว');
+      }
     }
-    setFormData((prev) => ({
-      ...prev,
-      gender: val,
-      prefix: nextPrefix,
-      prefixEn: nextPrefixEn,
-    }));
+    setFormData((prev) => ({ ...prev, gender: val }));
     setError('');
   };
 
@@ -203,11 +183,8 @@ export default function RegisterView({ onSwitchToLogin }) {
 
   const handleEnglishNameChange = (e) => {
     let val = e.target.value;
-    // ตัด Mr. / Mrs. / Miss / Ms. / Dr. ออกถ้าพิมพ์ซ้ำ
-    const m = val.match(/^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.)\s*(.*)$/i);
-    if (m) {
-      val = m[2];
-    }
+    // ตัดคำนำหน้า เช่น Mr. / Mrs. / Miss / Ms. / Dr. ออกอัตโนมัติ เพื่อให้เป็นชื่อภาษาอังกฤษล้วนสำหรับเข้าสู่ระบบ
+    val = val.replace(/^(mr\.|mrs\.|miss|ms\.|dr\.)\s*/i, '');
     const asciiSlug = val
       .toLowerCase()
       .replace(/[^a-z0-9\s.]/g, '')
@@ -225,20 +202,22 @@ export default function RegisterView({ onSwitchToLogin }) {
     e.preventDefault();
 
     // 1. Validation
-    if (!formData.prefix) {
-      setError('กรุณาเลือกคำนำหน้าชื่อ');
+    const chosenPrefix = prefixChoice === 'อื่นๆ' ? customPrefix.trim() : prefixChoice;
+    if (!chosenPrefix) {
+      setError(prefixChoice === 'อื่นๆ' ? 'กรุณากรอกคำนำหน้าชื่อที่ต้องการระบุ' : 'กรุณาเลือกคำนำหน้าชื่อ');
       return;
     }
     if (!formData.fullName.trim()) {
       setError('กรุณากรอกชื่อจริง และ นามสกุล (ภาษาไทย)');
       return;
     }
-    if (!formData.englishName.trim()) {
+    const cleanEnName = formData.englishName.trim().replace(/^(mr\.|mrs\.|miss|ms\.|dr\.)\s*/i, '');
+    if (!cleanEnName) {
       setError('กรุณากรอกชื่อ - นามสกุล (ภาษาอังกฤษ)');
       return;
     }
-    if (/[\u0E00-\u0E7F]/.test(formData.englishName)) {
-      setError('กรุณากรอกชื่อภาษาอังกฤษเป็นตัวอักษรภาษาอังกฤษ');
+    if (/[\u0E00-\u0E7F]/.test(cleanEnName)) {
+      setError('กรุณากรอกชื่อภาษาอังกฤษเป็นตัวอักษรภาษาอังกฤษ (A-Z)');
       return;
     }
     if (!formData.gender) {
@@ -284,15 +263,14 @@ export default function RegisterView({ onSwitchToLogin }) {
 
     setTimeout(async () => {
       try {
-        const fullThai = `${formData.prefix}${formData.fullName.trim()}`;
-        const fullEn = `${formData.prefixEn ? formData.prefixEn + ' ' : ''}${formData.englishName.trim()}`;
+        const fullThai = `${chosenPrefix}${formData.fullName.trim()}`;
 
         // Register through LeaveContext into D1 Database (autoLogin = false เพื่อให้แสดงหน้าต่างแจ้งข้อมูลเข้าสู่ระบบแก่ผู้ใช้ก่อน)
         const newUser = await register({
-          prefix: formData.prefix,
-          prefixEn: formData.prefixEn,
+          prefix: chosenPrefix,
+          prefixEn: '',
           fullName: fullThai,
-          englishName: fullEn,
+          englishName: cleanEnName,
           gender: formData.gender,
           title: formData.title.trim(),
           department: formData.department.trim(),
@@ -310,11 +288,10 @@ export default function RegisterView({ onSwitchToLogin }) {
 
         setRegisteredInfo({
           ...newUser,
-          prefix: formData.prefix,
+          prefix: chosenPrefix,
           fullName: fullThai,
-          englishName: fullEn,
+          englishName: cleanEnName,
           email: formData.email.trim(),
-          employeeId: newUser?.employeeId || '',
           password: formData.password,
         });
         setIsSuccessModalOpen(true);
@@ -470,81 +447,86 @@ export default function RegisterView({ onSwitchToLogin }) {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   คำนำหน้า และ ชื่อ - นามสกุล (ภาษาไทย) <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4 sm:col-span-3">
-                    <div className="relative">
-                      <select
-                        aria-label="คำนำหน้าชื่อ (ภาษาไทย)"
-                        value={formData.prefix}
-                        onChange={handlePrefixChange}
-                        className="w-full pl-2.5 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-semibold focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all cursor-pointer appearance-none"
-                      >
-                        <option value="นาย">นาย</option>
-                        <option value="นาง">นาง</option>
-                        <option value="นางสาว">นางสาว</option>
-                        <option value="ดร.">ดร.</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
-                        <ChevronDown className="w-3.5 h-3.5" />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-4 sm:col-span-3">
+                      <div className="relative">
+                        <select
+                          aria-label="คำนำหน้าชื่อ (ภาษาไทย)"
+                          value={prefixChoice}
+                          onChange={handlePrefixChoiceChange}
+                          className="w-full pl-2.5 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-semibold focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all cursor-pointer appearance-none"
+                        >
+                          <option value="นาย">นาย</option>
+                          <option value="นาง">นาง</option>
+                          <option value="นางสาว">นางสาว</option>
+                          <option value="ดร.">ดร.</option>
+                          <option value="อื่นๆ">อื่นๆ</option>
+                        </select>
+                        <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-span-8 sm:col-span-9">
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <input
+                          type="text"
+                          value={formData.fullName}
+                          onChange={handleNameChange}
+                          placeholder="ชื่อจริง และนามสกุล (เช่น ชาญชัย มิ่งขวัญ)"
+                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
+                        />
                       </div>
                     </div>
                   </div>
-                  <div className="col-span-8 sm:col-span-9">
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                        <User className="w-4 h-4" />
-                      </div>
+
+                  {/* เมื่อเลือก "อื่นๆ" ให้แสดงช่องกรอกคำนำหน้าเอง */}
+                  {prefixChoice === 'อื่นๆ' && (
+                    <div className="flex items-center space-x-2 p-2.5 bg-emerald-50/70 border border-emerald-300 rounded-xl animate-in fade-in slide-in-from-top-1 duration-150">
+                      <span className="text-xs font-bold text-emerald-800 flex-shrink-0">
+                        ระบุคำนำหน้า:
+                      </span>
                       <input
                         type="text"
-                        value={formData.fullName}
-                        onChange={handleNameChange}
-                        placeholder="ชื่อจริง และนามสกุล (เช่น ชาญชัย มิ่งขวัญ)"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
+                        value={customPrefix}
+                        onChange={(e) => {
+                          setCustomPrefix(e.target.value);
+                          setError('');
+                        }}
+                        placeholder="พิมพ์คำนำหน้าของท่าน เช่น ว่าที่ ร.ต., ผศ., อาจารย์, พันเอก"
+                        className="flex-1 px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all font-medium"
+                        autoFocus
                       />
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* 1.2 คำนำหน้า และ ชื่อ - นามสกุล (ภาษาอังกฤษ) */}
+              {/* 1.2 ชื่อ - นามสกุล (ภาษาอังกฤษ) - สำหรับใช้เข้าสู่ระบบโดยไม่ต้องมีคำนำหน้า */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  คำนำหน้า และ ชื่อ - นามสกุล (ภาษาอังกฤษ) <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4 sm:col-span-3">
-                    <div className="relative">
-                      <select
-                        aria-label="คำนำหน้าชื่อ (ภาษาอังกฤษ)"
-                        value={formData.prefixEn}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, prefixEn: e.target.value }))}
-                        className="w-full pl-2.5 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 font-semibold focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all cursor-pointer appearance-none"
-                      >
-                        <option value="Mr.">Mr.</option>
-                        <option value="Mrs.">Mrs.</option>
-                        <option value="Miss">Miss</option>
-                        <option value="Ms.">Ms.</option>
-                        <option value="Dr.">Dr.</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    ชื่อ - นามสกุล ภาษาอังกฤษ (English Name) <span className="text-red-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-emerald-700 font-medium">
+                    (ใช้เป็นชื่อเข้าสู่ระบบ โดยไม่ต้องใส่คำนำหน้า)
+                  </span>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Globe className="w-4 h-4" />
                   </div>
-                  <div className="col-span-8 sm:col-span-9">
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                        <Globe className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="text"
-                        value={formData.englishName}
-                        onChange={handleEnglishNameChange}
-                        placeholder="First name and Surname (e.g. Chanchai Mingkwan)"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
-                      />
-                    </div>
-                  </div>
+                  <input
+                    type="text"
+                    value={formData.englishName}
+                    onChange={handleEnglishNameChange}
+                    placeholder="เช่น Chanchai Mingkwan หรือ Panika Thammoeang"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
+                  />
                 </div>
               </div>
 
@@ -874,7 +856,7 @@ export default function RegisterView({ onSwitchToLogin }) {
               {/* 1. English Name (Username) */}
               <div>
                 <span className="text-[11px] font-bold text-slate-700 block mb-1">
-                  1. ข้อมูลในช่อง &quot;ชื่อ-สกุล ภาษาอังกฤษ&quot; (ใช้เป็นชื่อผู้ใช้เข้าสู่ระบบ):
+                  1. ช่อง &quot;ชื่อ-สกุล ภาษาอังกฤษ&quot; (ใช้เป็นชื่อผู้ใช้เข้าสู่ระบบ โดยไม่มีคำนำหน้า):
                 </span>
                 <div className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-emerald-300 shadow-xs gap-2">
                   <span className="font-mono font-bold text-sm sm:text-base text-emerald-950 truncate select-all">
@@ -904,18 +886,10 @@ export default function RegisterView({ onSwitchToLogin }) {
                   2. ช่อง &quot;รหัสผ่าน&quot; (Password):
                 </span>
                 <div className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 flex items-center justify-between shadow-xs">
-                  <span>รหัสผ่านที่คุณได้ตั้งไว้ตอนสมัคร (ความยาว 8 ตัวอักษรขึ้นไป)</span>
+                  <span>รหัสผ่านที่คุณได้ตั้งไว้ตอนสมัคร</span>
                   <Lock className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 ml-2" />
                 </div>
               </div>
-
-              {/* 3. Employee ID */}
-              {registeredInfo.employeeId && (
-                <div className="pt-2 border-t border-emerald-100/90 flex items-center justify-between text-xs text-slate-600">
-                  <span>รหัสประจำตัวบุคลากร:</span>
-                  <span className="font-mono font-bold text-emerald-800">{registeredInfo.employeeId}</span>
-                </div>
-              )}
             </div>
 
             {/* Note */}
