@@ -19,6 +19,17 @@ export default function StatusConfirmModal({
     }
   }, [isOpen, defaultRemark]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (onClose) onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !req) return null;
 
   const isApprove = targetStatus === 'อนุมัติ';
@@ -73,8 +84,16 @@ export default function StatusConfirmModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92dvh] sm:max-h-[90vh]">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92dvh] sm:max-h-[90vh]"
+      >
         {/* Header */}
         <div className={`px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between text-white ${headerBg}`}>
           <div className="flex items-center space-x-2.5">
@@ -91,8 +110,13 @@ export default function StatusConfirmModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
+            aria-label="ปิดหน้าต่างยืนยัน"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onClose) onClose();
+            }}
+            className="p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -204,8 +228,12 @@ export default function StatusConfirmModal({
           <div className="pt-3 border-t border-slate-100 grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2 sm:space-x-2.5">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-medium text-xs transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onClose) onClose();
+              }}
+              className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
             >
               ยกเลิก
             </button>

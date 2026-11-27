@@ -79,7 +79,7 @@ export default function ApproverView() {
   const handleCloseConfirm = () => {
     setConfirmModal({
       isOpen: false,
-      req,
+      req: null,
       targetStatus: '',
       defaultRemark: '',
     });
