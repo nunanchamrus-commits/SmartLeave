@@ -230,14 +230,11 @@ export default function ApproverView() {
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-100">
                             {req.type}
                           </span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${req.status === 'อยู่ระหว่างตรวจสอบ'
-                              ? 'bg-sky-100 text-sky-800 border-sky-300'
-                              : 'bg-orange-100 text-orange-700 border-orange-200'
-                              }`}
-                          >
-                            {req.status}
-                          </span>
+                          {req.status !== 'อยู่ระหว่างตรวจสอบ' && (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-orange-100 text-orange-700 border-orange-200">
+                              สถานะ: {req.status}
+                            </span>
+                          )}
                         </div>
 
                         <div className="text-xs text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
@@ -289,7 +286,7 @@ export default function ApproverView() {
                           <span>ดูรายละเอียด</span>
                         </button>
 
-                        {/* หากยังไม่อยู่ระหว่างตรวจสอบ: แสดงเฉพาะปุ่ม "อยู่ระหว่างตรวจสอบ" (สีน้ำเงินอ่อน) */}
+                        {/* หากยังไม่อยู่ระหว่างตรวจสอบ: แสดงปุ่ม "อยู่ระหว่างตรวจสอบ" (สีน้ำเงินอ่อน) */}
                         {req.status !== 'อยู่ระหว่างตรวจสอบ' ? (
                           <button
                             type="button"
@@ -302,12 +299,6 @@ export default function ApproverView() {
                           </button>
                         ) : (
                           <>
-                            {/* ป้ายแสดงสถานะ อยู่ระหว่างตรวจสอบ */}
-                            <span className="px-3 py-1.5 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 text-xs font-semibold flex items-center justify-center space-x-1">
-                              <Clock className="w-3.5 h-3.5 text-sky-600" />
-                              <span>อยู่ระหว่างตรวจสอบ</span>
-                            </span>
-
                             {/* ปุ่ม ไม่อนุมัติ */}
                             <button
                               type="button"
@@ -327,6 +318,12 @@ export default function ApproverView() {
                               <Check className="w-3.5 h-3.5" />
                               <span>อนุมัติ</span>
                             </button>
+
+                            {/* ป้ายแสดงสถานะ: ย้ายมาไว้ขวามือ และเพิ่มคำว่า สถานะ: ไว้ข้างหน้า */}
+                            <span className="col-span-2 sm:col-span-1 px-3.5 py-2 rounded-xl bg-sky-100 text-sky-800 border border-sky-300 text-xs font-semibold flex items-center justify-center space-x-1.5 shadow-2xs">
+                              <Clock className="w-3.5 h-3.5 text-sky-700" />
+                              <span>สถานะ: อยู่ระหว่างตรวจสอบ</span>
+                            </span>
                           </>
                         )}
                       </div>
@@ -366,11 +363,11 @@ export default function ApproverView() {
                               : req.status === 'ไม่อนุมัติ'
                                 ? 'bg-[#FEE2E2] text-[#DC2626]'
                                 : req.status === 'อยู่ระหว่างตรวจสอบ'
-                                  ? 'bg-yellow-100 text-yellow-800'
+                                  ? 'bg-sky-100 text-sky-800 border border-sky-200'
                                   : 'bg-orange-100 text-orange-700'
                               }`}
                           >
-                            {req.status}
+                            สถานะ: {req.status}
                           </span>
                         </div>
                         <div className="text-xs text-slate-500">
