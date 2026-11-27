@@ -19,6 +19,8 @@ import {
   Eye,
   EyeOff,
   Upload,
+  Edit3,
+  X,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { POSITIONS_BY_EMPLOYMENT_TYPE, JOB_TITLE_OPTIONS, DEPARTMENT_OPTIONS } from '../RegisterView';
@@ -156,6 +158,9 @@ export default function SettingsView() {
   const initialEn = extractEnglishNameFields(currentUser);
 
   const standardPrefixes = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
+  const [profileData, setProfileData] = useState(() => currentUser || null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   const [prefixChoice, setPrefixChoice] = useState(() => {
     const p = initialTh.prefix?.trim();
     if (standardPrefixes.includes(p)) return p;
@@ -187,77 +192,125 @@ export default function SettingsView() {
   });
 
   // ดึงข้อมูลโปรไฟล์ล่าสุดโดยตรงจากฐานข้อมูล D1 มาแสดงในหน้าข้อมูลส่วนตัว
-  useEffect(() => {
-    let isMounted = true;
-    const fetchFreshProfileFromDb = async () => {
-      try {
-        let dbUser = null;
-        if (api && api.getProfile) {
-          const res = await api.getProfile().catch(() => null);
-          if (res && res.success && res.user) {
-            dbUser = res.user;
-          }
-        }
-        if (!dbUser && api && api.getEmployees && currentUser) {
-          const emps = await api.getEmployees().catch(() => []);
-          if (Array.isArray(emps)) {
-            dbUser = emps.find(
-              (e) =>
-                (e.raw_id && currentUser.raw_id && Number(e.raw_id) === Number(currentUser.raw_id)) ||
-                (e.id && currentUser.id && String(e.id) === String(currentUser.id)) ||
-                (e.employeeId && currentUser.employeeId && e.employeeId.toLowerCase() === currentUser.employeeId.toLowerCase()) ||
-                (e.email && currentUser.email && e.email.toLowerCase() === currentUser.email.toLowerCase())
-            );
-          }
-        }
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-        if (dbUser && isMounted) {
-          const userToUse = { ...currentUser, ...dbUser };
-          const th = extractThaiNameFields(userToUse);
-          const en = extractEnglishNameFields(userToUse);
-
-          const standardList = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
-          const userPfx = (th.prefix || '').trim();
-          if (standardList.includes(userPfx)) {
-            setPrefixChoice(userPfx);
-            setCustomPrefix('');
-          } else if (userPfx) {
-            setPrefixChoice('อื่นๆ');
-            setCustomPrefix(userPfx);
-          } else {
-            setPrefixChoice(userToUse.gender === 'ชาย' ? 'นาย' : 'นางสาว');
-            setCustomPrefix('');
-          }
-
-          setFormData({
-            name: th.name,
-            prefix: userPfx || (userToUse.gender === 'ชาย' ? 'นาย' : 'นางสาว'),
-            firstName: th.firstName,
-            lastName: th.lastName,
-            prefixEn: en.prefixEn,
-            firstNameEn: en.firstNameEn,
-            lastNameEn: en.lastNameEn,
-            englishName: en.englishName,
-            gender: normalizeGender(userToUse),
-            employmentType: userToUse.employmentType || 'ข้าราชการ',
-            title: userToUse.title || userToUse.position || '',
-            department: userToUse.department || '',
-            email: userToUse.email || '',
-            phone: userToUse.phone || '',
-            employeeId: userToUse.employeeId || '',
-            avatar: userToUse.avatar || '',
-          });
+  const fetchFreshProfileFromDb = async (manual = false) => {
+    if (manual) setIsRefreshing(true);
+    try {
+      let dbUser = null;
+      if (api && api.getProfile) {
+        const res = await api.getProfile().catch(() => null);
+        if (res && res.success && res.user) {
+          dbUser = res.user;
         }
-      } catch (err) {
-        console.log('[SettingsView] fetchFreshProfileFromDb Note:', err.message);
       }
-    };
+      if (!dbUser && api && api.getEmployees && currentUser) {
+        const emps = await api.getEmployees().catch(() => []);
+        if (Array.isArray(emps)) {
+          dbUser = emps.find(
+            (e) =>
+              (e.raw_id && currentUser.raw_id && Number(e.raw_id) === Number(currentUser.raw_id)) ||
+              (e.id && currentUser.id && String(e.id) === String(currentUser.id)) ||
+              (e.employeeId && currentUser.employeeId && e.employeeId.toLowerCase() === currentUser.employeeId.toLowerCase()) ||
+              (e.email && currentUser.email && e.email.toLowerCase() === currentUser.email.toLowerCase())
+          );
+        }
+      }
 
-    fetchFreshProfileFromDb();
-    return () => {
-      isMounted = false;
-    };
+      if (dbUser) {
+        const userToUse = { ...currentUser, ...dbUser };
+        setProfileData(userToUse);
+
+        const th = extractThaiNameFields(userToUse);
+        const en = extractEnglishNameFields(userToUse);
+
+        const standardList = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
+        const userPfx = (th.prefix || '').trim();
+        if (standardList.includes(userPfx)) {
+          setPrefixChoice(userPfx);
+          setCustomPrefix('');
+        } else if (userPfx) {
+          setPrefixChoice('อื่นๆ');
+          setCustomPrefix(userPfx);
+        } else {
+          setPrefixChoice(userToUse.gender === 'ชาย' ? 'นาย' : 'นางสาว');
+          setCustomPrefix('');
+        }
+
+        setFormData({
+          name: th.name,
+          prefix: userPfx || (userToUse.gender === 'ชาย' ? 'นาย' : 'นางสาว'),
+          firstName: th.firstName,
+          lastName: th.lastName,
+          prefixEn: en.prefixEn,
+          firstNameEn: en.firstNameEn,
+          lastNameEn: en.lastNameEn,
+          englishName: en.englishName,
+          gender: normalizeGender(userToUse),
+          employmentType: userToUse.employmentType || 'ข้าราชการ',
+          title: userToUse.title || userToUse.position || '',
+          department: userToUse.department || '',
+          email: userToUse.email || '',
+          phone: userToUse.phone || '',
+          employeeId: userToUse.employeeId || '',
+          avatar: userToUse.avatar || '',
+        });
+        if (manual && showToast) {
+          showToast('รีเฟรชข้อมูลล่าสุดจากระบบเรียบร้อยแล้ว', 'success');
+        }
+      } else if (manual) {
+        if (resetToDefault) resetToDefault();
+        if (showToast) showToast('รีเฟรชข้อมูลจากระบบเรียบร้อยแล้ว', 'success');
+      }
+    } catch (err) {
+      console.log('[SettingsView] fetchFreshProfileFromDb Note:', err.message);
+    } finally {
+      if (manual) setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFreshProfileFromDb(false);
   }, []);
+
+  const openEditModal = () => {
+    const active = profileData || currentUser;
+    const th = extractThaiNameFields(active);
+    const en = extractEnglishNameFields(active);
+
+    const standardList = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
+    const userPfx = (th.prefix || '').trim();
+    if (standardList.includes(userPfx)) {
+      setPrefixChoice(userPfx);
+      setCustomPrefix('');
+    } else if (userPfx) {
+      setPrefixChoice('อื่นๆ');
+      setCustomPrefix(userPfx);
+    } else {
+      setPrefixChoice(active?.gender === 'ชาย' ? 'นาย' : 'นางสาว');
+      setCustomPrefix('');
+    }
+
+    setFormData({
+      name: th.name,
+      prefix: userPfx || (active?.gender === 'ชาย' ? 'นาย' : 'นางสาว'),
+      firstName: th.firstName,
+      lastName: th.lastName,
+      prefixEn: en.prefixEn,
+      firstNameEn: en.firstNameEn,
+      lastNameEn: en.lastNameEn,
+      englishName: en.englishName,
+      gender: normalizeGender(active),
+      employmentType: active?.employmentType || 'ข้าราชการ',
+      title: active?.title || active?.position || '',
+      department: active?.department || '',
+      email: active?.email || '',
+      phone: active?.phone || '',
+      employeeId: active?.employeeId || '',
+      avatar: active?.avatar || '',
+    });
+    setIsEditModalOpen(true);
+  };
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -440,12 +493,16 @@ export default function SettingsView() {
         const res = await updateUserProfile(payload);
         if (res) {
           isFormDirtyRef.current = false;
+          const merged = { ...(profileData || {}), ...payload, ...res };
+          setProfileData(merged);
           setFormData((prev) => ({
             ...prev,
+            ...merged,
             email: res.email || cleanEmail,
-            title: res.title || res.position || prev.title,
-            department: res.department || prev.department,
+            title: res.title || res.position || payload.title,
+            department: res.department || payload.department,
           }));
+          setIsEditModalOpen(false);
           setSavedSuccess(true);
           setTimeout(() => setSavedSuccess(false), 3000);
         }
@@ -504,6 +561,8 @@ export default function SettingsView() {
     }
   };
 
+  const displayUser = profileData || currentUser || {};
+
   return (
     <div className="space-y-6 w-full font-prompt pb-12">
       {/* Page Header */}
@@ -514,10 +573,10 @@ export default function SettingsView() {
           </span>
         </div>
         <h2 className="text-2xl font-bold text-slate-800 mt-1">
-          การตั้งค่าและแก้ไขข้อมูลส่วนบุคคล
+          ข้อมูลส่วนตัว
         </h2>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          สำนักงานสหกรณ์จังหวัดขอนแก่น — ปรับปรุงข้อมูลส่วนตัว เพศ และช่องทางการติดต่อ
+          สำนักงานสหกรณ์จังหวัดขอนแก่น — ตรวจสอบและจัดการข้อมูลส่วนบุคคล
         </p>
       </div>
 
@@ -534,525 +593,650 @@ export default function SettingsView() {
         </div>
       )}
 
-      {/* Profile Form Card */}
+      {/* Profile Information Display Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-sm space-y-6">
         {/* Avatar & Header Identity */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
           <div className="flex items-center space-x-4">
             <div className="relative group">
               <img
-                src={formData.avatar || currentUser?.avatar}
-                alt={formData.name}
-                className="w-20 h-20 rounded-2xl object-cover ring-4 ring-emerald-50 shadow-md transition-all group-hover:brightness-95"
+                src={displayUser.avatar || currentUser?.avatar || 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg'}
+                alt={displayUser.name || 'โปรไฟล์'}
+                className="w-20 h-20 rounded-2xl object-cover ring-4 ring-emerald-50 shadow-md transition-all"
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute -bottom-2 -right-2 p-1.5 bg-[#2F855A] text-white rounded-xl shadow-md hover:bg-[#256F4A] transition-all cursor-pointer"
-                title="คลิกเพื่อนำเข้ารูปภาพจากเครื่อง"
-              >
-                <Camera className="w-4 h-4" />
-              </button>
             </div>
 
             <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-lg text-slate-800">{formData.name || 'เจ้าหน้าที่สหกรณ์'}</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
-                  {formData.gender === 'ชาย' ? 'ชาย' : 'หญิง'}
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <h3 className="font-bold text-lg text-slate-800">{displayUser.name || 'เจ้าหน้าที่สหกรณ์'}</h3>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                  (displayUser.gender === 'ชาย') ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                }`}>
+                  {displayUser.gender === 'ชาย' ? 'ชาย' : 'หญิง'}
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  {displayUser.employmentType || 'ข้าราชการ'}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
                   {currentUser?.role === 'approver' || currentUser?.role === 'admin' ? 'ผู้อนุมัติ' : 'เจ้าหน้าที่'}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">{formData.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น'}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                {displayUser.title || displayUser.position || 'เจ้าหน้าที่'} • {displayUser.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น'}
+              </p>
+              {displayUser.employeeId && (
+                <p className="text-[11px] font-mono text-slate-400 mt-0.5">
+                  รหัสประจำตัว: {displayUser.employeeId}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Hidden File Input for Image Upload */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            onChange={handleAvatarFileChange}
-            className="hidden"
-          />
-
-          <div className="flex items-center space-x-2 flex-wrap gap-2">
+          <div className="flex items-center space-x-2">
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-2 text-xs font-semibold text-white bg-[#2F855A] hover:bg-[#256F4A] rounded-xl transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer"
-              title="นำเข้ารูปภาพจากเครื่องคอมพิวเตอร์ หรือโทรศัพท์"
+              onClick={openEditModal}
+              className="px-5 py-2.5 bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] flex items-center space-x-2 cursor-pointer"
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span>นำเข้ารูปภาพจากเครื่อง</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-              className="px-3.5 py-2 text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-200/60"
-            >
-              เลือกรูปสำเร็จรูป
+              <Edit3 className="w-4 h-4" />
+              <span>แก้ไขข้อมูล</span>
             </button>
           </div>
         </div>
 
-        {/* Avatar Preset & Custom Picker */}
-        {showAvatarPicker && (
-          <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 animate-in fade-in">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700">เปลี่ยนรูปโปรไฟล์</span>
+        {/* 7 Required Profile Fields */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 1. ชื่อ-สกุล */}
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+              <User className="w-4 h-4 text-emerald-600" />
+              <span>ชื่อ - สกุล</span>
+            </div>
+            <p className="text-sm sm:text-base font-bold text-slate-800">
+              {displayUser.name || '-'}
+            </p>
+            {displayUser.englishName && (
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                (EN: {displayUser.englishName})
+              </p>
+            )}
+          </div>
+
+          {/* 2. เพศ */}
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+              <User className="w-4 h-4 text-emerald-600" />
+              <span>เพศ</span>
+            </div>
+            <div>
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${
+                displayUser.gender === 'ชาย'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-rose-100 text-rose-800'
+              }`}>
+                {displayUser.gender === 'ชาย' ? 'ชาย' : 'หญิง'}
+              </span>
+            </div>
+          </div>
+
+          {/* 3. ประเภทการจ้างงาน */}
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+              <Briefcase className="w-4 h-4 text-emerald-600" />
+              <span>ประเภทการจ้างงาน</span>
+            </div>
+            <p className="text-sm sm:text-base font-bold text-slate-800">
+              {displayUser.employmentType || 'ข้าราชการ'}
+            </p>
+          </div>
+
+          {/* 4. ตำแหน่งงาน */}
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+              <Shield className="w-4 h-4 text-emerald-600" />
+              <span>ตำแหน่งงาน</span>
+            </div>
+            <p className="text-sm sm:text-base font-bold text-slate-800">
+              {displayUser.title || displayUser.position || '-'}
+            </p>
+          </div>
+
+          {/* 5. ฝ่าย / กลุ่มงาน */}
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 hover:bg-slate-50 transition-colors md:col-span-2">
+            <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+              <Building className="w-4 h-4 text-emerald-600" />
+              <span>ฝ่าย / กลุ่มงาน</span>
+            </div>
+            <p className="text-sm sm:text-base font-bold text-slate-800">
+              {displayUser.department || '-'}
+            </p>
+          </div>
+
+          {/* 6. อีเมลติดต่อ */}
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+              <Mail className="w-4 h-4 text-emerald-600" />
+              <span>อีเมลติดต่อ</span>
+            </div>
+            <p className="text-sm sm:text-base font-bold text-slate-800 break-all">
+              {displayUser.email || '-'}
+            </p>
+          </div>
+
+          {/* 7. เบอร์โทรศัพท์ติดต่อ */}
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+              <Phone className="w-4 h-4 text-emerald-600" />
+              <span>เบอร์โทรศัพท์ติดต่อ</span>
+            </div>
+            <p className="text-sm sm:text-base font-bold text-slate-800">
+              {displayUser.phone || '-'}
+            </p>
+          </div>
+        </div>
+
+        {/* Action Bar Bottom */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-6 border-t border-slate-100 gap-3">
+          <button
+            type="button"
+            onClick={() => fetchFreshProfileFromDb(true)}
+            disabled={isRefreshing}
+            className="flex items-center justify-center space-x-2 text-xs text-slate-500 hover:text-slate-800 py-2 transition-colors cursor-pointer"
+          >
+            <RotateCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+            <span>{isRefreshing ? 'กำลังดึงข้อมูลล่าสุด...' : 'รีเฟรชข้อมูลจากระบบ'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={openEditModal}
+            className="flex items-center justify-center space-x-2 px-6 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm bg-[#2F855A] hover:bg-[#256F4A] shadow-md transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>แก้ไขข้อมูล</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Modal Popup: แก้ไขข้อมูลส่วนตัว */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg text-slate-800">
+                    แก้ไขข้อมูลส่วนตัว
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    ปรับปรุงข้อมูลชื่อ-สกุล เพศ ตำแหน่ง และช่องทางการติดต่อ
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => setShowAvatarPicker(false)}
-                className="text-xs text-slate-400 hover:text-slate-600"
+                onClick={() => setIsEditModalOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                ปิด
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Upload from Device Box */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-emerald-300 hover:border-emerald-600 bg-emerald-50/50 hover:bg-emerald-50/90 rounded-2xl p-4 text-center cursor-pointer transition-all group"
-            >
-              <div className="flex flex-col items-center justify-center space-y-1.5">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs">
-                  <Upload className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-bold text-emerald-900">
-                  คลิกเพื่อเลือกไฟล์รูปภาพจากเครื่อง (คอมพิวเตอร์ / โน้ตบุ๊ก / มือถือ)
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  รองรับไฟล์รูปภาพ PNG, JPG, JPEG, WEBP (ระบบจะปรับขนาดให้อัตโนมัติอย่างคมชัด)
-                </p>
-              </div>
-            </div>
-
-            {/* Presets */}
-            <div className="space-y-2 pt-1 border-t border-slate-200">
-              <span className="text-[11px] font-semibold text-slate-500 block">หรือเลือกรูปภาพสำเร็จรูปของระบบ:</span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {AVATAR_PRESETS.map((preset, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSelectAvatar(preset.url, preset.gender)}
-                    className={`flex flex-col items-center p-2 rounded-xl border transition-all ${formData.avatar === preset.url
-                      ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                  >
-                    <img
-                      src={preset.url}
-                      alt={preset.label}
-                      className="w-14 h-14 rounded-xl object-cover mb-1.5 shadow-xs"
-                    />
-                    <span className="text-[10px] text-slate-600 text-center line-clamp-1">{preset.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Image URL input */}
-            <div className="pt-2 border-t border-slate-200">
-              <label className="block text-[11px] text-slate-500 mb-1">หรือระบุลิงก์รูปภาพ (Image URL)</label>
-              <input
-                type="url"
-                placeholder="https://..."
-                value={formData.avatar}
-                onChange={(e) => {
-                  let val = e.target.value;
-                  if (val.includes('pinterest.com/pin/581457001933657636')) {
-                    val = 'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
-                  }
-                  setFormData({ ...formData, avatar: val });
-                  isFormDirtyRef.current = true;
-                }}
-                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Input Fields Form */}
-        <form onChange={() => { isFormDirtyRef.current = true; }} onSubmit={handleSubmit} className="space-y-5 text-xs sm:text-sm">
-          {/* Row 1: ชื่อ - นามสกุล (ภาษาไทย) (แยก คำนำหน้า, ชื่อ, นามสกุล) */}
-          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-2">
-            <div className="flex items-center space-x-2 text-slate-700 font-semibold mb-1">
-              <User className="w-4 h-4 text-emerald-600" />
-              <span>ชื่อ - นามสกุล (ภาษาไทย)</span>
-              <span className="text-slate-400 font-normal text-xs">(แยก คำนำหน้า, ชื่อจริง, นามสกุล) <span className="text-rose-500">*</span></span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              <div className="sm:col-span-3">
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                  คำนำหน้า (ไทย) <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={prefixChoice}
-                    onChange={(e) => {
-                      const choice = e.target.value;
-                      setPrefixChoice(choice);
-                      let newPrefix = choice === 'อื่นๆ' ? customPrefix.trim() : choice;
-                      let newGender = formData.gender;
-                      let newPrefixEn = formData.prefixEn;
-                      if (choice === 'นาย') {
-                        newGender = 'ชาย';
-                        newPrefixEn = 'Mr.';
-                      } else if (choice === 'นาง') {
-                        newGender = 'หญิง';
-                        newPrefixEn = 'Mrs.';
-                      } else if (choice === 'นางสาว') {
-                        newGender = 'หญิง';
-                        newPrefixEn = 'Miss';
-                      }
-                      const newFullName = `${newPrefix}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
-                      setFormData((prev) => ({
-                        ...prev,
-                        prefix: newPrefix,
-                        gender: newGender,
-                        prefixEn: prev.prefixEn || newPrefixEn,
-                        name: newFullName,
-                      }));
-                    }}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium cursor-pointer"
-                  >
-                    <option value="นาย">นาย</option>
-                    <option value="นาง">นาง</option>
-                    <option value="นางสาว">นางสาว</option>
-                    <option value="ดร.">ดร.</option>
-                    <option value="อื่นๆ">อื่นๆ</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* เมื่อเลือก "อื่นๆ" ให้แสดงช่องกรอกคำนำหน้าเอง */}
-              {prefixChoice === 'อื่นๆ' && (
-                <div className="sm:col-span-12 flex items-center space-x-2 p-2.5 bg-emerald-50/70 border border-emerald-300 rounded-xl animate-in fade-in duration-150">
-                  <span className="text-xs font-bold text-emerald-800 flex-shrink-0">
-                    ระบุคำนำหน้า:
-                  </span>
-                  <input
-                    type="text"
-                    value={customPrefix}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomPrefix(val);
-                      const newFullName = `${val}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
-                      setFormData((prev) => ({
-                        ...prev,
-                        prefix: val,
-                        name: newFullName,
-                      }));
-                    }}
-                    placeholder="พิมพ์คำนำหน้าของท่าน เช่น ว่าที่ ร.ต., ผศ., อาจารย์, พันเอก"
-                    className="flex-1 px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all font-medium"
+            {/* Modal Scrollable Form */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs sm:text-sm">
+              {/* Avatar Selector Inside Modal */}
+              <div className="flex items-center space-x-4 p-3 bg-slate-50/70 rounded-2xl border border-slate-200/80">
+                <div className="relative group">
+                  <img
+                    src={formData.avatar || currentUser?.avatar}
+                    alt={formData.name}
+                    className="w-16 h-16 rounded-xl object-cover ring-2 ring-emerald-100 shadow-xs"
                   />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute -bottom-1.5 -right-1.5 p-1 bg-[#2F855A] text-white rounded-lg shadow-sm hover:bg-[#256F4A] transition-all cursor-pointer"
+                    title="คลิกเพื่อนำเข้ารูปภาพจากเครื่อง"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-slate-700">รูปภาพโปรไฟล์</p>
+                  <p className="text-[11px] text-slate-500 mb-2">อัปโหลดรูปภาพใหม่จากเครื่อง หรือเลือกรูปสำเร็จรูป</p>
+                  <div className="flex items-center space-x-2 flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-[#2F855A] hover:bg-[#256F4A] rounded-lg transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>อัปโหลดรูป</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+                      className="px-3 py-1.5 text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200/60 cursor-pointer"
+                    >
+                      เลือกรูปสำเร็จรูป
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hidden File Input for Image Upload */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleAvatarFileChange}
+                className="hidden"
+              />
+
+              {/* Avatar Preset & Custom Picker */}
+              {showAvatarPicker && (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">เลือกรูปโปรไฟล์</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAvatarPicker(false)}
+                      className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      ปิด
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {AVATAR_PRESETS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectAvatar(preset.url, preset.gender)}
+                        className={`flex flex-col items-center p-2 rounded-xl border transition-all cursor-pointer ${formData.avatar === preset.url
+                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                      >
+                        <img
+                          src={preset.url}
+                          alt={preset.label}
+                          className="w-12 h-12 rounded-xl object-cover mb-1 shadow-xs"
+                        />
+                        <span className="text-[10px] text-slate-600 text-center line-clamp-1">{preset.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <div className="sm:col-span-4">
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                  ชื่อจริง (First Name) <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.firstName}
-                  onChange={(e) => {
-                    const newFirst = e.target.value;
-                    const newFullName = `${formData.prefix || ''}${newFirst} ${formData.lastName || ''}`.trim();
-                    setFormData((prev) => ({
-                      ...prev,
-                      firstName: newFirst,
-                      name: newFullName,
-                    }));
-                  }}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium"
-                  placeholder="กรอกชื่อจริง"
-                />
-              </div>
+              {/* Row 1: ชื่อ - นามสกุล (ภาษาไทย) */}
+              <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+                <div className="flex items-center space-x-2 text-slate-700 font-semibold mb-1">
+                  <User className="w-4 h-4 text-emerald-600" />
+                  <span>ชื่อ - นามสกุล (ภาษาไทย)</span>
+                  <span className="text-slate-400 font-normal text-xs">(แยก คำนำหน้า, ชื่อจริง, นามสกุล) <span className="text-rose-500">*</span></span>
+                </div>
 
-              <div className="sm:col-span-5">
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                  นามสกุล (Last Name) <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.lastName}
-                  onChange={(e) => {
-                    const newLast = e.target.value;
-                    const newFullName = `${formData.prefix || ''}${formData.firstName || ''} ${newLast}`.trim();
-                    setFormData((prev) => ({
-                      ...prev,
-                      lastName: newLast,
-                      name: newFullName,
-                    }));
-                  }}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium"
-                  placeholder="เช่น ธรรมเมือง"
-                />
-              </div>
-            </div>
-          </div>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-3">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                      คำนำหน้า (ไทย) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={prefixChoice}
+                        onChange={(e) => {
+                          const choice = e.target.value;
+                          setPrefixChoice(choice);
+                          let newPrefix = choice === 'อื่นๆ' ? customPrefix.trim() : choice;
+                          let newGender = formData.gender;
+                          let newPrefixEn = formData.prefixEn;
+                          if (choice === 'นาย') {
+                            newGender = 'ชาย';
+                            newPrefixEn = 'Mr.';
+                          } else if (choice === 'นาง') {
+                            newGender = 'หญิง';
+                            newPrefixEn = 'Mrs.';
+                          } else if (choice === 'นางสาว') {
+                            newGender = 'หญิง';
+                            newPrefixEn = 'Miss';
+                          }
+                          const newFullName = `${newPrefix}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
+                          setFormData((prev) => ({
+                            ...prev,
+                            prefix: newPrefix,
+                            gender: newGender,
+                            prefixEn: prev.prefixEn || newPrefixEn,
+                            name: newFullName,
+                          }));
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium cursor-pointer"
+                      >
+                        <option value="นาย">นาย</option>
+                        <option value="นาง">นาง</option>
+                        <option value="นางสาว">นางสาว</option>
+                        <option value="ดร.">ดร.</option>
+                        <option value="อื่นๆ">อื่นๆ</option>
+                      </select>
+                    </div>
+                  </div>
 
-          {/* Row: เพศ (Gender) */}
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              เพศ (Gender) <span className="text-rose-500">*</span>
-            </label>
-            <div className="flex items-center space-x-2">
-              {[
-                { value: 'หญิง', label: 'หญิง (ญ)' },
-                { value: 'ชาย', label: 'ชาย (ช)' },
-              ].map((g) => (
-                <button
-                  key={g.value}
-                  type="button"
-                  onClick={() => updateFormField({ ...formData, gender: g.value })}
-                  className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center ${formData.gender === g.value
-                    ? 'bg-[#2F855A] text-white border-[#2F855A] shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
-                >
-                  {g.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Row: ชื่อภาษาอังกฤษ (แยก คำนำหน้า, ชื่อ, นามสกุล) */}
-          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-2">
-            <div className="flex items-center space-x-2 text-slate-700 font-semibold mb-1">
-              <Globe className="w-4 h-4 text-emerald-600" />
-              <span>ชื่อ - นามสกุล (ภาษาอังกฤษ)</span>
-              <span className="text-slate-400 font-normal text-xs">(แยก คำนำหน้า, ชื่อ, นามสกุล)</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              <div className="sm:col-span-3">
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">คำนำหน้า (Title)</label>
-                <select
-                  aria-label="คำนำหน้าภาษาอังกฤษ"
-                  value={formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'))}
-                  onChange={(e) => {
-                    const newPrefixEn = e.target.value;
-                    const newFullNameEn = `${newPrefixEn} ${formData.firstNameEn || ''} ${formData.lastNameEn || ''}`.trim();
-                    setFormData({ ...formData, prefixEn: newPrefixEn, englishName: newFullNameEn });
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all cursor-pointer font-medium"
-                >
-                  <option value="Mr.">Mr. (นาย)</option>
-                  <option value="Mrs.">Mrs. (นาง)</option>
-                  <option value="Miss">Miss (นางสาว)</option>
-                </select>
-              </div>
-
-              <div className="sm:col-span-4">
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">ชื่อภาษาอังกฤษ (First Name)</label>
-                <input
-                  type="text"
-                  value={formData.firstNameEn}
-                  onChange={(e) => {
-                    const newFirst = e.target.value;
-                    const p = formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'));
-                    setFormData({
-                      ...formData,
-                      firstNameEn: newFirst,
-                      englishName: `${p} ${newFirst} ${formData.lastNameEn || ''}`.trim()
-                    });
-                  }}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="First Name"
-                />
-              </div>
-
-              <div className="sm:col-span-5">
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">นามสกุลภาษาอังกฤษ (Last Name)</label>
-                <input
-                  type="text"
-                  value={formData.lastNameEn}
-                  onChange={(e) => {
-                    const newLast = e.target.value;
-                    const p = formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'));
-                    setFormData({
-                      ...formData,
-                      lastNameEn: newLast,
-                      englishName: `${p} ${formData.firstNameEn || ''} ${newLast}`.trim()
-                    });
-                  }}
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="เช่น Thammoeang"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Row: ประเภทการจ้างงาน */}
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              ประเภทการจ้างงาน
-            </label>
-            <select
-              value={formData.employmentType}
-              onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all cursor-pointer"
-            >
-              <option value="ข้าราชการ">ข้าราชการ</option>
-              <option value="ลูกจ้างประจำ">ลูกจ้างประจำ</option>
-              <option value="พนักงานราชการ">พนักงานราชการ</option>
-            </select>
-          </div>
-
-          {/* Row 2: ตำแหน่งงาน และ ฝ่าย/กลุ่มงาน */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="min-w-0">
-              <label className="block font-semibold text-slate-700 mb-1">ตำแหน่งงาน</label>
-              <div className="relative">
-                <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                <select
-                  aria-label="ตำแหน่งงาน"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${formData.title ? 'text-slate-800' : 'text-slate-400'
-                    }`}
-                >
-                  <option value="" className="text-slate-400">
-                    -- เลือกตำแหน่งงาน --
-                  </option>
-                  {(() => {
-                    const list =
-                      formData.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
-                        ? POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
-                        : JOB_TITLE_OPTIONS;
-                    return (
-                      <>
-                        {formData.title && !list.includes(formData.title) && (
-                          <option value={formData.title} className="text-slate-800">
-                            {formData.title}
-                          </option>
-                        )}
-                        {list.map((jobTitle) => (
-                          <option key={jobTitle} value={jobTitle} className="text-slate-800">
-                            {jobTitle}
-                          </option>
-                        ))}
-                      </>
-                    );
-                  })()}
-                </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-              </div>
-            </div>
-
-            <div className="min-w-0">
-              <label className="block font-semibold text-slate-700 mb-1">ฝ่าย / กลุ่มงาน</label>
-              <div className="relative">
-                <Building className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                <select
-                  aria-label="ฝ่าย / กลุ่มงาน"
-                  value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${formData.department ? 'text-slate-800' : 'text-slate-400'
-                    }`}
-                >
-                  <option value="" className="text-slate-400">
-                    -- เลือกสังกัดกลุ่ม / ฝ่าย --
-                  </option>
-                  {formData.department && !DEPARTMENT_OPTIONS.includes(formData.department) && (
-                    <option value={formData.department} className="text-slate-800">
-                      {formData.department}
-                    </option>
+                  {prefixChoice === 'อื่นๆ' && (
+                    <div className="sm:col-span-12 flex items-center space-x-2 p-2.5 bg-emerald-50/70 border border-emerald-300 rounded-xl animate-in fade-in duration-150">
+                      <span className="text-xs font-bold text-emerald-800 flex-shrink-0">
+                        ระบุคำนำหน้า:
+                      </span>
+                      <input
+                        type="text"
+                        value={customPrefix}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCustomPrefix(val);
+                          const newFullName = `${val}${formData.firstName || ''} ${formData.lastName || ''}`.trim();
+                          setFormData((prev) => ({
+                            ...prev,
+                            prefix: val,
+                            name: newFullName,
+                          }));
+                        }}
+                        placeholder="พิมพ์คำนำหน้าของท่าน เช่น ว่าที่ ร.ต., ผศ., อาจารย์, พันเอก"
+                        className="flex-1 px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all font-medium"
+                      />
+                    </div>
                   )}
-                  {DEPARTMENT_OPTIONS.map((dept) => (
-                    <option key={dept} value={dept} className="text-slate-800">
-                      {dept}
-                    </option>
+
+                  <div className="sm:col-span-4">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                      ชื่อจริง (First Name) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.firstName}
+                      onChange={(e) => {
+                        const newFirst = e.target.value;
+                        const newFullName = `${formData.prefix || ''}${newFirst} ${formData.lastName || ''}`.trim();
+                        setFormData((prev) => ({
+                          ...prev,
+                          firstName: newFirst,
+                          name: newFullName,
+                        }));
+                      }}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium"
+                      placeholder="กรอกชื่อจริง"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-5">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                      นามสกุล (Last Name) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.lastName}
+                      onChange={(e) => {
+                        const newLast = e.target.value;
+                        const newFullName = `${formData.prefix || ''}${formData.firstName || ''} ${newLast}`.trim();
+                        setFormData((prev) => ({
+                          ...prev,
+                          lastName: newLast,
+                          name: newFullName,
+                        }));
+                      }}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all font-medium"
+                      placeholder="เช่น ธรรมเมือง"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 2: เพศ */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  เพศ (Gender) <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex items-center space-x-2">
+                  {[
+                    { value: 'หญิง', label: 'หญิง (ญ)' },
+                    { value: 'ชาย', label: 'ชาย (ช)' },
+                  ].map((g) => (
+                    <button
+                      key={g.value}
+                      type="button"
+                      onClick={() => updateFormField({ ...formData, gender: g.value })}
+                      className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${formData.gender === g.value
+                        ? 'bg-[#2F855A] text-white border-[#2F855A] shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                    >
+                      {g.label}
+                    </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Row 3: ชื่อภาษาอังกฤษ */}
+              <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+                <div className="flex items-center space-x-2 text-slate-700 font-semibold mb-1">
+                  <Globe className="w-4 h-4 text-emerald-600" />
+                  <span>ชื่อ - นามสกุล (ภาษาอังกฤษ)</span>
+                  <span className="text-slate-400 font-normal text-xs">(แยก คำนำหน้า, ชื่อ, นามสกุล)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-3">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">คำนำหน้า (Title)</label>
+                    <select
+                      aria-label="คำนำหน้าภาษาอังกฤษ"
+                      value={formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'))}
+                      onChange={(e) => {
+                        const newPrefixEn = e.target.value;
+                        const newFullNameEn = `${newPrefixEn} ${formData.firstNameEn || ''} ${formData.lastNameEn || ''}`.trim();
+                        setFormData({ ...formData, prefixEn: newPrefixEn, englishName: newFullNameEn });
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all cursor-pointer font-medium"
+                    >
+                      <option value="Mr.">Mr. (นาย)</option>
+                      <option value="Mrs.">Mrs. (นาง)</option>
+                      <option value="Miss">Miss (นางสาว)</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-4">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">ชื่อภาษาอังกฤษ (First Name)</label>
+                    <input
+                      type="text"
+                      value={formData.firstNameEn}
+                      onChange={(e) => {
+                        const newFirst = e.target.value;
+                        const p = formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'));
+                        setFormData({
+                          ...formData,
+                          firstNameEn: newFirst,
+                          englishName: `${p} ${newFirst} ${formData.lastNameEn || ''}`.trim()
+                        });
+                      }}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                      placeholder="First Name"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-5">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">นามสกุลภาษาอังกฤษ (Last Name)</label>
+                    <input
+                      type="text"
+                      value={formData.lastNameEn}
+                      onChange={(e) => {
+                        const newLast = e.target.value;
+                        const p = formData.prefixEn === 'Ms.' ? 'Miss' : (formData.prefixEn || (formData.gender === 'ชาย' ? 'Mr.' : 'Miss'));
+                        setFormData({
+                          ...formData,
+                          lastNameEn: newLast,
+                          englishName: `${p} ${formData.firstNameEn || ''} ${newLast}`.trim()
+                        });
+                      }}
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                      placeholder="เช่น Thammoeang"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 4: ประเภทการจ้างงาน */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  ประเภทการจ้างงาน
+                </label>
+                <select
+                  value={formData.employmentType}
+                  onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all cursor-pointer"
+                >
+                  <option value="ข้าราชการ">ข้าราชการ</option>
+                  <option value="ลูกจ้างประจำ">ลูกจ้างประจำ</option>
+                  <option value="พนักงานราชการ">พนักงานราชการ</option>
                 </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
               </div>
-            </div>
-          </div>
 
-          {/* Row 3: อีเมลติดต่อ และ เบอร์โทรศัพท์ติดต่อ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">อีเมลติดต่อ</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="name@smartleave.com"
-                />
+              {/* Row 5: ตำแหน่งงาน และ ฝ่าย/กลุ่มงาน */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="min-w-0">
+                  <label className="block font-semibold text-slate-700 mb-1">ตำแหน่งงาน</label>
+                  <div className="relative">
+                    <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+                    <select
+                      aria-label="ตำแหน่งงาน"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${formData.title ? 'text-slate-800' : 'text-slate-400'
+                        }`}
+                    >
+                      <option value="" className="text-slate-400">
+                        -- เลือกตำแหน่งงาน --
+                      </option>
+                      {(() => {
+                        const list =
+                          formData.employmentType && POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
+                            ? POSITIONS_BY_EMPLOYMENT_TYPE[formData.employmentType]
+                            : JOB_TITLE_OPTIONS;
+                        return (
+                          <>
+                            {formData.title && !list.includes(formData.title) && (
+                              <option value={formData.title} className="text-slate-800">
+                                {formData.title}
+                              </option>
+                            )}
+                            {list.map((jobTitle) => (
+                              <option key={jobTitle} value={jobTitle} className="text-slate-800">
+                                {jobTitle}
+                              </option>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <label className="block font-semibold text-slate-700 mb-1">ฝ่าย / กลุ่มงาน</label>
+                  <div className="relative">
+                    <Building className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+                    <select
+                      aria-label="ฝ่าย / กลุ่มงาน"
+                      value={formData.department}
+                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                      className={`w-full max-w-full truncate pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all appearance-none cursor-pointer ${formData.department ? 'text-slate-800' : 'text-slate-400'
+                        }`}
+                    >
+                      <option value="" className="text-slate-400">
+                        -- เลือกสังกัดกลุ่ม / ฝ่าย --
+                      </option>
+                      {formData.department && !DEPARTMENT_OPTIONS.includes(formData.department) && (
+                        <option value={formData.department} className="text-slate-800">
+                          {formData.department}
+                        </option>
+                      )}
+                      {DEPARTMENT_OPTIONS.map((dept) => (
+                        <option key={dept} value={dept} className="text-slate-800">
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์ติดต่อ</label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
-                  placeholder="เช่น 081-234-5678"
-                />
+              {/* Row 6: อีเมลติดต่อ และ เบอร์โทรศัพท์ติดต่อ */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">อีเมลติดต่อ <span className="text-rose-500">*</span></label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+                    <input
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                      placeholder="name@smartleave.com"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์ติดต่อ</label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-800 transition-all"
+                      placeholder="เช่น 081-234-5678"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Action Bar */}
-          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between pt-6 border-t border-slate-100 gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                isFormDirtyRef.current = false;
-                resetToDefault();
-              }}
-              className="flex items-center justify-center space-x-2 text-xs text-slate-500 hover:text-slate-800 py-2 transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>รีเฟรชข้อมูลจากระบบ</span>
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSavingProfile}
-              className={`flex items-center justify-center space-x-2 px-7 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-60 ${savedSuccess
-                ? 'bg-emerald-600 ring-2 ring-emerald-400'
-                : 'bg-[#2F855A] hover:bg-[#256F4A]'
-                }`}
-            >
-              {savedSuccess ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 animate-bounce" />
-                  <span>บันทึกสำเร็จเรียบร้อย!</span>
-                </>
-              ) : isSavingProfile ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>กำลังบันทึก...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  <span>บันทึกการแก้ไข</span>
-                </>
-              )}
-            </button>
+              {/* Modal Action Buttons */}
+              <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition-colors text-xs sm:text-sm cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingProfile}
+                  className="flex items-center space-x-2 px-6 py-2.5 bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+                >
+                  {isSavingProfile ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>กำลังบันทึก...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>บันทึกการแก้ไข</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
+        </div>
+      )}
 
       {/* Password Change Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100">
