@@ -16,6 +16,7 @@ import ApproverView from './components/views/ApproverView';
 import AdminCancelApprovalsView from './components/views/AdminCancelApprovalsView';
 import ReportsView from './components/views/ReportsView';
 import SettingsView from './components/views/SettingsView';
+import LeaveSummaryView from './components/views/LeaveSummaryView';
 import LeaveRequestModal from './components/LeaveRequestModal';
 import LeaveDetailModal from './components/LeaveDetailModal';
 import AnnouncementsModal from './components/AnnouncementsModal';
@@ -40,6 +41,8 @@ function MainLayout() {
         return <ApproverView />;
       case 'cancel-approvals':
         return <AdminCancelApprovalsView />;
+      case 'leave-summary':
+        return <LeaveSummaryView />;
       case 'reports':
         return <ReportsView />;
       case 'settings':

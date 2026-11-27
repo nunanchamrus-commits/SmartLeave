@@ -14,6 +14,7 @@ import {
   Shield,
   User,
   X,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useLeave } from '../context/LeaveContext';
 
@@ -59,6 +60,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
       icon: CalendarX2,
       badge: pendingCancellationsCount > 0 ? pendingCancellationsCount : null,
     },
+    { id: 'leave-summary', label: 'ตารางสรุปการลา', icon: FileSpreadsheet },
     { id: 'employees', label: 'จัดการพนักงาน & โควตา', icon: Users },
     { id: 'calendar', label: 'ปฏิทินการลา', icon: Calendar },
     { id: 'reports', label: 'รายงานสถิติการลา', icon: BarChart3 },
