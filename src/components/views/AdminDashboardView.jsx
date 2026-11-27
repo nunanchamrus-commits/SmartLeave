@@ -75,20 +75,22 @@ export default function AdminDashboardView() {
     setConfirmModal({ isOpen: false, req: null, targetStatus: '', defaultRemark: '' });
   };
 
-  const handleConfirmAction = async (finalRemark) => {
+  const handleConfirmAction = (finalRemark) => {
     if (!confirmModal.req) return;
     const { req, targetStatus } = confirmModal;
     const remark = finalRemark !== undefined ? finalRemark : confirmModal.defaultRemark;
 
-    if (targetStatus === 'อนุมัติ') {
-      await approveLeaveRequest(req.id, remark || 'อนุมัติเรียบร้อย');
-    } else if (targetStatus === 'ไม่อนุมัติ') {
-      await rejectLeaveRequest(req.id, remark || 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน');
-    } else {
-      await updateLeaveStatus(req.id, targetStatus, remark || '');
-    }
-
+    // ปิดหน้าต่างยืนยันทันที เพื่อให้ Modal หายไปทันทีโดยไม่มีอาการดีเลย์
     handleCloseConfirm();
+
+    // ดำเนินการอัปเดตสถานะแบบ Optimistic UI ทันที (รายการจะอัปเดต/หายไปทันที และซิงก์ DB ในพื้นหลัง)
+    if (targetStatus === 'อนุมัติ') {
+      approveLeaveRequest(req.id, remark || 'อนุมัติเรียบร้อย');
+    } else if (targetStatus === 'ไม่อนุมัติ') {
+      rejectLeaveRequest(req.id, remark || 'ไม่อนุมัติเนื่องจากมีภารกิจงานเร่งด่วน');
+    } else {
+      updateLeaveStatus(req.id, targetStatus, remark || '');
+    }
   };
 
   const now = new Date();

@@ -71,8 +71,8 @@ export default function ApproverView() {
     });
   };
 
-  const handleSetInReview = async (req) => {
-    await updateLeaveStatus(req.id, 'อยู่ระหว่างตรวจสอบ', 'อยู่ระหว่างตรวจสอบเอกสาร');
+  const handleSetInReview = (req) => {
+    updateLeaveStatus(req.id, 'อยู่ระหว่างตรวจสอบ', 'อยู่ระหว่างตรวจสอบเอกสาร');
     if (showToast) showToast(`คำขอลา ${req.id} เปลี่ยนสถานะเป็น "อยู่ระหว่างตรวจสอบ" เรียบร้อยแล้ว`, 'info');
   };
 
@@ -85,20 +85,22 @@ export default function ApproverView() {
     });
   };
 
-  const handleConfirmAction = async (finalRemark) => {
+  const handleConfirmAction = (finalRemark) => {
     if (!confirmModal.req) return;
     const { req, targetStatus } = confirmModal;
     const remark = finalRemark !== undefined ? finalRemark : confirmModal.defaultRemark;
 
-    if (targetStatus === 'อนุมัติ') {
-      await approveLeaveRequest(req.id, remark || 'อนุมัติเรียบร้อย');
-    } else if (targetStatus === 'ไม่อนุมัติ') {
-      await rejectLeaveRequest(req.id, remark || 'ไม่อนุมัติเนื่องจากมีภารกิจจำเป็น');
-    } else {
-      await updateLeaveStatus(req.id, targetStatus, remark || '');
-    }
-
+    // ปิดหน้าต่างยืนยันทันที เพื่อให้ Modal หายไปทันทีโดยไม่มีอาการดีเลย์
     handleCloseConfirm();
+
+    // ดำเนินการอัปเดตสถานะแบบ Optimistic UI ทันที (รายการจะอัปเดต/หายไปทันที และซิงก์ DB ในพื้นหลัง)
+    if (targetStatus === 'อนุมัติ') {
+      approveLeaveRequest(req.id, remark || 'อนุมัติเรียบร้อย');
+    } else if (targetStatus === 'ไม่อนุมัติ') {
+      rejectLeaveRequest(req.id, remark || 'ไม่อนุมัติเนื่องจากมีภารกิจจำเป็น');
+    } else {
+      updateLeaveStatus(req.id, targetStatus, remark || '');
+    }
   };
 
   const handleDownloadSlip = async (req, e) => {

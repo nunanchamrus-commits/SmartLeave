@@ -96,17 +96,9 @@ export default function StatusConfirmModal({
       >
         {/* Header */}
         <div className={`px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between text-white ${headerBg}`}>
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
-              {isApprove && <Check className="w-4 h-4 text-white" />}
-              {isReject && <X className="w-4 h-4 text-white" />}
-              {isChecking && <Clock className="w-4 h-4 text-white" />}
-              {!isApprove && !isReject && !isChecking && <AlertCircle className="w-4 h-4 text-white" />}
-            </div>
-            <div>
-              <h3 className="font-bold text-base font-prompt">{titleText}</h3>
-              <p className="text-[11px] opacity-80">รหัสคำขอ: {req.id}</p>
-            </div>
+          <div>
+            <h3 className="font-bold text-base font-prompt">{titleText}</h3>
+            <p className="text-[11px] opacity-80">รหัสคำขอ: {req.id}</p>
           </div>
           <button
             type="button"
