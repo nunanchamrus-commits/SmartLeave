@@ -230,11 +230,6 @@ export default function ApproverView() {
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-100">
                             {req.type}
                           </span>
-                          {req.status !== 'อยู่ระหว่างตรวจสอบ' && (
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-orange-100 text-orange-700 border-orange-200">
-                              สถานะ: {req.status}
-                            </span>
-                          )}
                         </div>
 
                         <div className="text-xs text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
@@ -258,74 +253,86 @@ export default function ApproverView() {
                         )}
                       </div>
 
-                      {/* Actions */}
-                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto pt-2 lg:pt-0 border-t border-slate-100 lg:border-t-0 flex-shrink-0">
-                        {/* Download PDF button */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleDownloadSlip(req, e)}
-                          disabled={downloadingId === req.id}
-                          className="px-3 py-2 rounded-xl border border-slate-200 hover:border-emerald-300 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 font-semibold text-xs transition-colors flex items-center justify-center space-x-1 shadow-2xs"
-                          title="ส่งออกใบลาเป็น PDF"
-                        >
-                          {downloadingId === req.id ? (
-                            <div className="w-3.5 h-3.5 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin" />
-                          ) : (
-                            <FileDown className="w-3.5 h-3.5 text-emerald-600" />
-                          )}
-                          <span>ส่งออก PDF</span>
-                        </button>
-
-                        {/* View Details */}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedLeaveDetail(req)}
-                          className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center space-x-1"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>ดูรายละเอียด</span>
-                        </button>
-
-                        {/* หากยังไม่อยู่ระหว่างตรวจสอบ: แสดงปุ่ม "อยู่ระหว่างตรวจสอบ" (สีน้ำเงินอ่อน) */}
-                        {req.status !== 'อยู่ระหว่างตรวจสอบ' ? (
-                          <button
-                            type="button"
-                            onClick={() => handleSetInReview(req)}
-                            className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 font-semibold text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
-                            title="คลิกเพื่อเปลี่ยนเป็นสถานะอยู่ระหว่างตรวจสอบ และแสดงปุ่มอนุมัติ/ไม่อนุมัติ"
-                          >
-                            <Clock className="w-3.5 h-3.5 text-sky-700" />
-                            <span>อยู่ระหว่างตรวจสอบ</span>
-                          </button>
-                        ) : (
-                          <>
-                            {/* ปุ่ม ไม่อนุมัติ */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenConfirm(req, 'ไม่อนุมัติ')}
-                              className="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1 shadow-2xs cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                              <span>ไม่อนุมัติ</span>
-                            </button>
-
-                            {/* ปุ่ม อนุมัติ */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
-                              className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1 cursor-pointer"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>อนุมัติ</span>
-                            </button>
-
-                            {/* ป้ายแสดงสถานะ: ย้ายมาไว้ขวามือ และเพิ่มคำว่า สถานะ: ไว้ข้างหน้า */}
-                            <span className="col-span-2 sm:col-span-1 px-3.5 py-2 rounded-xl bg-sky-100 text-sky-800 border border-sky-300 text-xs font-semibold flex items-center justify-center space-x-1.5 shadow-2xs">
+                      {/* Actions & Status Section (Right Side) */}
+                      <div className="flex flex-col items-start sm:items-end justify-center gap-2.5 w-full lg:w-auto pt-2 lg:pt-0 border-t border-slate-100 lg:border-t-0 flex-shrink-0">
+                        {/* Status Badge (อยู่ข้างบนปุ่มส่งออก ปุ่มดูรายละเอียด) */}
+                        <div className="flex items-center">
+                          {req.status === 'อยู่ระหว่างตรวจสอบ' ? (
+                            <span className="px-3 py-1 rounded-xl bg-sky-100 text-sky-800 border border-sky-300 text-xs font-semibold flex items-center space-x-1.5 shadow-2xs">
                               <Clock className="w-3.5 h-3.5 text-sky-700" />
                               <span>สถานะ: อยู่ระหว่างตรวจสอบ</span>
                             </span>
-                          </>
-                        )}
+                          ) : (
+                            <span className="px-3 py-1 rounded-xl bg-orange-100 text-orange-800 border border-orange-200 text-xs font-semibold flex items-center space-x-1.5 shadow-2xs">
+                              <AlertCircle className="w-3.5 h-3.5 text-orange-600" />
+                              <span>สถานะ: {req.status}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Action Buttons Row (ข้างล่างป้ายสถานะ) */}
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
+                          {/* Download PDF button */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleDownloadSlip(req, e)}
+                            disabled={downloadingId === req.id}
+                            className="px-3 py-2 rounded-xl border border-slate-200 hover:border-emerald-300 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 font-semibold text-xs transition-colors flex items-center justify-center space-x-1 shadow-2xs cursor-pointer"
+                            title="ส่งออกใบลาเป็น PDF"
+                          >
+                            {downloadingId === req.id ? (
+                              <div className="w-3.5 h-3.5 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin" />
+                            ) : (
+                              <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+                            )}
+                            <span>ส่งออก PDF</span>
+                          </button>
+
+                          {/* View Details */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLeaveDetail(req)}
+                            className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center space-x-1 cursor-pointer"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>ดูรายละเอียด</span>
+                          </button>
+
+                          {/* หากยังไม่อยู่ระหว่างตรวจสอบ: แสดงปุ่ม "อยู่ระหว่างตรวจสอบ" (สีน้ำเงินอ่อน) */}
+                          {req.status !== 'อยู่ระหว่างตรวจสอบ' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSetInReview(req)}
+                              className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 font-semibold text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-2xs cursor-pointer"
+                              title="คลิกเพื่อเปลี่ยนเป็นสถานะอยู่ระหว่างตรวจสอบ และแสดงปุ่มอนุมัติ/ไม่อนุมัติ"
+                            >
+                              <Clock className="w-3.5 h-3.5 text-sky-700" />
+                              <span>อยู่ระหว่างตรวจสอบ</span>
+                            </button>
+                          ) : (
+                            <>
+                              {/* ปุ่ม ไม่อนุมัติ */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenConfirm(req, 'ไม่อนุมัติ')}
+                                className="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors flex items-center justify-center space-x-1 shadow-2xs cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>ไม่อนุมัติ</span>
+                              </button>
+
+                              {/* ปุ่ม อนุมัติ */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenConfirm(req, 'อนุมัติ')}
+                                className="col-span-2 sm:col-span-1 px-4 py-2 rounded-xl bg-[#2F855A] hover:bg-[#256F4A] text-white font-semibold text-xs transition-colors shadow-sm flex items-center justify-center space-x-1 cursor-pointer"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>อนุมัติ</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
