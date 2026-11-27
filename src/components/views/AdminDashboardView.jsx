@@ -8,12 +8,10 @@ import {
   ChevronRight,
   Calendar,
   Building,
-  FileSpreadsheet,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { getFiscalYearInfo } from '../../utils/thaiDate';
 import EmptyState from '../EmptyState';
-import LeaveSummaryTable from '../LeaveSummaryTable';
 
 const THAI_MONTHS_SHORT = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -37,9 +35,6 @@ export default function AdminDashboardView() {
       fetchLiveDatabaseData({ silent: true });
     }
   }, []);
-
-  // State สำหรับแท็บแดชบอร์ด ('summary-table' | 'leaves-today')
-  const [activeDashboardTab, setActiveDashboardTab] = useState('summary-table');
 
   // State สำหรับ Pagination (6 รายการต่อหน้า)
   const [leavesTodayPage, setLeavesTodayPage] = useState(1);
@@ -211,160 +206,121 @@ export default function AdminDashboardView() {
         </div>
       </div>
 
-      {/* 2. Middle Section: Tab Container (ตารางสรุปการลา / สถานะการลาประจำวัน) */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        {/* Tab Headers */}
-        <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              onClick={() => setActiveDashboardTab('summary-table')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 cursor-pointer ${
-                activeDashboardTab === 'summary-table'
-                  ? 'bg-[#2F855A] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-200/60'
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>ตารางสรุปการลา ({leaveRequests.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveDashboardTab('leaves-today')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 cursor-pointer ${
-                activeDashboardTab === 'leaves-today'
-                  ? 'bg-[#2F855A] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-200/60'
-              }`}
-            >
-              <Building className="w-3.5 h-3.5" />
-              <span>สถานะการลาประจำวัน ({leavesToday.length})</span>
-            </button>
+      {/* 2. Middle Section: Today's Absence */}
+      <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 flex flex-col justify-between space-y-4">
+        <div>
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center space-x-2 text-[#134226]">
+              <Building className="w-5 h-5 text-emerald-600" />
+              <h3 className="font-bold text-slate-800 text-base font-prompt">
+                สถานะการลาประจำวัน
+              </h3>
+            </div>
+            <span className="text-xs font-medium text-slate-400">{currentMonthYearBE}</span>
+          </div>
+
+          <div className="mt-3 space-y-3">
+            {leavesToday.length === 0 ? (
+              <EmptyState
+                compact
+                variant="check"
+                title="ไม่มีพนักงานลางานในวันนี้"
+                description="บุคลากรทุกคนปฏิบัติหน้าที่ตามปกติ (เข้างานครบ 100%)"
+              />
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {paginatedLeavesToday.map((req) => {
+                    const emp = employees.find(
+                      (e) =>
+                        (req.userId && (e.id === req.userId || e.raw_id === req.userId || String(e.raw_id) === String(req.userId))) ||
+                        (req.employeeId && e.employeeId && e.employeeId.toLowerCase() === req.employeeId.toLowerCase()) ||
+                        (req.employeeName && e.name && e.name.trim() === req.employeeName.trim())
+                    );
+                    const avatar =
+                      emp?.avatar ||
+                      req.avatar ||
+                      'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
+                    const dept = req.department || emp?.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น';
+                    const title = emp?.title || emp?.position || req.position || 'เจ้าหน้าที่สหกรณ์';
+                    const typeBadgeColor =
+                      req.typeKey === 'sick'
+                        ? 'bg-rose-100 text-rose-800'
+                        : req.typeKey === 'personal'
+                        ? 'bg-teal-100 text-teal-800'
+                        : req.typeKey === 'maternity'
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-emerald-100 text-emerald-800';
+
+                    return (
+                      <div
+                        key={req.id}
+                        onClick={() => {
+                          if (setSelectedLeaveDetail) setSelectedLeaveDetail(req);
+                        }}
+                        className="p-3 rounded-2xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-100 hover:border-emerald-200 transition-colors flex items-center space-x-3 cursor-pointer group"
+                      >
+                        <img
+                          src={avatar}
+                          alt={req.employeeName}
+                          className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-800 transition-colors">
+                            {req.employeeName || emp?.name || 'เจ้าหน้าที่'}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {title} • {dept}
+                          </p>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${typeBadgeColor}`}>
+                          {req.type || 'ลางาน'} ({req.days} วัน)
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalLeavesTodayPages > 1 && (
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
+                    <span>
+                      หน้า {currentLeavesTodayPage} จาก {totalLeavesTodayPages} (ทั้งหมด {leavesToday.length} รายการ)
+                    </span>
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        type="button"
+                        disabled={currentLeavesTodayPage <= 1}
+                        onClick={() => setLeavesTodayPage((p) => Math.max(1, p - 1))}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>ก่อนหน้า</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={currentLeavesTodayPage >= totalLeavesTodayPages}
+                        onClick={() => setLeavesTodayPage((p) => Math.min(totalLeavesTodayPages, p + 1))}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+                      >
+                        <span>ถัดไป</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Tab Content */}
-        <div className="p-4 sm:p-6">
-          {activeDashboardTab === 'summary-table' && (
-            <LeaveSummaryTable requests={leaveRequests} />
-          )}
-
-          {activeDashboardTab === 'leaves-today' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center space-x-2 text-[#134226]">
-                  <Building className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-bold text-slate-800 text-base font-prompt">
-                    สถานะการลาประจำวัน
-                  </h3>
-                </div>
-                <span className="text-xs font-medium text-slate-400">{currentMonthYearBE}</span>
-              </div>
-
-              <div className="mt-3 space-y-3">
-                {leavesToday.length === 0 ? (
-                  <EmptyState
-                    compact
-                    variant="check"
-                    title="ไม่มีพนักงานลางานในวันนี้"
-                    description="บุคลากรทุกคนปฏิบัติหน้าที่ตามปกติ (เข้างานครบ 100%)"
-                  />
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {paginatedLeavesToday.map((req) => {
-                        const emp = employees.find(
-                          (e) =>
-                            (req.userId && (e.id === req.userId || e.raw_id === req.userId || String(e.raw_id) === String(req.userId))) ||
-                            (req.employeeId && e.employeeId && e.employeeId.toLowerCase() === req.employeeId.toLowerCase()) ||
-                            (req.employeeName && e.name && e.name.trim() === req.employeeName.trim())
-                        );
-                        const avatar =
-                          emp?.avatar ||
-                          req.avatar ||
-                          'https://i.pinimg.com/736x/f5/47/d8/f547d800625af9056d62efe8969aeea0.jpg';
-                        const dept = req.department || emp?.department || 'สำนักงานสหกรณ์จังหวัดขอนแก่น';
-                        const title = emp?.title || emp?.position || req.position || 'เจ้าหน้าที่สหกรณ์';
-                        const typeBadgeColor =
-                          req.typeKey === 'sick'
-                            ? 'bg-rose-100 text-rose-800'
-                            : req.typeKey === 'personal'
-                            ? 'bg-teal-100 text-teal-800'
-                            : req.typeKey === 'maternity'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-emerald-100 text-emerald-800';
-
-                        return (
-                          <div
-                            key={req.id}
-                            onClick={() => {
-                              if (setSelectedLeaveDetail) setSelectedLeaveDetail(req);
-                            }}
-                            className="p-3 rounded-2xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-100 hover:border-emerald-200 transition-colors flex items-center space-x-3 cursor-pointer group"
-                          >
-                            <img
-                              src={avatar}
-                              alt={req.employeeName}
-                              className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-500/20"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-800 transition-colors">
-                                {req.employeeName || emp?.name || 'เจ้าหน้าที่'}
-                              </p>
-                              <p className="text-[11px] text-slate-500 truncate">
-                                {title} • {dept}
-                              </p>
-                            </div>
-                            <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${typeBadgeColor}`}>
-                              {req.type || 'ลางาน'} ({req.days} วัน)
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Pagination Controls */}
-                    {totalLeavesTodayPages > 1 && (
-                      <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
-                        <span>
-                          หน้า {currentLeavesTodayPage} จาก {totalLeavesTodayPages} (ทั้งหมด {leavesToday.length} รายการ)
-                        </span>
-                        <div className="flex items-center space-x-1.5">
-                          <button
-                            type="button"
-                            disabled={currentLeavesTodayPage <= 1}
-                            onClick={() => setLeavesTodayPage((p) => Math.max(1, p - 1))}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
-                          >
-                            <ChevronLeft className="w-3.5 h-3.5" />
-                            <span>ก่อนหน้า</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={currentLeavesTodayPage >= totalLeavesTodayPages}
-                            onClick={() => setLeavesTodayPage((p) => Math.min(totalLeavesTodayPages, p + 1))}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
-                          >
-                            <span>ถัดไป</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <button
-                onClick={() => setActiveTab('calendar')}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center space-x-1.5"
-              >
-                <Calendar className="w-4 h-4 text-emerald-600" />
-                <span>เปิดดูปฏิทินวันลาทั้งองค์กร</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={() => setActiveTab('calendar')}
+          className="w-full py-2.5 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center space-x-1.5"
+        >
+          <Calendar className="w-4 h-4 text-emerald-600" />
+          <span>เปิดดูปฏิทินวันลาทั้งองค์กร</span>
+        </button>
       </div>
     </div>
   );
