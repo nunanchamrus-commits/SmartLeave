@@ -15,11 +15,13 @@ import {
   ChevronRight,
   ChevronDown,
   FileText,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useLeave } from '../../context/LeaveContext';
 import { downloadLeaveSlipPdf, downloadLeaveSummaryPdf } from '../../utils/exportPdf';
 import StatusConfirmModal from '../StatusConfirmModal';
 import EmptyState from '../EmptyState';
+import LeaveSummaryTable from '../LeaveSummaryTable';
 
 export default function ApproverView() {
   const {
@@ -217,6 +219,16 @@ export default function ApproverView() {
             >
               <CheckCircle className="w-3.5 h-3.5" />
               <span>รายการที่พิจารณาแล้ว ({historyRequests.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('summary-table')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 ${activeTab === 'summary-table'
+                ? 'bg-[#2F855A] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-200/60'
+                }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>ตารางสรุปการลา ({leaveRequests.length})</span>
             </button>
           </div>
         </div>
@@ -432,6 +444,11 @@ export default function ApproverView() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* TAB 3: FULL LEAVE SUMMARY TABLE */}
+          {activeTab === 'summary-table' && (
+            <LeaveSummaryTable requests={leaveRequests} />
           )}
         </div>
       </div>
