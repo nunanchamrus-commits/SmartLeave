@@ -636,7 +636,6 @@ export default function AdminEmployeesView() {
       'ลากิจคงเหลือ/สิทธิ์ (วัน)',
       'ลาป่วยคงเหลือ/สิทธิ์ (วัน)',
       'ลาคลอดคงเหลือ/สิทธิ์ (วัน)',
-      'คงเหลือสิทธิ์ลารวม (วัน)',
     ];
 
     const rows = filteredEmployees.map((emp) => {
@@ -653,7 +652,6 @@ export default function AdminEmployeesView() {
         `${s.personalRem}/${s.personalLimit}`,
         s.isSickAsActual ? 'เท่าที่ป่วยจริง' : `${s.sickRem}/${s.sickLimit}`,
         isMale ? '-' : `${s.maternityRem}/${s.maternityLimit}`,
-        `${s.generalRem}/${s.generalLimit}`,
       ];
     });
 
@@ -718,7 +716,7 @@ export default function AdminEmployeesView() {
             จัดการข้อมูลพนักงานและวันลา (Staff & Leave Management)
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            ดูจำนวนครั้งที่ลา คงเหลือสิทธิ์ลา และแก้ไขจำนวนวันลาของพนักงานแต่ละบุคคล
+            ดูจำนวนครั้งที่ลา และแก้ไขจำนวนวันลาของพนักงานแต่ละบุคคล
           </p>
         </div>
 
@@ -783,7 +781,6 @@ export default function AdminEmployeesView() {
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลากิจ</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลาป่วย</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">ลาคลอด</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">คงเหลือสิทธิ์ลา</th>
                 <th className="py-3 px-4 text-right whitespace-nowrap">
                   <span className="sr-only">แก้ไขวันลา</span>
                 </th>
@@ -792,7 +789,7 @@ export default function AdminEmployeesView() {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400 text-xs sm:text-sm">
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-xs sm:text-sm">
                     <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     ไม่พบรายชื่อพนักงานที่ตรงกับเงื่อนไขการค้นหา
                   </td>
@@ -912,13 +909,6 @@ export default function AdminEmployeesView() {
                         )}
                       </td>
 
-                      {/* Total Remaining Entitlement */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-[#2F855A] border border-emerald-200/80">
-                          {s.generalRem} / {s.generalLimit} วัน
-                        </span>
-                      </td>
-
                       {/* Action */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end space-x-1.5">
@@ -1027,16 +1017,14 @@ export default function AdminEmployeesView() {
                     </div>
 
                     <div className="p-2 bg-white rounded-xl border border-slate-100">
-                      <span className="text-[10px] text-slate-400 block font-medium">
-                        {isMale ? 'สิทธิ์รวมคงเหลือ' : 'ลาคลอด'}
-                      </span>
+                      <span className="text-[10px] text-slate-400 block font-medium">ลาคลอด</span>
                       {isMale ? (
-                        <span className="font-bold text-slate-800">{s.generalRem}/{s.generalLimit} วัน</span>
+                        <span className="font-bold text-slate-400">-</span>
                       ) : (
                         <span className="font-bold text-pink-600">{s.maternityRem}/{s.maternityLimit} วัน</span>
                       )}
                       <span className="text-[10px] text-slate-400 block">
-                        {isMale ? 'วันลาสะสม' : `ใช้ ${s.maternityUsed} วัน`}
+                        {isMale ? '-' : `ใช้ ${s.maternityUsed} วัน`}
                       </span>
                     </div>
                   </div>
