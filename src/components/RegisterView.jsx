@@ -506,16 +506,11 @@ export default function RegisterView({ onSwitchToLogin }) {
                 </div>
               </div>
 
-              {/* 1.2 ชื่อ - นามสกุล (ภาษาอังกฤษ) - สำหรับใช้เข้าสู่ระบบโดยไม่ต้องมีคำนำหน้า */}
+              {/* 1.2 ชื่อ - นามสกุล (ภาษาอังกฤษ) */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    ชื่อ - นามสกุล ภาษาอังกฤษ (English Name) <span className="text-red-500">*</span>
-                  </label>
-                  <span className="text-[11px] text-emerald-700 font-medium">
-                    (ใช้เป็นชื่อเข้าสู่ระบบ โดยไม่ต้องใส่คำนำหน้า)
-                  </span>
-                </div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ชื่อ - นามสกุล ภาษาอังกฤษ (English Name) <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <Globe className="w-4 h-4" />
@@ -524,7 +519,7 @@ export default function RegisterView({ onSwitchToLogin }) {
                     type="text"
                     value={formData.englishName}
                     onChange={handleEnglishNameChange}
-                    placeholder="เช่น Chanchai Mingkwan หรือ Panika Thammoeang"
+                    placeholder="เช่น Somchai Mankhong"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all"
                   />
                 </div>
@@ -856,7 +851,7 @@ export default function RegisterView({ onSwitchToLogin }) {
               {/* 1. English Name (Username) */}
               <div>
                 <span className="text-[11px] font-bold text-slate-700 block mb-1">
-                  1. ช่อง &quot;ชื่อ-สกุล ภาษาอังกฤษ&quot; (ใช้เป็นชื่อผู้ใช้เข้าสู่ระบบ โดยไม่มีคำนำหน้า):
+                  1. ช่อง &quot;ชื่อ-สกุล ภาษาอังกฤษ&quot; (ใช้เป็นชื่อผู้ใช้เข้าสู่ระบบ):
                 </span>
                 <div className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-emerald-300 shadow-xs gap-2">
                   <span className="font-mono font-bold text-sm sm:text-base text-emerald-950 truncate select-all">
